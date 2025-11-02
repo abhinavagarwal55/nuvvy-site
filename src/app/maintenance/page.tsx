@@ -236,7 +236,7 @@ export default function MaintenancePage() {
                 Request your free trial visit
               </h2>
               <p className="text-lg text-gray-600">
-                We'll schedule a quick balcony inspection before starting service.
+                We&apos;ll schedule a quick balcony inspection before starting service.
               </p>
             </div>
 
@@ -323,7 +323,7 @@ export default function MaintenancePage() {
               </a>
 
               <p className="text-xs text-gray-500 text-center">
-                We'll never share your details.
+                We&apos;ll never share your details.
               </p>
             </form>
           </div>

@@ -237,7 +237,7 @@ export default function Home() {
               href="/design"
               className="inline-flex items-center gap-2 text-green font-semibold hover:text-green-dark transition-colors text-lg"
             >
-              See what's possible → Explore Design Packages
+              See what&apos;s possible → Explore Design Packages
             </a>
           </div>
         </div>
@@ -300,7 +300,7 @@ export default function Home() {
                   />
                 </div>
                 <p className="text-sm text-gray-600 italic text-center">
-                  Our gardeners at work — keeping Bengaluru's balconies thriving.
+                  Our gardeners at work — keeping Bengaluru&apos;s balconies thriving.
                 </p>
               </div>
               
