@@ -1,26 +1,28 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+html, body {
+  @apply bg-butter text-ink antialiased;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Smooth scroll for in-page anchor navigation */
+html {
+  scroll-behavior: smooth;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  h1 { @apply font-display font-semibold leading-tight; }
+  h2 { @apply font-display font-semibold text-[28px] leading-snug; }
+  p  { @apply leading-[1.7]; }
+}
+
+@layer components {
+  .nv-card {
+    @apply bg-surface rounded-2xl border border-border shadow-card;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  .nv-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-leaf/70 focus-visible:ring-offset-2;
+  }
 }

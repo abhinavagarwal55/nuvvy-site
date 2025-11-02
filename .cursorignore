@@ -1,0 +1,8 @@
+# keep it simple until we're back to normal
+node_modules
+.next
+dist
+build
+public/**/*
+*.log
+.DS_Store
