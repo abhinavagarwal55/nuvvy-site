@@ -1,7 +1,7 @@
-// @ts-nocheck
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,7 +55,7 @@ export default function ContactPage() {
       } else {
         setIsSuccess(true);
       }
-    } catch (err) {
+    } catch {
       setErrors({ general: "Network error. Please try again." });
     } finally {
       setIsSubmitting(false);
@@ -72,10 +72,10 @@ export default function ContactPage() {
               <h1 className="text-3xl font-semibold text-green-dark mb-3">
                 Thanks! We’ve received your request.
               </h1>
-              <p className="text-gray-600">We’ll get back within 1 business day.</p>
-              <a href="/" className="inline-block mt-8 bg-green text-white px-6 py-3 rounded-xl">
+              <p className="text-gray-600">We&apos;ll get back within 1 business day.</p>
+              <Link href="/" className="inline-block mt-8 bg-green text-white px-6 py-3 rounded-xl">
                 Back to Home
-              </a>
+              </Link>
             </div>
           </div>
         </section>

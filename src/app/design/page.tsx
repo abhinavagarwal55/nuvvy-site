@@ -283,7 +283,7 @@ export default function DesignPage() {
               Ready to fall in love with your balcony?
             </h2>
             <p className="text-gray-600 mt-3">
-              Share a few details and we'll shape a plan that fits your space and budget.
+              Share a few details and we&apos;ll shape a plan that fits your space and budget.
             </p>
             <div className="mt-6">
               <a

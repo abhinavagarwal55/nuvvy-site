@@ -23,7 +23,7 @@ export default function Footer() {
 
           {/* Contact */}
           <div className="md:text-right">
-            <p className="text-sm text-text-muted">Questions? We're happy to help.</p>
+            <p className="text-sm text-text-muted">Questions? We&apos;re happy to help.</p>
           </div>
         </div>
 

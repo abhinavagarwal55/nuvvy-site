@@ -158,10 +158,10 @@ export default function Home() {
           {/* Header & Subtext */}
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-display font-semibold text-green-dark mb-4">
-              Your balcony isn't just a corner — it's your everyday escape.
+              Your balcony isn&apos;t just a corner — it&apos;s your everyday escape.
             </h2>
             <p className="text-lg text-gray-700 max-w-2xl mx-auto">
-              A little green, a little light, and a space that's all yours.
+              A little green, a little light, and a space that&apos;s all yours.
             </p>
           </div>
           
@@ -332,7 +332,7 @@ export default function Home() {
               Get in touch
             </h2>
             <p className="text-lg text-gray-700 mb-8 max-w-2xl mx-auto">
-              Tell us what you need — design or maintenance — and we'll get back within a day.
+              Tell us what you need — design or maintenance — and we&apos;ll get back within a day.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">

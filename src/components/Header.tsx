@@ -45,9 +45,9 @@ export default function Header() {
 
         {/* Desktop navigation */}
         <nav className="hidden md:flex gap-6 text-base font-medium text-gray-700">
-          <a href="/" className="hover:text-green transition-colors">Home</a>
-          <a href="/design" className="hover:text-green transition-colors">Design</a>
-          <a href="/maintenance" className="hover:text-green transition-colors">Maintenance</a>
+          <Link href="/" className="hover:text-green transition-colors">Home</Link>
+          <Link href="/design" className="hover:text-green transition-colors">Design</Link>
+          <Link href="/maintenance" className="hover:text-green transition-colors">Maintenance</Link>
         </nav>
 
         {/* Desktop primary CTA */}
@@ -92,22 +92,22 @@ export default function Header() {
       >
         <div className="container mx-auto px-6 lg:px-8 pb-3">
           <div className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            <a href="/" className="rounded-xl px-3 py-2 hover:bg-gray-50" onClick={() => setOpen(false)}>
+            <Link href="/" className="rounded-xl px-3 py-2 hover:bg-gray-50" onClick={() => setOpen(false)}>
               Home
-            </a>
-            <a href="/design" className="rounded-xl px-3 py-2 hover:bg-gray-50" onClick={() => setOpen(false)}>
+            </Link>
+            <Link href="/design" className="rounded-xl px-3 py-2 hover:bg-gray-50" onClick={() => setOpen(false)}>
               Design
-            </a>
-            <a href="/maintenance" className="rounded-xl px-3 py-2 hover:bg-gray-50" onClick={() => setOpen(false)}>
+            </Link>
+            <Link href="/maintenance" className="rounded-xl px-3 py-2 hover:bg-gray-50" onClick={() => setOpen(false)}>
               Maintenance
-            </a>
-            <a
+            </Link>
+            <Link
               href="/contact"
               className="mt-1 inline-flex items-center justify-center bg-green text-white font-semibold rounded-full px-4 py-2 text-sm shadow-soft hover:bg-green-dark nv-focus"
               onClick={() => setOpen(false)}
             >
               Contact Us
-            </a>
+            </Link>
           </div>
         </div>
       </div>
