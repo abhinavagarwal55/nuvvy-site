@@ -3,10 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+interface FormErrors {
+  general?: string;
+  serviceType?: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  locality?: string;
+  message?: string;
+}
+
 export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState<FormErrors | null>(null);
   const [serviceType, setServiceType] = useState<"design" | "maintenance" | "">("");
 
   // Prefill serviceType from ?service=design|maintenance
@@ -19,7 +29,7 @@ export default function ContactPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSubmitting(true);
-    setErrors({});
+    setErrors(null);
 
     const fd = new FormData(e.currentTarget);
 
@@ -51,7 +61,7 @@ export default function ContactPage() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setErrors(data?.errors || { general: "Something went wrong." });
+        setErrors((data?.errors as FormErrors) || { general: "Something went wrong." });
       } else {
         setIsSuccess(true);
       }
@@ -218,7 +228,7 @@ export default function ContactPage() {
 
               {/* General error */}
               {errors?.general ? (
-                <p className="text-red-600 text-sm mt-2">{String(errors.general)}</p>
+                <p className="text-red-600 text-sm mt-2">{String(errors?.general)}</p>
               ) : null}
             </form>
           </div>
