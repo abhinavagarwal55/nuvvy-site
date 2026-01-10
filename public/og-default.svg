@@ -1,0 +1,15 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ogGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0f8f0;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#f5f5f0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e8f5e8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#ogGradient)"/>
+  <circle cx="300" cy="200" r="80" fill="#22c55e" opacity="0.3"/>
+  <circle cx="900" cy="400" r="100" fill="#86efac" opacity="0.3"/>
+  <text x="600" y="300" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#1a6432" text-anchor="middle">Nuvvy</text>
+  <text x="600" y="380" font-family="Arial, sans-serif" font-size="32" fill="#065f46" text-anchor="middle">Balcony Garden Design &amp; Maintenance</text>
+  <text x="600" y="560" font-family="Arial, sans-serif" font-size="24" fill="#64748b" text-anchor="middle">Transform your balcony into a lush, low-effort sanctuary</text>
+</svg>

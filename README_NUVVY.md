@@ -63,3 +63,36 @@ They want a place to relax, host friends, or have their kids play safely — but
 - Cursor should read this before generating any copy, component, or layout.  
 - When creating new sections, stay consistent with this vibe.  
 - For CTAs, use helpful verbs like “See examples,” “Get a free mockup,” “Talk to us.”
+
+---
+
+## ⚙️ Environment Variables
+
+### Plant Catalog (Airtable Integration)
+To use Airtable as the data source for the Plant Catalog, add these variables to `.env.local`:
+
+```bash
+AIRTABLE_API_KEY=your_airtable_api_key_here
+AIRTABLE_BASE_ID=your_airtable_base_id_here
+AIRTABLE_PLANTS_TABLE=Plants
+```
+
+**Note:** If these variables are not set, the catalog will use mock data. See `.env.example` for a template.
+
+To get your Airtable credentials:
+1. API Key: Go to https://airtable.com/account → Personal access tokens
+2. Base ID: Found in your Airtable base URL or API documentation
+3. Table name: Defaults to "Plants" if not specified
+
+### Site URL (Open Graph Metadata)
+For proper Open Graph and Twitter card previews on social media (WhatsApp, Facebook, Twitter), add this to `.env.local`:
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://www.nuvvy.in
+```
+
+**Note:** 
+- For local development, use `http://localhost:3000`
+- For production, use your actual domain (e.g., `https://www.nuvvy.in`)
+- If not set, defaults to `http://localhost:3000` in development or `https://www.nuvvy.in` in production
+- This ensures absolute URLs for OG images and metadata
