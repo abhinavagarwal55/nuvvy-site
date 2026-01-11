@@ -121,9 +121,11 @@ export async function POST(req: NextRequest) {
           : null;
 
         // Mirror images to Supabase Storage if needed
-        if (!imageStorageUrl && isAirtableUrl(plantDetail.imageUrl)) {
+        // Explicit guard: URL must exist AND be an Airtable URL
+        if (!imageStorageUrl && plantDetail.imageUrl && isAirtableUrl(plantDetail.imageUrl)) {
           try {
             const storagePath = `plants/${plantDetail.id}/image`;
+            // TypeScript now knows plantDetail.imageUrl is string (not undefined)
             imageStorageUrl = await uploadExternalImageToStorage({
               bucket: "plant-images",
               path: storagePath,
@@ -136,9 +138,11 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        if (!thumbnailStorageUrl && isAirtableUrl(plantDetail.thumbnailUrl)) {
+        // Explicit guard: URL must exist AND be an Airtable URL
+        if (!thumbnailStorageUrl && plantDetail.thumbnailUrl && isAirtableUrl(plantDetail.thumbnailUrl)) {
           try {
             const storagePath = `plants/${plantDetail.id}/thumb`;
+            // TypeScript now knows plantDetail.thumbnailUrl is string (not undefined)
             thumbnailStorageUrl = await uploadExternalImageToStorage({
               bucket: "plant-images",
               path: storagePath,
