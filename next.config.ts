@@ -25,6 +25,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "airtableusercontent.com",
       },
+      {
+        protocol: "https",
+        hostname: "xkotfqrkvjxmwydroacw.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
 };
