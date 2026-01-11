@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listPlantsFromSupabase } from "@/lib/catalog/supabasePlantStore";
+import { toErrorMessage } from "@/lib/utils/errors";
 
 // Server-side API route for listing plants
 // Uses ISR caching: revalidates every 5 minutes (300 seconds)
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
       }
     );
   } catch (error) {
-    console.error("Error fetching plants:", error);
+    console.error("Error fetching plants:", toErrorMessage(error));
     return NextResponse.json({ error: "Failed to fetch plants", plants: [] }, { status: 500 });
   }
 }

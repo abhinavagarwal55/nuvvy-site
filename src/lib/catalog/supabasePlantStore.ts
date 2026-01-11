@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { toErrorMessage } from "@/lib/utils/errors";
 import type {
   PlantListItem,
   PlantDetail,
@@ -37,7 +38,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
       .order("name", { ascending: true });
 
     if (error) {
-      console.error("Supabase query error:", error);
+      console.error("Supabase query error:", toErrorMessage(error));
       return [];
     }
 
@@ -56,7 +57,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
       toxicity: mapToxicityFromDB(row.toxicity),
     }));
   } catch (error) {
-    console.error("Error fetching plants from Supabase:", error);
+    console.error("Error fetching plants from Supabase:", toErrorMessage(error));
     return [];
   }
 }
@@ -81,7 +82,7 @@ export async function getPlantFromSupabaseByAirtableId(
         // Row not found
         return null;
       }
-      console.error("Supabase query error:", error);
+      console.error("Supabase query error:", toErrorMessage(error));
       return null;
     }
 
@@ -101,7 +102,7 @@ export async function getPlantFromSupabaseByAirtableId(
       toxicity: mapToxicityFromDB(row.toxicity),
     };
   } catch (error) {
-    console.error(`Error fetching plant ${airtableId} from Supabase:`, error);
+    console.error(`Error fetching plant ${airtableId} from Supabase:`, toErrorMessage(error));
     return null;
   }
 }
@@ -126,7 +127,7 @@ export async function getPlantDetailFromSupabaseByAirtableId(
         // Row not found
         return null;
       }
-      console.error("Supabase query error:", error);
+      console.error("Supabase query error:", toErrorMessage(error));
       return null;
     }
 
@@ -150,7 +151,7 @@ export async function getPlantDetailFromSupabaseByAirtableId(
       wateringRequirement: mapWateringRequirementFromDB(row.watering_requirement),
     };
   } catch (error) {
-    console.error(`Error fetching plant detail ${airtableId} from Supabase:`, error);
+    console.error(`Error fetching plant detail ${airtableId} from Supabase:`, toErrorMessage(error));
     return null;
   }
 }
@@ -158,6 +159,8 @@ export async function getPlantDetailFromSupabaseByAirtableId(
 // Helper to map air_purifier from DB to AirPurifier type
 function mapAirPurifierFromDB(value: string | null | undefined): AirPurifier | undefined {
   if (!value) return undefined;
+  // Safely handle non-string values
+  if (typeof value !== "string") return undefined;
   const normalized = value.trim().toLowerCase();
   if (normalized === "yes" || normalized === "true" || normalized === "1") return "Yes";
   if (normalized === "no" || normalized === "false" || normalized === "0") return "No";
@@ -167,6 +170,8 @@ function mapAirPurifierFromDB(value: string | null | undefined): AirPurifier | u
 // Helper to map toxicity from DB to ToxicityLevel type
 function mapToxicityFromDB(value: string | null | undefined): ToxicityLevel | undefined {
   if (!value) return undefined;
+  // Safely handle non-string values
+  if (typeof value !== "string") return undefined;
   const lower = value.toLowerCase();
   if (lower.includes("safe") || lower.includes("pet safe")) return "Pet Safe";
   if (lower.includes("mildly")) return "Mildly Toxic";
@@ -177,6 +182,8 @@ function mapToxicityFromDB(value: string | null | undefined): ToxicityLevel | un
 // Helper to map watering requirement from DB to WateringRequirement type
 function mapWateringRequirementFromDB(value: string | null | undefined): WateringRequirement | undefined {
   if (!value) return undefined;
+  // Safely handle non-string values
+  if (typeof value !== "string") return undefined;
   const lower = value.toLowerCase();
   if (lower.includes("very high")) return "Very High";
   if (lower.includes("high")) return "High";

@@ -6,16 +6,15 @@ import { createClient } from "@supabase/supabase-js";
  * Never import this in client components
  */
 export function getSupabaseAdmin() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error(
-      "Missing Supabase configuration: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in environment variables"
-    );
+  // Validate env vars are strings with length > 0
+  if (typeof url !== "string" || url.length === 0 || typeof key !== "string" || key.length === 0) {
+    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+  return createClient(url, key, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
