@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { uploadExternalImageToStorage } from "@/lib/supabase/storage";
 import { createAirtableStore } from "@/lib/catalog/airtableStore";
 import type { PlantDetail } from "@/lib/catalog/types";
 
@@ -67,6 +68,33 @@ export async function POST(req: NextRequest) {
 
     // Get full plant details for each (needed for all fields)
     const supabase = getSupabaseAdmin();
+    
+    // Fetch existing storage URLs to avoid re-uploading
+    const { data: existingPlants } = await supabase
+      .from("plants")
+      .select("airtable_id, image_storage_url, thumbnail_storage_url");
+    
+    const existingStorageUrls = new Map<string, { image?: string; thumbnail?: string }>();
+    if (existingPlants) {
+      for (const plant of existingPlants) {
+        existingStorageUrls.set(plant.airtable_id, {
+          image: plant.image_storage_url || undefined,
+          thumbnail: plant.thumbnail_storage_url || undefined,
+        });
+      }
+    }
+
+    // Helper to check if URL is from Airtable
+    const isAirtableUrl = (url: string | undefined | null): boolean => {
+      if (!url) return false;
+      try {
+        const urlObj = new URL(url);
+        return urlObj.hostname.includes("airtableusercontent.com");
+      } catch {
+        return false;
+      }
+    };
+
     let synced = 0;
     let failed = 0;
     const failedIds: string[] = [];
@@ -83,6 +111,46 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        // Check existing storage URLs (only use if non-empty string)
+        const existing = existingStorageUrls.get(plantDetail.id);
+        let imageStorageUrl = (existing?.image && typeof existing.image === "string" && existing.image.trim() !== "") 
+          ? existing.image 
+          : null;
+        let thumbnailStorageUrl = (existing?.thumbnail && typeof existing.thumbnail === "string" && existing.thumbnail.trim() !== "") 
+          ? existing.thumbnail 
+          : null;
+
+        // Mirror images to Supabase Storage if needed
+        if (!imageStorageUrl && isAirtableUrl(plantDetail.imageUrl)) {
+          try {
+            const storagePath = `plants/${plantDetail.id}/image`;
+            imageStorageUrl = await uploadExternalImageToStorage({
+              bucket: "plant-images",
+              path: storagePath,
+              url: plantDetail.imageUrl,
+            });
+            console.log(`[Sync] Uploaded image for ${plantDetail.id}`);
+          } catch (error) {
+            console.error(`[Sync] Failed to upload image for ${plantDetail.id}:`, error);
+            // Continue without storage URL, will use Airtable URL as fallback
+          }
+        }
+
+        if (!thumbnailStorageUrl && isAirtableUrl(plantDetail.thumbnailUrl)) {
+          try {
+            const storagePath = `plants/${plantDetail.id}/thumb`;
+            thumbnailStorageUrl = await uploadExternalImageToStorage({
+              bucket: "plant-images",
+              path: storagePath,
+              url: plantDetail.thumbnailUrl,
+            });
+            console.log(`[Sync] Uploaded thumbnail for ${plantDetail.id}`);
+          } catch (error) {
+            console.error(`[Sync] Failed to upload thumbnail for ${plantDetail.id}:`, error);
+            // Continue without storage URL, will use Airtable URL as fallback
+          }
+        }
+
         // Prepare upsert data
         const upsertData = {
           airtable_id: plantDetail.id,
@@ -93,6 +161,8 @@ export async function POST(req: NextRequest) {
           air_purifier: plantDetail.airPurifier || null,
           image_url: plantDetail.imageUrl || null,
           thumbnail_url: plantDetail.thumbnailUrl || null,
+          image_storage_url: imageStorageUrl,
+          thumbnail_storage_url: thumbnailStorageUrl,
           toxicity: plantDetail.toxicity || null,
           watering_requirement: plantDetail.wateringRequirement || null,
           horticulturist_notes: plantDetail.horticulturistNotes || null,

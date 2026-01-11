@@ -98,21 +98,67 @@ function mapWateringRequirement(value: unknown): WateringRequirement | undefined
   return undefined;
 }
 
-// Helper function to extract image URL from Airtable attachment field
-function getImageUrl(fields: Record<string, unknown>, useThumbnail = false): string | undefined {
-  const imageField = fields["Image"];
-  if (!imageField || !Array.isArray(imageField) || imageField.length === 0) {
-    return undefined;
+// Helper function to extract image URLs from Airtable attachment field
+// Returns { imageUrl: string | null, thumbnailUrl: string | null }
+function getAirtableAttachmentUrls(value: unknown): {
+  imageUrl: string | null;
+  thumbnailUrl: string | null;
+} {
+  // Defensive checks: must be an array with at least one item
+  if (!value || !Array.isArray(value) || value.length === 0) {
+    return { imageUrl: null, thumbnailUrl: null };
   }
 
-  const attachment = imageField[0] as AirtableAttachment;
-  if (!attachment) return undefined;
-
-  if (useThumbnail && attachment.thumbnails?.large?.url) {
-    return attachment.thumbnails.large.url;
+  // Get first attachment object
+  const firstAttachment = value[0];
+  if (!firstAttachment || typeof firstAttachment !== "object" || firstAttachment === null) {
+    return { imageUrl: null, thumbnailUrl: null };
   }
 
-  return attachment.url;
+  // Type guard for attachment structure
+  const attachment = firstAttachment as Partial<AirtableAttachment>;
+
+  // Extract imageUrl from attachment.url (must be string)
+  let imageUrl: string | null = null;
+  if (attachment.url && typeof attachment.url === "string" && attachment.url.trim() !== "") {
+    imageUrl = attachment.url;
+  }
+
+  // Extract thumbnailUrl: prefer large, then small, then null
+  let thumbnailUrl: string | null = null;
+  if (attachment.thumbnails && typeof attachment.thumbnails === "object") {
+    const thumbnails = attachment.thumbnails as Partial<AirtableAttachment["thumbnails"]>;
+    
+    // Try large first
+    if (
+      thumbnails.large &&
+      typeof thumbnails.large === "object" &&
+      thumbnails.large.url &&
+      typeof thumbnails.large.url === "string" &&
+      thumbnails.large.url.trim() !== ""
+    ) {
+      thumbnailUrl = thumbnails.large.url;
+    }
+    // Fall back to small
+    else if (
+      thumbnails.small &&
+      typeof thumbnails.small === "object" &&
+      thumbnails.small.url &&
+      typeof thumbnails.small.url === "string" &&
+      thumbnails.small.url.trim() !== ""
+    ) {
+      thumbnailUrl = thumbnails.small.url;
+    }
+  }
+
+  // Debug logging (non-production only)
+  if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+    console.log(
+      `[Airtable] attachment parse: image_url present: ${imageUrl !== null}, thumbnail_url present: ${thumbnailUrl !== null}`
+    );
+  }
+
+  return { imageUrl, thumbnailUrl };
 }
 
 // Convert Airtable record to PlantListItem
@@ -126,12 +172,16 @@ function recordToListItem(record: AirtableRecord): PlantListItem | null {
     return null;
   }
 
+  // Extract image URLs from Airtable attachment field
+  const imageField = fields["Image"] || fields["Images"];
+  const { imageUrl, thumbnailUrl } = getAirtableAttachmentUrls(imageField);
+
   return {
     id: record.id,
     name,
     category: mapCategory(fields["Category"]),
     light: mapLightRequirement(fields["Light Requirement"]),
-    thumbnailUrl: getImageUrl(fields, true) || "/images/plant-placeholder.svg",
+    thumbnailUrl: thumbnailUrl || undefined,
     airPurifier: mapAirPurifier(fields["Air Purifier"]),
     toxicity: mapToxicityLevel(fields["Toxicity"]),
   };
@@ -151,10 +201,14 @@ function recordToDetail(record: AirtableRecord): PlantDetail | null {
   const listItem = recordToListItem(record);
   if (!listItem) return null;
 
+  // Extract image URLs from Airtable attachment field (if not already done in listItem)
+  const imageField = fields["Image"] || fields["Images"];
+  const { imageUrl } = getAirtableAttachmentUrls(imageField);
+
   return {
     ...listItem,
     scientificName: typeof fields["Scientific Name"] === "string" ? fields["Scientific Name"] : undefined,
-    imageUrl: getImageUrl(fields, false) || "/images/plant-placeholder.svg",
+    imageUrl: imageUrl || undefined,
     horticulturistNotes: typeof fields["Horticulturist Notes"] === "string" ? fields["Horticulturist Notes"] : undefined,
     wateringRequirement: mapWateringRequirement(fields["Watering Requirement"]),
     soilMix: typeof fields["Soil Mix"] === "string" ? fields["Soil Mix"] : undefined,

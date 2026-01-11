@@ -20,9 +20,21 @@ interface SupabasePlantRow {
   air_purifier?: string | null;
   image_url?: string | null;
   thumbnail_url?: string | null;
+  image_storage_url?: string | null;
+  thumbnail_storage_url?: string | null;
   toxicity?: string | null;
   watering_requirement?: string | null;
   horticulturist_notes?: string | null;
+}
+
+// Helper to get preferred image URL (storage > Airtable > placeholder)
+function getPreferredImageUrl(
+  storageUrl: string | null | undefined,
+  fallbackUrl: string | null | undefined
+): string | undefined {
+  if (storageUrl) return storageUrl;
+  if (fallbackUrl) return fallbackUrl;
+  return undefined;
 }
 
 /**
@@ -34,7 +46,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
 
     const { data, error } = await supabase
       .from("plants")
-      .select("airtable_id, name, category, light, air_purifier, thumbnail_url, image_url, toxicity")
+      .select("airtable_id, name, category, light, air_purifier, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url, toxicity")
       .order("name", { ascending: true });
 
     if (error) {
@@ -52,7 +64,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
       name: row.name,
       category: row.category as PlantCategory,
       light: row.light as LightRequirement,
-      thumbnailUrl: row.thumbnail_url || row.image_url || undefined,
+      thumbnailUrl: getPreferredImageUrl(row.thumbnail_storage_url, row.thumbnail_url || row.image_url),
       airPurifier: mapAirPurifierFromDB(row.air_purifier),
       toxicity: mapToxicityFromDB(row.toxicity),
     }));
@@ -73,7 +85,7 @@ export async function getPlantFromSupabaseByAirtableId(
 
     const { data, error } = await supabase
       .from("plants")
-      .select("airtable_id, name, category, light, air_purifier, thumbnail_url, image_url, toxicity")
+      .select("airtable_id, name, category, light, air_purifier, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url, toxicity")
       .eq("airtable_id", airtableId)
       .single();
 
@@ -97,7 +109,7 @@ export async function getPlantFromSupabaseByAirtableId(
       name: row.name,
       category: row.category as PlantCategory,
       light: row.light as LightRequirement,
-      thumbnailUrl: row.thumbnail_url || row.image_url || undefined,
+      thumbnailUrl: getPreferredImageUrl(row.thumbnail_storage_url, row.thumbnail_url || row.image_url),
       airPurifier: mapAirPurifierFromDB(row.air_purifier),
       toxicity: mapToxicityFromDB(row.toxicity),
     };
@@ -142,8 +154,8 @@ export async function getPlantDetailFromSupabaseByAirtableId(
       name: row.name,
       category: row.category as PlantCategory,
       light: row.light as LightRequirement,
-      thumbnailUrl: row.thumbnail_url || row.image_url || undefined,
-      imageUrl: row.image_url || undefined,
+      thumbnailUrl: getPreferredImageUrl(row.thumbnail_storage_url, row.thumbnail_url || row.image_url),
+      imageUrl: getPreferredImageUrl(row.image_storage_url, row.image_url),
       airPurifier: mapAirPurifierFromDB(row.air_purifier),
       toxicity: mapToxicityFromDB(row.toxicity),
       scientificName: row.scientific_name || undefined,
