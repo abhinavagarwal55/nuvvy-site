@@ -129,25 +129,25 @@ function getAirtableAttachmentUrls(value: unknown): {
   if (attachment.thumbnails && typeof attachment.thumbnails === "object") {
     const thumbnails = attachment.thumbnails as Partial<AirtableAttachment["thumbnails"]>;
     
-    // Try large first
+    // Try large first (use optional chaining to safely access nested properties)
+    const largeUrl = thumbnails.large?.url;
     if (
-      thumbnails.large &&
-      typeof thumbnails.large === "object" &&
-      thumbnails.large.url &&
-      typeof thumbnails.large.url === "string" &&
-      thumbnails.large.url.trim() !== ""
+      largeUrl &&
+      typeof largeUrl === "string" &&
+      largeUrl.trim() !== ""
     ) {
-      thumbnailUrl = thumbnails.large.url;
+      thumbnailUrl = largeUrl;
     }
     // Fall back to small
-    else if (
-      thumbnails.small &&
-      typeof thumbnails.small === "object" &&
-      thumbnails.small.url &&
-      typeof thumbnails.small.url === "string" &&
-      thumbnails.small.url.trim() !== ""
-    ) {
-      thumbnailUrl = thumbnails.small.url;
+    else {
+      const smallUrl = thumbnails.small?.url;
+      if (
+        smallUrl &&
+        typeof smallUrl === "string" &&
+        smallUrl.trim() !== ""
+      ) {
+        thumbnailUrl = smallUrl;
+      }
     }
   }
 
