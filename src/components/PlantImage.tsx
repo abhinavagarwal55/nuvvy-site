@@ -37,9 +37,23 @@ export default function PlantImage({
     }
   };
 
+  // Determine if this is a Supabase Storage URL (only for unoptimized flag)
+  const isSupabaseStorageUrl = (url: string | undefined | null): boolean => {
+    if (!url) return false;
+    try {
+      const urlObj = new URL(url);
+      return (
+        urlObj.hostname.includes("supabase.co") &&
+        urlObj.pathname.includes("/storage/v1/object/public/")
+      );
+    } catch {
+      return false;
+    }
+  };
+
   // Use provided src, fallback to placeholder only on error or if src is missing
   const finalSrc = imageError || !src ? "/images/plant-placeholder.svg" : src;
-  const shouldUseUnoptimized = isAirtableUrl(src) && !imageError;
+  const shouldUseUnoptimized = (isAirtableUrl(src) || isSupabaseStorageUrl(src)) && !imageError;
 
   // Common props
   const commonProps = {
