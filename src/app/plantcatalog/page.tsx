@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import PlantImage from "@/components/PlantImage";
 import { getCatalogStore, type PlantListItem, type PlantCategory, type AirPurifier } from "@/lib/catalog";
 
 export default function PlantCatalogPage() {
@@ -159,8 +159,8 @@ export default function PlantCatalogPage() {
                     className="group block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow border border-gray-200"
                   >
                     <div className="aspect-square relative bg-gray-100">
-                      <Image
-                        src={plant.thumbnailUrl || "/images/plant-placeholder.svg"}
+                      <PlantImage
+                        src={plant.thumbnailUrl}
                         alt={plant.name}
                         fill
                         className="object-cover group-hover:scale-105 transition-transform duration-300"

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import PlantImage from "@/components/PlantImage";
 import { useParams } from "next/navigation";
 import { getCatalogStore, type PlantDetail } from "@/lib/catalog";
 
@@ -71,8 +71,8 @@ export default function PlantDetailPage() {
 
       {/* Hero Image - Full Bleed */}
       <div className="relative w-full h-[42vh] md:h-[520px] bg-gray-100">
-        <Image
-          src={plant.imageUrl || "/images/plant-placeholder.svg"}
+        <PlantImage
+          src={plant.imageUrl}
           alt={plant.name}
           fill
           className="object-cover"
