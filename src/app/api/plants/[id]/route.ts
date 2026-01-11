@@ -1,30 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAirtableStore } from "@/lib/catalog/airtableStore";
-import { mockCatalogStore } from "@/lib/catalog/mockStore";
+import { getPlantDetailFromSupabaseByAirtableId } from "@/lib/catalog/supabasePlantStore";
 
 // Server-side API route for getting a single plant by ID
 // Uses ISR caching: revalidates every hour (3600 seconds)
+// Reads from Supabase (not Airtable)
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const hasAirtableConfig =
-      process.env.AIRTABLE_API_KEY && process.env.AIRTABLE_BASE_ID;
-
-    let store = mockCatalogStore;
-
-    if (hasAirtableConfig) {
-      try {
-        store = createAirtableStore();
-      } catch (error) {
-        console.error("Failed to create Airtable store, falling back to mock:", error);
-        store = mockCatalogStore;
-      }
-    }
-
-    const plant = await store.getPlantById(id);
+    const plant = await getPlantDetailFromSupabaseByAirtableId(id);
 
     if (!plant) {
       return NextResponse.json({ error: "Plant not found" }, { status: 404 });

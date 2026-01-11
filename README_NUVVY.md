@@ -96,3 +96,18 @@ NEXT_PUBLIC_SITE_URL=https://www.nuvvy.in
 - For production, use your actual domain (e.g., `https://www.nuvvy.in`)
 - If not set, defaults to `http://localhost:3000` in development or `https://www.nuvvy.in` in production
 - This ensures absolute URLs for OG images and metadata
+
+### Plant Catalog Sync (Supabase)
+The plant catalog reads from Supabase, not Airtable directly. To sync plants from Airtable to Supabase:
+
+```bash
+curl -X POST http://localhost:3000/api/admin/sync-plants \
+  -H "x-admin-secret: your_admin_sync_secret_here"
+```
+
+**Required environment variables:**
+- `SUPABASE_URL` - Your Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (for server-side writes)
+- `ADMIN_SYNC_SECRET` - Secret key for authenticating sync requests
+
+**Note:** The sync endpoint fetches all plants from Airtable and upserts them into Supabase using `airtable_id` as the unique key. This ensures the website can work even if Airtable is temporarily unavailable.

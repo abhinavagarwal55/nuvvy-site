@@ -225,8 +225,12 @@ class AirtableStore implements CatalogStore {
     try {
       const allRecords: AirtableRecord[] = [];
       let offset: string | undefined;
+      let pageNumber = 1;
+      const maxPages = 20;
+      const isServer = typeof window === "undefined";
 
-      // Paginated fetch loop (Airtable returns max 100 records per page)
+      // Manual pagination loop using Airtable REST API
+      // Loop until offset is absent or maxPages is reached
       do {
         const url = new URL(this.getBaseUrl());
         url.searchParams.set("pageSize", "100");
@@ -240,9 +244,28 @@ class AirtableStore implements CatalogStore {
         });
 
         const data = (await response.json()) as AirtableResponse;
+
+        // Debug logging (server-side only)
+        if (isServer) {
+          console.log(`[Airtable] Fetched page ${pageNumber}: ${data.records.length} records`);
+        }
+
         allRecords.push(...data.records);
         offset = data.offset;
+        pageNumber++;
+
+        // Guard against infinite loops
+        if (pageNumber > maxPages) {
+          if (isServer) {
+            console.warn(`[Airtable] Reached maxPages limit (${maxPages}). Stopping pagination.`);
+          }
+          break;
+        }
       } while (offset);
+
+      if (isServer) {
+        console.log(`[Airtable] Total records fetched: ${allRecords.length}`);
+      }
 
       // Map records to PlantListItem, filtering out invalid ones
       const plants = allRecords
@@ -251,7 +274,7 @@ class AirtableStore implements CatalogStore {
 
       return plants;
     } catch (error) {
-      console.error("Error fetching plants from Airtable:", error);
+      console.error("Airtable fetch failed", error);
       return [];
     }
   }
