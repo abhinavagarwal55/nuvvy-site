@@ -5,6 +5,9 @@ import Link from "next/link";
 import PlantImage from "@/components/PlantImage";
 import { getCatalogStore, type PlantListItem, type PlantCategory, type AirPurifier } from "@/lib/catalog";
 
+// Force dynamic rendering to always fetch latest Supabase data
+export const dynamic = "force-dynamic";
+
 export default function PlantCatalogPage() {
   const [plants, setPlants] = useState<PlantListItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
