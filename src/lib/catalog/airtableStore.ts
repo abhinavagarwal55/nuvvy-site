@@ -125,29 +125,27 @@ function getAirtableAttachmentUrls(value: unknown): {
   }
 
   // Extract thumbnailUrl: prefer large, then small, then null
+  // Use optional chaining directly on attachment.thumbnails to avoid TypeScript errors
   let thumbnailUrl: string | null = null;
-  if (attachment.thumbnails && typeof attachment.thumbnails === "object") {
-    const thumbnails = attachment.thumbnails as Partial<AirtableAttachment["thumbnails"]>;
-    
-    // Try large first (use optional chaining to safely access nested properties)
-    const largeUrl = thumbnails.large?.url;
+  
+  // Try large first (use optional chaining to safely access nested properties)
+  const largeUrl = attachment.thumbnails?.large?.url;
+  if (
+    largeUrl &&
+    typeof largeUrl === "string" &&
+    largeUrl.trim() !== ""
+  ) {
+    thumbnailUrl = largeUrl;
+  }
+  // Fall back to small
+  else {
+    const smallUrl = attachment.thumbnails?.small?.url;
     if (
-      largeUrl &&
-      typeof largeUrl === "string" &&
-      largeUrl.trim() !== ""
+      smallUrl &&
+      typeof smallUrl === "string" &&
+      smallUrl.trim() !== ""
     ) {
-      thumbnailUrl = largeUrl;
-    }
-    // Fall back to small
-    else {
-      const smallUrl = thumbnails.small?.url;
-      if (
-        smallUrl &&
-        typeof smallUrl === "string" &&
-        smallUrl.trim() !== ""
-      ) {
-        thumbnailUrl = smallUrl;
-      }
+      thumbnailUrl = smallUrl;
     }
   }
 
