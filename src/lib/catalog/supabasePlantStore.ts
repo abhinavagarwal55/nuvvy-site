@@ -27,32 +27,12 @@ interface SupabasePlantRow {
   horticulturist_notes?: string | null;
 }
 
-// Helper to get preferred image URL from plant row
-// Priority: image_storage_url → image_url → undefined
-function getPreferredImageUrl(plant: SupabasePlantRow): string | undefined {
-  if (plant.image_storage_url && plant.image_storage_url.trim() !== "") {
-    return plant.image_storage_url;
-  }
-
-  if (plant.image_url && plant.image_url.trim() !== "") {
-    return plant.image_url;
-  }
-
-  return undefined;
-}
-
-// Helper to get preferred thumbnail URL from plant row
-// Priority: thumbnail_storage_url → thumbnail_url → undefined
-function getPreferredThumbnailUrl(plant: SupabasePlantRow): string | undefined {
-  if (plant.thumbnail_storage_url && plant.thumbnail_storage_url.trim() !== "") {
-    return plant.thumbnail_storage_url;
-  }
-
-  if (plant.thumbnail_url && plant.thumbnail_url.trim() !== "") {
-    return plant.thumbnail_url;
-  }
-
-  return undefined;
+// Helper to normalize image URL (validate and return valid HTTP URL or undefined)
+function normalizeImageUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (typeof url !== "string") return undefined;
+  if (!url.startsWith("http")) return undefined;
+  return url;
 }
 
 /**
@@ -77,15 +57,38 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
     }
 
     // Map Supabase rows to PlantListItem
-    return data.map((row: SupabasePlantRow) => ({
-      id: row.airtable_id, // Use airtable_id as id for compatibility with existing UI
-      name: row.name,
-      category: row.category as PlantCategory,
-      light: row.light as LightRequirement,
-      thumbnailUrl: getPreferredThumbnailUrl(row),
-      airPurifier: mapAirPurifierFromDB(row.air_purifier),
-      toxicity: mapToxicityFromDB(row.toxicity),
-    }));
+    return data.map((row: SupabasePlantRow) => {
+      const imageUrl =
+        normalizeImageUrl(row.image_storage_url) ??
+        normalizeImageUrl(row.image_url) ??
+        undefined;
+
+      const thumbnailUrl =
+        normalizeImageUrl(row.thumbnail_storage_url) ??
+        normalizeImageUrl(row.thumbnail_url) ??
+        undefined;
+
+      // Debug logging (dev only)
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        console.log("[PlantImage]", {
+          id: row.airtable_id,
+          image_storage_url: row.image_storage_url,
+          image_url: row.image_url,
+          resolved: imageUrl,
+        });
+      }
+
+      return {
+        id: row.airtable_id, // Use airtable_id as id for compatibility with existing UI
+        name: row.name,
+        category: row.category as PlantCategory,
+        light: row.light as LightRequirement,
+        thumbnailUrl,
+        imageUrl,
+        airPurifier: mapAirPurifierFromDB(row.air_purifier),
+        toxicity: mapToxicityFromDB(row.toxicity),
+      };
+    });
   } catch (error) {
     console.error("Error fetching plants from Supabase:", toErrorMessage(error));
     return [];
@@ -122,12 +125,33 @@ export async function getPlantFromSupabaseByAirtableId(
 
     const row = data as SupabasePlantRow;
 
+    const imageUrl =
+      normalizeImageUrl(row.image_storage_url) ??
+      normalizeImageUrl(row.image_url) ??
+      undefined;
+
+    const thumbnailUrl =
+      normalizeImageUrl(row.thumbnail_storage_url) ??
+      normalizeImageUrl(row.thumbnail_url) ??
+      undefined;
+
+    // Debug logging (dev only)
+    if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+      console.log("[PlantImage]", {
+        id: row.airtable_id,
+        image_storage_url: row.image_storage_url,
+        image_url: row.image_url,
+        resolved: imageUrl,
+      });
+    }
+
     return {
       id: row.airtable_id,
       name: row.name,
       category: row.category as PlantCategory,
       light: row.light as LightRequirement,
-      thumbnailUrl: getPreferredThumbnailUrl(row),
+      thumbnailUrl,
+      imageUrl,
       airPurifier: mapAirPurifierFromDB(row.air_purifier),
       toxicity: mapToxicityFromDB(row.toxicity),
     };
@@ -167,13 +191,33 @@ export async function getPlantDetailFromSupabaseByAirtableId(
 
     const row = data as SupabasePlantRow;
 
+    const imageUrl =
+      normalizeImageUrl(row.image_storage_url) ??
+      normalizeImageUrl(row.image_url) ??
+      undefined;
+
+    const thumbnailUrl =
+      normalizeImageUrl(row.thumbnail_storage_url) ??
+      normalizeImageUrl(row.thumbnail_url) ??
+      undefined;
+
+    // Debug logging (dev only)
+    if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+      console.log("[PlantImage]", {
+        id: row.airtable_id,
+        image_storage_url: row.image_storage_url,
+        image_url: row.image_url,
+        resolved: imageUrl,
+      });
+    }
+
     return {
       id: row.airtable_id,
       name: row.name,
       category: row.category as PlantCategory,
       light: row.light as LightRequirement,
-      thumbnailUrl: getPreferredThumbnailUrl(row),
-      imageUrl: getPreferredImageUrl(row),
+      thumbnailUrl,
+      imageUrl,
       airPurifier: mapAirPurifierFromDB(row.air_purifier),
       toxicity: mapToxicityFromDB(row.toxicity),
       scientificName: row.scientific_name || undefined,

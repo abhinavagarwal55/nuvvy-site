@@ -31,6 +31,7 @@ export interface PlantListItem {
   category: PlantCategory;
   light: LightRequirement;
   thumbnailUrl?: string;
+  imageUrl?: string;
   airPurifier?: AirPurifier;
   // Toxicity kept for backward compatibility but not rendered in UI
   toxicity?: ToxicityLevel;

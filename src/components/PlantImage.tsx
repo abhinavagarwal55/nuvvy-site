@@ -26,7 +26,7 @@ export default function PlantImage({
 }: PlantImageProps) {
   const [imageError, setImageError] = useState(false);
 
-  // Determine if this is an Airtable URL
+  // Determine if this is an Airtable URL (only for unoptimized flag)
   const isAirtableUrl = (url: string | undefined | null): boolean => {
     if (!url) return false;
     try {
@@ -37,7 +37,7 @@ export default function PlantImage({
     }
   };
 
-  // Get the final image source
+  // Use provided src, fallback to placeholder only on error or if src is missing
   const finalSrc = imageError || !src ? "/images/plant-placeholder.svg" : src;
   const shouldUseUnoptimized = isAirtableUrl(src) && !imageError;
 
