@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import PlantImage from "@/components/PlantImage";
+import PlantImageWithShare from "@/components/PlantImageWithShare";
 import { useParams } from "next/navigation";
 import { getCatalogStore, type PlantDetail } from "@/lib/catalog";
 
@@ -71,7 +71,7 @@ export default function PlantDetailPage() {
 
       {/* Hero Image - Full Bleed */}
       <div className="relative w-full h-[42vh] md:h-[520px] bg-gray-100">
-        <PlantImage
+        <PlantImageWithShare
           src={plant.imageUrl}
           alt={plant.name}
           fill
