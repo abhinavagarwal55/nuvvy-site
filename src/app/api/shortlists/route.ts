@@ -70,7 +70,11 @@ export async function POST(req: NextRequest) {
             thumb: plant.thumbnailUrl || plant.imageUrl || null,
             category: plant.category,
             light: plant.light,
-            airPurifier: plant.airPurifier === "Yes",
+            airPurifier: Boolean(
+              typeof plant.airPurifier === "boolean" 
+                ? plant.airPurifier 
+                : plant.airPurifier === "Yes"
+            ),
           });
         }
       } catch (error) {
