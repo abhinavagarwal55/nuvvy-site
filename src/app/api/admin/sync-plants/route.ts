@@ -14,6 +14,16 @@ interface SyncResponse {
 }
 
 export async function POST(req: NextRequest) {
+  // Gate: Airtable sync is disabled by default since Supabase is now canonical
+  // Set ENABLE_AIRTABLE_SYNC=true to re-enable (for migration purposes only)
+  const enableAirtableSync = process.env.ENABLE_AIRTABLE_SYNC;
+  if (enableAirtableSync !== "true") {
+    return NextResponse.json(
+      { error: "Airtable sync disabled. Supabase is canonical." },
+      { status: 410 }
+    );
+  }
+
   try {
     // Check admin secret header
     const adminSecret = req.headers.get("x-admin-secret");

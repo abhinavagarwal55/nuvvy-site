@@ -42,9 +42,10 @@ export interface PlantDetail extends PlantListItem {
   scientificName?: string;
   imageUrl?: string;
   horticulturistNotes?: string;
-  wateringRequirement?: WateringRequirement;
+  wateringRequirement?: WateringRequirement | string; // Allow enum or raw string
   soilMix?: string;
   fertilizationRequirement?: string;
+  airPurifier?: boolean; // Boolean for detail page (Yes/No display)
 }
 
 // Catalog Store Interface

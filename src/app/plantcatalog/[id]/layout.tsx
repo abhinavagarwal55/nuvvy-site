@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getCatalogStore } from "@/lib/catalog";
+import { getPlantDetailFromSupabaseByAirtableId } from "@/lib/catalog/supabasePlantStore";
 import { getAbsoluteImageUrl, getSiteUrl, truncateText } from "@/lib/utils/metadata";
 import { OG_DEFAULT_IMAGE } from "@/lib/constants";
 
@@ -10,8 +10,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   try {
     const { id } = await params;
-    const store = getCatalogStore();
-    const plant = await store.getPlantById(id);
+    // Use Supabase directly for public plant catalog (not Airtable)
+    const plant = await getPlantDetailFromSupabaseByAirtableId(id);
 
     if (!plant) {
       // Fallback metadata for plant not found

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import PlantImageWithShare from "@/components/PlantImageWithShare";
 import { useParams } from "next/navigation";
+import { Droplet, Layers, FlaskConical, Leaf, Wind } from "lucide-react";
 import { getCatalogStore, type PlantDetail } from "@/lib/catalog";
 
 export default function PlantDetailPage() {
@@ -102,7 +103,7 @@ export default function PlantDetailPage() {
             <span className="inline-flex items-center bg-yellow/30 text-green-dark px-3 py-1.5 rounded-full text-sm font-medium">
               {plant.light}
             </span>
-            {plant.airPurifier === "Yes" && (
+            {(plant.airPurifier === true || plant.airPurifier === "Yes") && (
               <span className="inline-flex items-center bg-green-50 text-green-700 px-3 py-1.5 rounded-full text-xs font-medium">
                 Air Purifier
               </span>
@@ -121,35 +122,68 @@ export default function PlantDetailPage() {
             </div>
           )}
 
-          {/* Care Basics */}
-          <div>
-            <h2 className="text-xl font-display font-semibold text-green-dark mb-4">
-              Care Basics
-            </h2>
-            <div className="space-y-4">
-              {plant.wateringRequirement && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-1">Watering Requirement</h3>
-                  <p className="text-gray-600">{plant.wateringRequirement}</p>
+          {/* Care Essentials */}
+          {(plant.wateringRequirement || plant.soilMix || plant.fertilizationRequirement || plant.airPurifier !== undefined) && (
+            <div className="bg-gradient-to-b from-green-50/60 to-white border border-gray-200/60 rounded-2xl shadow-sm p-4">
+              {/* Card Header */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="bg-green-100 text-green-700 rounded-full p-2">
+                  <Leaf className="w-4 h-4" />
                 </div>
-              )}
-              {plant.soilMix && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-1">Soil Mix</h3>
-                  <p className="text-gray-600">{plant.soilMix}</p>
-                </div>
-              )}
-              {plant.fertilizationRequirement && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-1">Fertilization Requirement</h3>
-                  <p className="text-gray-600">{plant.fertilizationRequirement}</p>
-                </div>
-              )}
-              {!plant.wateringRequirement && !plant.soilMix && !plant.fertilizationRequirement && (
-                <p className="text-gray-500 italic">Care details coming soon.</p>
-              )}
+                <h2 className="font-semibold text-gray-900">Care Essentials</h2>
+              </div>
+
+              {/* Care Rows */}
+              <div className="space-y-4">
+                {plant.wateringRequirement && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+                      <Droplet className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium text-gray-900 mb-0.5">Watering Requirement</h3>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{plant.wateringRequirement}</p>
+                    </div>
+                  </div>
+                )}
+                {plant.soilMix && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 bg-amber-50 text-amber-700 rounded-full flex items-center justify-center">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium text-gray-900 mb-0.5">Soil Mix</h3>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{plant.soilMix}</p>
+                    </div>
+                  </div>
+                )}
+                {plant.fertilizationRequirement && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 bg-violet-50 text-violet-600 rounded-full flex items-center justify-center">
+                      <FlaskConical className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium text-gray-900 mb-0.5">Fertilization Requirement</h3>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{plant.fertilizationRequirement}</p>
+                    </div>
+                  </div>
+                )}
+                {plant.airPurifier !== undefined && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 bg-emerald-50 text-emerald-700 rounded-full flex items-center justify-center">
+                      <Wind className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium text-gray-900 mb-0.5">Air Purifying</h3>
+                      <p className="text-sm text-gray-700">
+                        {plant.airPurifier === true ? "Yes" : "No"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </main>
