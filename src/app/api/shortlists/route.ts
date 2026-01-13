@@ -70,11 +70,7 @@ export async function POST(req: NextRequest) {
             thumb: plant.thumbnailUrl || plant.imageUrl || null,
             category: plant.category,
             light: plant.light,
-            airPurifier: Boolean(
-              typeof plant.airPurifier === "boolean" 
-                ? plant.airPurifier 
-                : plant.airPurifier === "Yes"
-            ),
+            airPurifier: Boolean(plant.airPurifier), // airPurifier is now always boolean
           });
         }
       } catch (error) {

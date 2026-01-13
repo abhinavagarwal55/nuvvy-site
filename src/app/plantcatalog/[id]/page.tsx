@@ -103,7 +103,7 @@ export default function PlantDetailPage() {
             <span className="inline-flex items-center bg-yellow/30 text-green-dark px-3 py-1.5 rounded-full text-sm font-medium">
               {plant.light}
             </span>
-            {(plant.airPurifier === true || plant.airPurifier === "Yes") && (
+            {Boolean(plant.airPurifier) && (
               <span className="inline-flex items-center bg-green-50 text-green-700 px-3 py-1.5 rounded-full text-xs font-medium">
                 Air Purifier
               </span>

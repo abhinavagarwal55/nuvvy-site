@@ -19,6 +19,7 @@ export type LightRequirement =
 
 export type WateringRequirement = "Low" | "Medium" | "High" | "Very High";
 
+// Deprecated: Use boolean for airPurifier instead. Kept for backward compatibility only.
 export type AirPurifier = "Yes" | "No";
 
 // Kept for backward compatibility but not used in UI
@@ -32,7 +33,7 @@ export interface PlantListItem {
   light: LightRequirement;
   thumbnailUrl?: string;
   imageUrl?: string;
-  airPurifier?: AirPurifier;
+  airPurifier?: boolean; // Boolean: true if air purifying, false otherwise
   // Toxicity kept for backward compatibility but not rendered in UI
   toxicity?: ToxicityLevel;
 }
@@ -45,7 +46,7 @@ export interface PlantDetail extends PlantListItem {
   wateringRequirement?: WateringRequirement | string; // Allow enum or raw string
   soilMix?: string;
   fertilizationRequirement?: string;
-  airPurifier?: boolean; // Boolean for detail page (Yes/No display)
+  // airPurifier inherited from PlantListItem as boolean
 }
 
 // Catalog Store Interface

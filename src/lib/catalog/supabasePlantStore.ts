@@ -6,7 +6,6 @@ import type {
   PlantCategory,
   LightRequirement,
   WateringRequirement,
-  AirPurifier,
   ToxicityLevel,
 } from "./types";
 
@@ -83,14 +82,6 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
         });
       }
 
-      // Map air_purifier: boolean to AirPurifier type for list view
-      let airPurifier: AirPurifier | undefined;
-      if (row.air_purifier === true) {
-        airPurifier = "Yes";
-      } else if (row.air_purifier === false) {
-        airPurifier = "No";
-      }
-
       return {
         id: row.airtable_id, // Use airtable_id as id for compatibility with existing UI
         name: row.name,
@@ -98,7 +89,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
         light: row.light as LightRequirement,
         thumbnailUrl,
         imageUrl,
-        airPurifier,
+        airPurifier: row.air_purifier ?? undefined, // Boolean: true if air purifying
         toxicity: mapToxicityFromDB(row.toxicity),
       };
     });
@@ -158,14 +149,6 @@ export async function getPlantFromSupabaseByAirtableId(
       });
     }
 
-    // Map air_purifier: boolean to AirPurifier type for list view
-    let airPurifier: AirPurifier | undefined;
-    if (row.air_purifier === true) {
-      airPurifier = "Yes";
-    } else if (row.air_purifier === false) {
-      airPurifier = "No";
-    }
-
     return {
       id: row.airtable_id,
       name: row.name,
@@ -173,7 +156,7 @@ export async function getPlantFromSupabaseByAirtableId(
       light: row.light as LightRequirement,
       thumbnailUrl,
       imageUrl,
-      airPurifier,
+      airPurifier: row.air_purifier ?? undefined, // Boolean: true if air purifying
       toxicity: mapToxicityFromDB(row.toxicity),
     };
   } catch (error) {
@@ -254,21 +237,6 @@ export async function getPlantDetailFromSupabaseByAirtableId(
   }
 }
 
-// Helper to map air_purifier from DB to AirPurifier type (legacy support for string values)
-function mapAirPurifierFromDB(value: string | boolean | null | undefined): AirPurifier | undefined {
-  if (value === null || value === undefined) return undefined;
-  // Handle boolean values (new format)
-  if (typeof value === "boolean") {
-    return value ? "Yes" : "No";
-  }
-  // Handle string values (legacy format)
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "yes" || normalized === "true" || normalized === "1") return "Yes";
-    if (normalized === "no" || normalized === "false" || normalized === "0") return "No";
-  }
-  return undefined;
-}
 
 // Helper to map toxicity from DB to ToxicityLevel type
 function mapToxicityFromDB(value: string | null | undefined): ToxicityLevel | undefined {

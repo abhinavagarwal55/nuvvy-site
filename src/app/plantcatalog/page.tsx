@@ -31,9 +31,14 @@ export default function PlantCatalogPage() {
       const matchesSearch = searchQuery === "" || 
         plant.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === "All" || plant.category === selectedCategory;
+      
+      // airPurifier is now always boolean
+      const plantAirPurifierBool = Boolean(plant.airPurifier);
+      
       const matchesAirPurifier = 
         selectedAirPurifier === "All" || 
-        (selectedAirPurifier === "Yes" && plant.airPurifier === "Yes");
+        (selectedAirPurifier === "Yes" && plantAirPurifierBool) ||
+        (selectedAirPurifier === "No" && !plantAirPurifierBool);
       
       return matchesSearch && matchesCategory && matchesAirPurifier;
     });
@@ -179,7 +184,7 @@ export default function PlantCatalogPage() {
                         <span className="inline-block bg-yellow/30 text-green-dark px-2 py-1 rounded-full text-xs font-medium">
                           {plant.light}
                         </span>
-                        {plant.airPurifier === "Yes" && (
+                        {Boolean(plant.airPurifier) && (
                           <span className="inline-block bg-green-50 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
                             Air Purifier
                           </span>

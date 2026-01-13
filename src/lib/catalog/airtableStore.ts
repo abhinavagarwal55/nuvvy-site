@@ -75,7 +75,19 @@ function mapLightRequirement(value: unknown): LightRequirement {
   return validLight.includes(value as LightRequirement) ? (value as LightRequirement) : "Bright indirect";
 }
 
-// Helper function to map Air Purifier field
+// Helper function to map Air Purifier field to boolean
+function mapAirPurifierToBoolean(value: unknown): boolean | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "yes" || normalized === "true" || normalized === "1") return true;
+    if (normalized === "no" || normalized === "false" || normalized === "0") return false;
+  }
+  return undefined;
+}
+
+// Legacy helper for PlantListItem (returns string for backward compatibility)
 function mapAirPurifier(value: unknown): AirPurifier | undefined {
   if (!value) return undefined;
   if (typeof value === "string") {
@@ -180,7 +192,7 @@ function recordToListItem(record: AirtableRecord): PlantListItem | null {
     category: mapCategory(fields["Category"]),
     light: mapLightRequirement(fields["Light Requirement"]),
     thumbnailUrl: thumbnailUrl || undefined,
-    airPurifier: mapAirPurifier(fields["Air Purifier"]),
+    airPurifier: mapAirPurifierToBoolean(fields["Air Purifier"]), // Use boolean for consistency
     toxicity: mapToxicityLevel(fields["Toxicity"]),
   };
 }
@@ -212,6 +224,8 @@ function recordToDetail(record: AirtableRecord): PlantDetail | null {
     soilMix: typeof fields["Soil Mix"] === "string" ? fields["Soil Mix"] : undefined,
     fertilizationRequirement:
       typeof fields["Fertilization Requirement"] === "string" ? fields["Fertilization Requirement"] : undefined,
+    // Override airPurifier to be boolean (PlantDetail expects boolean, not string)
+    airPurifier: mapAirPurifierToBoolean(fields["Air Purifier"]),
   };
 }
 
