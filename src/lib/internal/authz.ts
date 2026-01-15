@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 interface InternalAccess {
@@ -17,7 +17,7 @@ export async function requireInternalAccess(): Promise<{
   access: InternalAccess;
 }> {
   // First check authentication (cookie-based session)
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
     error: authError,
@@ -25,6 +25,11 @@ export async function requireInternalAccess(): Promise<{
 
   if (!user || authError) {
     redirect("/internal/login");
+  }
+
+  // Guard: ensure user.email is defined
+  if (!user.email) {
+    redirect("/internal/login?error=missing_email");
   }
 
   // Then check authorization using admin client (bypasses RLS)

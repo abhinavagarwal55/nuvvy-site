@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import { getInternalAccess } from "@/lib/internal/authz";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {
     // Check authentication
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const {
       data: { user },
       error: authError,
@@ -16,6 +16,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { data: null, error: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    // Guard: ensure user.email is defined
+    if (!user.email) {
+      return NextResponse.json(
+        { data: null, error: "Forbidden: Missing user email" },
+        { status: 403 }
       );
     }
 
@@ -44,10 +52,10 @@ export async function GET(request: NextRequest) {
     // Parse publishedOnly
     const publishedOnly = publishedOnlyParam === "true";
 
-    const supabase = createAdminSupabaseClient();
+    const adminSupabase = createAdminSupabaseClient();
 
     // Build query
-    let query = supabase.from("plants").select("*");
+    let query = adminSupabase.from("plants").select("*");
 
     // Apply search filter if provided
     if (searchQuery && searchQuery.trim()) {

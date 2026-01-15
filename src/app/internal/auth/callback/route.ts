@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -22,32 +21,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (typeof url !== "string" || url.length === 0) {
-      throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
-    }
-
-    if (typeof key !== "string" || key.length === 0) {
-      throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
-    }
-
-    const cookieStore = await cookies();
-    
-    // Create server client with cookie handling for route handler
-    const supabase = createServerClient(url, key, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
-        },
-      },
-    });
+    // Use SSR client for cookie-based session management
+    const supabase = await createServerSupabaseClient();
     
     // Exchange the code for a session (this will set cookies via setAll)
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
