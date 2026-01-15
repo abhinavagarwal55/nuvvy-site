@@ -1,92 +1,53 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useActionState } from "react";
+import { useSearchParams } from "next/navigation";
+import { sendMagicLink, type ActionResult } from "./actions";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(sendMagicLink, null);
+  const [queryError, setQueryError] = useState<string | null>(null);
 
-  // Check for error query param
+  // Check for error query param from callback redirects
   useEffect(() => {
     const error = searchParams.get("error");
     const errorCode = searchParams.get("error_code");
     
     if (error === "not_authorized") {
-      setMessage({
-        type: "error",
-        text: "You're signed in, but you don't have access. Contact admin.",
-      });
+      setQueryError("You're signed in, but you don't have access. Contact admin.");
     } else if (error === "missing_code" || errorCode === "otp_expired") {
-      setMessage({
-        type: "error",
-        text: "The magic link has expired or is invalid. Please request a new link.",
-      });
+      setQueryError("The magic link has expired or is invalid. Please request a new link.");
     } else if (error === "auth_failed") {
-      setMessage({
-        type: "error",
-        text: "Authentication failed. Please try again.",
-      });
+      setQueryError("Authentication failed. Please try again.");
     } else if (error) {
-      setMessage({
-        type: "error",
-        text: `Error: ${decodeURIComponent(error)}`,
-      });
+      setQueryError(`Error: ${decodeURIComponent(error)}`);
+    } else {
+      setQueryError(null);
     }
   }, [searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const supabase = createBrowserSupabaseClient();
-      
-      // Always use current origin for callback URL (works for both localhost and production)
-      const callbackUrl = `${window.location.origin}/internal/auth/callback`;
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: callbackUrl,
-        },
-      });
-
-      if (error) {
-        setMessage({ type: "error", text: error.message });
-      } else {
-        setMessage({
-          type: "success",
-          text: "Check your email for the sign-in link.",
-        });
-      }
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "An error occurred",
-      });
-    } finally {
-      setLoading(false);
+  // Clear email on successful submission
+  useEffect(() => {
+    if (state?.ok) {
+      setEmail("");
     }
-  };
+  }, [state]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Sign in to Nuvvy Internal</h1>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={formAction} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email address
             </label>
             <input
               id="email"
+              name="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -98,28 +59,36 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={pending}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Sending..." : "Send magic link"}
+            {pending ? "Sending..." : "Send magic link"}
           </button>
         </form>
+
+        {/* Display action state messages */}
+        {state?.message && (
+          <div className="mt-4 p-3 rounded-md bg-green-50 text-green-800 border border-green-200">
+            {state.message}
+          </div>
+        )}
+        {state?.error && (
+          <div className="mt-4 p-3 rounded-md bg-red-50 text-red-800 border border-red-200">
+            {state.error}
+          </div>
+        )}
+        {queryError && (
+          <div className="mt-4 p-3 rounded-md bg-red-50 text-red-800 border border-red-200">
+            {queryError}
+          </div>
+        )}
 
         <p className="mt-4 text-xs text-gray-500 text-center">
           Magic links expire quickly — request a new link if you see "expired".
         </p>
-
-        {message && (
-          <div
-            className={`mt-4 p-3 rounded-md ${
-              message.type === "success"
-                ? "bg-green-50 text-green-800 border border-green-200"
-                : "bg-red-50 text-red-800 border border-red-200"
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
+        <p className="mt-2 text-xs text-gray-400 text-center">
+          If you see PKCE errors, request a new link and click it in the same browser.
+        </p>
       </div>
     </div>
   );
