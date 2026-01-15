@@ -1,8 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getInternalAccess } from "@/lib/internal/authz";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {
+    // Check authentication
+    const supabase = createServerSupabaseClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (!user || authError) {
+      return NextResponse.json(
+        { data: null, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Check authorization (must be in internal_users table)
+    const access = await getInternalAccess(user.email);
+    if (!access) {
+      return NextResponse.json(
+        { data: null, error: "Forbidden: Access denied" },
+        { status: 403 }
+      );
+    }
     const searchParams = request.nextUrl.searchParams;
     const limitParam = searchParams.get("limit");
     const searchQuery = searchParams.get("q");

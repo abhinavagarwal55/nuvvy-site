@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
   const url = request.nextUrl.clone();
   
@@ -13,18 +14,42 @@ export function middleware(request: NextRequest) {
   
   // Protect /api/internal/* routes
   if (url.pathname.startsWith("/api/internal")) {
-    // Allow in development or from internal subdomain
-    if (isDevelopment || hostname.startsWith("internal.") || hostname === "internal.nuvvy.in") {
-      return NextResponse.next();
-    }
     // Block from public domain - return 404
-    return new NextResponse(null, { status: 404 });
+    if (!isDevelopment && !hostname.startsWith("internal.") && hostname !== "internal.nuvvy.in") {
+      return new NextResponse(null, { status: 404 });
+    }
+
+    // Check authentication for internal API routes
+    try {
+      const { supabase, response } = createMiddlewareSupabaseClient(request);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        return NextResponse.json(
+          { error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+
+      return response;
+    } catch (error) {
+      // If auth check fails, return 401
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
   }
   
+  // Add pathname to headers for layout to check
+  const response = NextResponse.next();
+  response.headers.set("x-pathname", url.pathname);
+
   // In development: allow direct access to /internal routes
   if (isDevelopment) {
-    // Allow /internal routes to render normally
-    return NextResponse.next();
+    return response;
   }
   
   // Production: subdomain-based routing
@@ -37,7 +62,9 @@ export function middleware(request: NextRequest) {
     } else if (!url.pathname.startsWith("/internal")) {
       url.pathname = `/internal${url.pathname}`;
     }
-    return NextResponse.rewrite(url);
+    const rewriteResponse = NextResponse.rewrite(url);
+    rewriteResponse.headers.set("x-pathname", url.pathname);
+    return rewriteResponse;
   }
   
   // Production: block access to /internal routes from public domain
@@ -46,7 +73,7 @@ export function middleware(request: NextRequest) {
   }
   
   // Public app - no rewrite needed
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

@@ -10,6 +10,7 @@
     "share": "npm run dev & npx ngrok http 3000"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
     "lucide-react": "^0.548.0",
     "next": "15.5.9",
