@@ -1,4 +1,6 @@
-import type { Metadata } from "next";
+"use client";
+
+import { usePathname } from "next/navigation";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import Header from "../components/Header";
@@ -20,26 +22,24 @@ const playfair = Playfair_Display({
   variable: "--font-playfair",
 });
 
-export const metadata: Metadata = {
-  title: "Balcony Garden Design & Maintenance in Bangalore | Nuvvy",
-  description: "Turn your balcony into a lush, low-effort sanctuary. Explore Nuvvy's garden design and maintenance services across Bengaluru.",
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
+  const isInternal = pathname.startsWith("/internal");
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased`}
       >
-        <Header />
+        {!isInternal && <Header />}
 
         {children}
 
-        <Footer />
+        {!isInternal && <Footer />}
 
         <Analytics />
       </body>
