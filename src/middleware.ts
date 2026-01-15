@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
+import { isDevBypassAuthMiddleware } from "@/lib/internal/dev-bypass";
 
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
@@ -12,11 +13,19 @@ export async function middleware(request: NextRequest) {
     hostname.includes("127.0.0.1") ||
     process.env.NODE_ENV !== "production";
   
+  // Check if dev bypass is enabled
+  const bypassAuth = isDevBypassAuthMiddleware(hostname);
+  
   // Protect /api/internal/* routes
   if (url.pathname.startsWith("/api/internal")) {
     // Block from public domain - return 404
     if (!isDevelopment && !hostname.startsWith("internal.") && hostname !== "internal.nuvvy.in") {
       return new NextResponse(null, { status: 404 });
+    }
+
+    // Skip auth check if dev bypass is enabled
+    if (bypassAuth) {
+      return NextResponse.next();
     }
 
     // Check authentication for internal API routes
