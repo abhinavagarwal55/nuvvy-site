@@ -19,6 +19,7 @@ export function createBrowserSupabaseClient() {
 
   return createClient(url, key, {
     auth: {
+      flowType: "pkce",
       storage: typeof window !== "undefined" ? window.localStorage : undefined,
       autoRefreshToken: true,
       persistSession: true,

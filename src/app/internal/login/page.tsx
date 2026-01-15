@@ -14,10 +14,17 @@ export default function LoginPage() {
   // Check for error query param
   useEffect(() => {
     const error = searchParams.get("error");
+    const errorCode = searchParams.get("error_code");
+    
     if (error === "not_authorized") {
       setMessage({
         type: "error",
         text: "You're signed in, but you don't have access. Contact admin.",
+      });
+    } else if (error === "missing_code" || errorCode === "otp_expired") {
+      setMessage({
+        type: "error",
+        text: "The magic link has expired or is invalid. Please request a new link.",
       });
     } else if (error === "auth_failed") {
       setMessage({
@@ -40,11 +47,8 @@ export default function LoginPage() {
     try {
       const supabase = createBrowserSupabaseClient();
       
-      // Determine callback URL based on environment
-      const isDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-      const callbackUrl = isDev
-        ? `${window.location.origin}/internal/auth/callback`
-        : "https://internal.nuvvy.in/internal/auth/callback";
+      // Always use current origin for callback URL (works for both localhost and production)
+      const callbackUrl = `${window.location.origin}/internal/auth/callback`;
 
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -100,6 +104,10 @@ export default function LoginPage() {
             {loading ? "Sending..." : "Send magic link"}
           </button>
         </form>
+
+        <p className="mt-4 text-xs text-gray-500 text-center">
+          Magic links expire quickly — request a new link if you see "expired".
+        </p>
 
         {message && (
           <div

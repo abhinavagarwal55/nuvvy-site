@@ -5,11 +5,15 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const error = requestUrl.searchParams.get("error");
+  const errorCode = requestUrl.searchParams.get("error_code");
 
   // Handle OAuth errors
   if (error) {
+    const errorParam = errorCode === "otp_expired" 
+      ? "error=missing_code&error_code=otp_expired"
+      : `error=${encodeURIComponent(error)}`;
     return NextResponse.redirect(
-      new URL(`/internal/login?error=${encodeURIComponent(error)}`, request.url)
+      new URL(`/internal/login?${errorParam}`, request.url)
     );
   }
 
