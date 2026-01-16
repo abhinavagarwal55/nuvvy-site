@@ -253,7 +253,8 @@ export async function PATCH(
     let imageStorageUrl: string | null = existingPlant.image_storage_url || null;
     let thumbnailStorageUrl: string | null = existingPlant.thumbnail_storage_url || null;
 
-    // Handle image upload and thumbnail generation only if new image is provided
+    // Handle image upload only if new image is provided (upload original as-is, no processing)
+    // TODO: Add async thumbnail generation via background job
     if (imageFile) {
       try {
         const arrayBuffer = await imageFile.arrayBuffer();
@@ -261,30 +262,19 @@ export async function PATCH(
         const plantId = existingPlant.id;
         const timestamp = Date.now();
 
-        // Generate paths
-        const imagePath = `plants/${plantId}/image_${timestamp}.jpg`;
-        const thumbnailPath = `plants/${plantId}/thumbnail_${timestamp}.jpg`;
+        // Determine file extension from original file
+        const originalName = imageFile.name || "image";
+        const fileExtension = originalName.split(".").pop()?.toLowerCase() || "jpg";
+        const sanitizedExtension = ["jpg", "jpeg", "png", "webp"].includes(fileExtension) ? fileExtension : "jpg";
 
-        // Dynamically import sharp only when needed (PATCH handler)
-        const sharp = (await import("sharp")).default;
+        // Generate single path for the uploaded image
+        const imagePath = `plants/${plantId}/image_${timestamp}.${sanitizedExtension}`;
 
-        // Process original image (convert to JPEG, optimize)
-        const processedImage = await sharp(buffer)
-          .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
-          .jpeg({ quality: 85 })
-          .toBuffer();
-
-        // Generate thumbnail (400px width, maintain aspect ratio)
-        const thumbnail = await sharp(buffer)
-          .resize(400, 400, { fit: "inside", withoutEnlargement: true })
-          .jpeg({ quality: 80 })
-          .toBuffer();
-
-        // Upload original image
+        // Upload original image as-is (no resizing or transformation)
         const { error: imageUploadError } = await adminSupabase.storage
           .from("plant-images")
-          .upload(imagePath, processedImage, {
-            contentType: "image/jpeg",
+          .upload(imagePath, buffer, {
+            contentType: imageFile.type,
             upsert: false,
           });
 
@@ -292,29 +282,15 @@ export async function PATCH(
           throw new Error(`Failed to upload image: ${imageUploadError.message}`);
         }
 
-        // Upload thumbnail
-        const { error: thumbnailUploadError } = await adminSupabase.storage
-          .from("plant-images")
-          .upload(thumbnailPath, thumbnail, {
-            contentType: "image/jpeg",
-            upsert: false,
-          });
-
-        if (thumbnailUploadError) {
-          throw new Error(`Failed to upload thumbnail: ${thumbnailUploadError.message}`);
-        }
-
-        // Get public URLs
+        // Get public URL
         const { data: imageUrlData } = adminSupabase.storage
           .from("plant-images")
           .getPublicUrl(imagePath);
 
-        const { data: thumbnailUrlData } = adminSupabase.storage
-          .from("plant-images")
-          .getPublicUrl(thumbnailPath);
-
+        // Set both image_storage_url and thumbnail_storage_url to the same URL
+        // UI will handle CSS scaling for thumbnails
         imageStorageUrl = imageUrlData.publicUrl;
-        thumbnailStorageUrl = thumbnailUrlData.publicUrl;
+        thumbnailStorageUrl = imageUrlData.publicUrl;
       } catch (imageError) {
         console.error("Image upload error:", imageError);
         return NextResponse.json(

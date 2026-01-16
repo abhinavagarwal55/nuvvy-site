@@ -292,37 +292,27 @@ export async function POST(request: NextRequest) {
     let imageStorageUrl: string | null = null;
     let thumbnailStorageUrl: string | null = null;
 
-    // Handle image upload and thumbnail generation (imageFile is guaranteed to exist at this point)
+    // Handle image upload (upload original image as-is, no processing)
+    // TODO: Add async thumbnail generation via background job
     try {
       const arrayBuffer = await imageFile.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const plantId = crypto.randomUUID();
       const timestamp = Date.now();
 
-      // Generate paths
-      const imagePath = `plants/${plantId}/image_${timestamp}.jpg`;
-      const thumbnailPath = `plants/${plantId}/thumbnail_${timestamp}.jpg`;
+      // Determine file extension from original file
+      const originalName = imageFile.name || "image";
+      const fileExtension = originalName.split(".").pop()?.toLowerCase() || "jpg";
+      const sanitizedExtension = ["jpg", "jpeg", "png", "webp"].includes(fileExtension) ? fileExtension : "jpg";
 
-      // Dynamically import sharp only when needed (POST handler)
-      const sharp = (await import("sharp")).default;
+      // Generate single path for the uploaded image
+      const imagePath = `plants/${plantId}/image_${timestamp}.${sanitizedExtension}`;
 
-      // Process original image (convert to JPEG, optimize)
-      const processedImage = await sharp(buffer)
-        .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-
-      // Generate thumbnail (400px width, maintain aspect ratio)
-      const thumbnail = await sharp(buffer)
-        .resize(400, 400, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-
-      // Upload original image
+      // Upload original image as-is (no resizing or transformation)
       const { error: imageUploadError } = await adminSupabase.storage
         .from("plant-images")
-        .upload(imagePath, processedImage, {
-          contentType: "image/jpeg",
+        .upload(imagePath, buffer, {
+          contentType: imageFile.type,
           upsert: false,
         });
 
@@ -330,29 +320,15 @@ export async function POST(request: NextRequest) {
         throw new Error(`Failed to upload image: ${imageUploadError.message}`);
       }
 
-      // Upload thumbnail
-      const { error: thumbnailUploadError } = await adminSupabase.storage
-        .from("plant-images")
-        .upload(thumbnailPath, thumbnail, {
-          contentType: "image/jpeg",
-          upsert: false,
-        });
-
-      if (thumbnailUploadError) {
-        throw new Error(`Failed to upload thumbnail: ${thumbnailUploadError.message}`);
-      }
-
-      // Get public URLs
+      // Get public URL
       const { data: imageUrlData } = adminSupabase.storage
         .from("plant-images")
         .getPublicUrl(imagePath);
 
-      const { data: thumbnailUrlData } = adminSupabase.storage
-        .from("plant-images")
-        .getPublicUrl(thumbnailPath);
-
+      // Set both image_storage_url and thumbnail_storage_url to the same URL
+      // UI will handle CSS scaling for thumbnails
       imageStorageUrl = imageUrlData.publicUrl;
-      thumbnailStorageUrl = thumbnailUrlData.publicUrl;
+      thumbnailStorageUrl = imageUrlData.publicUrl;
     } catch (imageError) {
       console.error("Image upload error:", imageError);
       return NextResponse.json(
