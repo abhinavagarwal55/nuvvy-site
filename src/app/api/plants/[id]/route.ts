@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPlantDetailFromSupabaseByAirtableId } from "@/lib/catalog/supabasePlantStore";
 
+// Force dynamic rendering - no caching
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Server-side API route for getting a single plant by ID
-// Uses ISR caching: revalidates every hour (3600 seconds)
+// No caching: always fetches fresh data from Supabase
 // Reads from Supabase (not Airtable)
 export async function GET(
   req: NextRequest,
@@ -21,7 +25,7 @@ export async function GET(
       {
         status: 200,
         headers: {
-          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200",
+          "Cache-Control": "no-store, max-age=0",
         },
       }
     );

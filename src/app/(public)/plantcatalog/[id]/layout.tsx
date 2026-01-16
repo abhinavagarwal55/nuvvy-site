@@ -3,6 +3,10 @@ import { getPlantDetailFromSupabaseByAirtableId } from "@/lib/catalog/supabasePl
 import { getAbsoluteImageUrl, getSiteUrl, truncateText } from "@/lib/utils/metadata";
 import { OG_DEFAULT_IMAGE } from "@/lib/constants";
 
+// Force dynamic rendering - no caching
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function generateMetadata({
   params,
 }: {

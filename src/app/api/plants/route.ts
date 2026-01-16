@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { listPlantsFromSupabase } from "@/lib/catalog/supabasePlantStore";
 import { toErrorMessage } from "@/lib/utils/errors";
 
+// Force dynamic rendering - no caching
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Server-side API route for listing plants
-// Uses ISR caching: revalidates every 5 minutes (300 seconds)
+// No caching: always fetches fresh data from Supabase
 // Reads from Supabase (not Airtable)
 export async function GET(req: NextRequest) {
   try {
@@ -14,7 +18,7 @@ export async function GET(req: NextRequest) {
       {
         status: 200,
         headers: {
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+          "Cache-Control": "no-store, max-age=0",
         },
       }
     );

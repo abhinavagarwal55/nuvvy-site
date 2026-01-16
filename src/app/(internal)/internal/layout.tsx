@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { requireInternalAccess } from "@/lib/internal/authz";
 import { isDevBypassAuth } from "@/lib/internal/dev-bypass";
 import SignOutButton from "./signout-button";
@@ -28,7 +29,9 @@ export default async function InternalLayout({
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Top Bar */}
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-900">Nuvvy Internal</h1>
+          <Link href="/internal" className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+            Nuvvy Internal
+          </Link>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-600">{user.email}</span>
@@ -54,7 +57,9 @@ export default async function InternalLayout({
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Top Bar */}
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-900">Nuvvy Internal</h1>
+          <Link href="/internal" className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+            Nuvvy Internal
+          </Link>
           <div className="flex items-center gap-4">
             <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full font-medium">
               AUTH BYPASSED (DEV)

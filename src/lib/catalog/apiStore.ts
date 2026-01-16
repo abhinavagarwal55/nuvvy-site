@@ -12,8 +12,8 @@ class ApiStore implements CatalogStore {
 
   async listPlants(): Promise<PlantListItem[]> {
     try {
-      // Client-side fetch: use default caching (browser handles it)
-      const response = await fetch(this.baseUrl);
+      // Client-side fetch: no caching to ensure fresh data
+      const response = await fetch(this.baseUrl, { cache: "no-store" });
 
       if (!response.ok) {
         console.error(`Failed to fetch plants: ${response.status}`);
@@ -30,8 +30,8 @@ class ApiStore implements CatalogStore {
 
   async getPlantById(id: string): Promise<PlantDetail | null> {
     try {
-      // Client-side fetch: use default caching (browser handles it)
-      const response = await fetch(`${this.baseUrl}/${id}`);
+      // Client-side fetch: no caching to ensure fresh data
+      const response = await fetch(`${this.baseUrl}/${id}`, { cache: "no-store" });
 
       if (!response.ok) {
         if (response.status === 404) {
