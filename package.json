@@ -16,7 +16,7 @@
     "next": "15.5.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "sharp": "^0.33.0"
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
