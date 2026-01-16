@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import { getInternalAccess } from "@/lib/internal/authz";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import sharp from "sharp";
+
+// Force Node.js runtime for this route
+export const runtime = "nodejs";
 
 // Helper function to check auth
 async function checkAuth(): Promise<{ authorized: boolean; error?: string; status?: number }> {
@@ -80,6 +82,7 @@ export async function GET(
 
     return NextResponse.json({ data: plant, error: null }, { status: 200 });
   } catch (err) {
+    console.error("GET /api/internal/plants/[id] failed", err);
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
       { data: null, error: errorMessage },
@@ -262,6 +265,9 @@ export async function PATCH(
         const imagePath = `plants/${plantId}/image_${timestamp}.jpg`;
         const thumbnailPath = `plants/${plantId}/thumbnail_${timestamp}.jpg`;
 
+        // Dynamically import sharp only when needed (PATCH handler)
+        const sharp = (await import("sharp")).default;
+
         // Process original image (convert to JPEG, optimize)
         const processedImage = await sharp(buffer)
           .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
@@ -359,12 +365,21 @@ export async function PATCH(
 
     return NextResponse.json({ data: plantData, error: null }, { status: 200 });
   } catch (err) {
+    console.error("PATCH /api/internal/plants/[id] failed", err);
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
       { data: null, error: errorMessage },
       { status: 500 }
     );
   }
+}
+
+// Support PUT as alias for PATCH
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return PATCH(request, { params });
 }
 
 export async function DELETE(
@@ -412,6 +427,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true, data: deletedPlant }, { status: 200 });
   } catch (err) {
+    console.error("DELETE /api/internal/plants/[id] failed", err);
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
       { data: null, error: errorMessage },

@@ -10,6 +10,26 @@ import { useState, useEffect, useCallback, useRef, useMemo, type RefObject, type
 import { PLANT_CATEGORIES, LIGHT_CONDITIONS } from "@/config/plantOptions";
 import { PLANT_FIELD_DEFS, DEFAULT_VISIBLE_COLUMNS, INITIAL_VISIBLE_COLUMNS } from "@/lib/internal/plants/plantFields";
 
+// Helper to safely read JSON from response, handling HTML errors and empty bodies
+async function safeReadJson(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  const text = await res.text(); // always read once
+  if (!res.ok) {
+    // try parse json error; else show text snippet
+    if (contentType.includes("application/json")) {
+      try { return { ok: false, body: JSON.parse(text) }; } catch {}
+    }
+    return { ok: false, body: { error: text?.slice(0, 300) || `Request failed (${res.status})` } };
+  }
+  if (!text) return { ok: true, body: null }; // handles 204/empty
+  if (contentType.includes("application/json")) {
+    try { return { ok: true, body: JSON.parse(text) }; } catch {
+      return { ok: false, body: { error: "Invalid JSON returned from server" } };
+    }
+  }
+  return { ok: false, body: { error: "Server returned non-JSON response" } };
+}
+
 interface Plant {
   id: string;
   name: string;
@@ -168,12 +188,13 @@ export default function PlantsPage() {
       });
 
       const response = await fetch(`/api/internal/plants?${params}`);
-      const json: PlantsResponse = await response.json();
+      const result = await safeReadJson(response);
 
-      if (!response.ok || json.error) {
-        throw new Error(json.error || `HTTP ${response.status}`);
+      if (!result.ok || result.body?.error) {
+        throw new Error(result.body?.error || `HTTP ${response.status}`);
       }
 
+      const json = result.body as PlantsResponse;
       setPlants(json.data || []);
       // Update totalCount from API response (this is the real total matching filters)
       if (typeof json.totalCount === "number") {
@@ -494,10 +515,10 @@ export default function PlantsPage() {
         method: "DELETE",
       });
 
-      const result = await response.json();
+      const result = await safeReadJson(response);
 
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to delete plant");
+      if (!result.ok) {
+        throw new Error(result.body?.error || "Failed to delete plant");
       }
 
       // Success: show message and refresh list
@@ -881,9 +902,9 @@ export default function PlantsPage() {
         body: formDataToSend,
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to create plant");
+      const result = await safeReadJson(response);
+      if (!result.ok) {
+        throw new Error(result.body?.error || "Failed to create plant");
       }
 
       // Success: show message, refresh list, close modal

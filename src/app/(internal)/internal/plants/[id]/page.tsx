@@ -4,6 +4,26 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+// Helper to safely read JSON from response, handling HTML errors and empty bodies
+async function safeReadJson(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  const text = await res.text(); // always read once
+  if (!res.ok) {
+    // try parse json error; else show text snippet
+    if (contentType.includes("application/json")) {
+      try { return { ok: false, body: JSON.parse(text) }; } catch {}
+    }
+    return { ok: false, body: { error: text?.slice(0, 300) || `Request failed (${res.status})` } };
+  }
+  if (!text) return { ok: true, body: null }; // handles 204/empty
+  if (contentType.includes("application/json")) {
+    try { return { ok: true, body: JSON.parse(text) }; } catch {
+      return { ok: false, body: { error: "Invalid JSON returned from server" } };
+    }
+  }
+  return { ok: false, body: { error: "Server returned non-JSON response" } };
+}
+
 interface PlantDetail {
   id: string;
   name: string;
@@ -72,10 +92,10 @@ export default function PlantDetailPage({ params }: { params: Promise<{ id: stri
         method: "DELETE",
       });
 
-      const result = await response.json();
+      const result = await safeReadJson(response);
 
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to delete plant");
+      if (!result.ok) {
+        throw new Error(result.body?.error || "Failed to delete plant");
       }
 
       // Success: navigate to list page with success query param
@@ -104,29 +124,30 @@ export default function PlantDetailPage({ params }: { params: Promise<{ id: stri
 
       try {
         const response = await fetch(`/api/internal/plants/${plantId}`);
-        const json = await response.json();
+        const result = await safeReadJson(response);
 
-        if (!response.ok || json.error) {
-          throw new Error(json.error || `HTTP ${response.status}`);
+        if (!result.ok || result.body?.error) {
+          throw new Error(result.body?.error || `HTTP ${response.status}`);
         }
 
+        const json = result.body as { data: PlantDetail; error: string | null };
         setPlant(json.data);
 
         // Load category and light names if IDs exist
         if (json.data.category_id) {
           const catResponse = await fetch("/api/internal/lookups/categories");
-          const catData = await catResponse.json();
-          if (catData.data) {
-            const found = catData.data.find((c: Category) => c.id === json.data.category_id);
+          const catResult = await safeReadJson(catResponse);
+          if (catResult.ok && catResult.body?.data) {
+            const found = catResult.body.data.find((c: Category) => c.id === json.data.category_id);
             if (found) setCategory(found);
           }
         }
 
         if (json.data.light_id) {
           const lightResponse = await fetch("/api/internal/lookups/light");
-          const lightData = await lightResponse.json();
-          if (lightData.data) {
-            const found = lightData.data.find((l: LightCondition) => l.id === json.data.light_id);
+          const lightResult = await safeReadJson(lightResponse);
+          if (lightResult.ok && lightResult.body?.data) {
+            const found = lightResult.body.data.find((l: LightCondition) => l.id === json.data.light_id);
             if (found) setLightCondition(found);
           }
         }
