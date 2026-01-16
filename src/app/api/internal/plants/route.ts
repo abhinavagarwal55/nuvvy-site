@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import { getInternalAccess } from "@/lib/internal/authz";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import sharp from "sharp";
+
+// Force Node.js runtime for this route
+export const runtime = "nodejs";
 
 // Helper function to check auth (used by both GET and POST)
 async function checkAuth(): Promise<{ authorized: boolean; error?: string; status?: number }> {
@@ -118,6 +120,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) {
+      console.error("GET /api/internal/plants failed: Supabase query error", error);
       return NextResponse.json(
         { data: null, error: error.message },
         { status: 500 }
@@ -134,6 +137,7 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (err) {
+    console.error("GET /api/internal/plants failed", err);
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
       { data: null, error: errorMessage },
@@ -299,6 +303,9 @@ export async function POST(request: NextRequest) {
       const imagePath = `plants/${plantId}/image_${timestamp}.jpg`;
       const thumbnailPath = `plants/${plantId}/thumbnail_${timestamp}.jpg`;
 
+      // Dynamically import sharp only when needed (POST handler)
+      const sharp = (await import("sharp")).default;
+
       // Process original image (convert to JPEG, optimize)
       const processedImage = await sharp(buffer)
         .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
@@ -387,6 +394,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: plantData, error: null }, { status: 201 });
   } catch (err) {
+    console.error("POST /api/internal/plants failed", err);
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
       { data: null, error: errorMessage },
