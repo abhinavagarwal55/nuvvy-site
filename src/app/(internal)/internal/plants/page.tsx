@@ -108,6 +108,8 @@ export default function PlantsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitSuccessMessage, setSubmitSuccessMessage] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [deletingPlantId, setDeletingPlantId] = useState<string | null>(null);
   const [deleteMessage, setDeleteMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   
@@ -122,9 +124,13 @@ export default function PlantsPage() {
   });
   const [isColumnsPopoverOpen, setIsColumnsPopoverOpen] = useState(false);
 
+  // Scroll anchor state for preserving list position
+  const [scrollAnchor, setScrollAnchor] = useState<{ plantId: string; offsetTop: number } | null>(null);
+
   // Refs for scrolling to validation errors
   const modalContentRef = useRef<HTMLDivElement>(null);
   const errorBannerRef = useRef<HTMLDivElement>(null);
+  const plantRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   
   // Individual properly typed refs for JSX elements
   const nameRef = useRef<HTMLInputElement>(null);
@@ -316,41 +322,39 @@ export default function PlantsPage() {
     }
   }, [visibleColumns, sortKey]);
 
-  // Check for deleted query param and show success message
+  // Check for edit query param and open modal (route-driven)
+  // URL is the single source of truth for Edit modal state.
+  // This ensures browser back/forward buttons work correctly and prevents competing effects.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const deleted = params.get("deleted");
-    if (deleted === "1") {
-      setDeleteMessage({
-        type: "success",
-        text: "Plant deleted successfully.",
-      });
-      // Clear the query param
-      window.history.replaceState({}, "", "/internal/plants");
-      // Clear message after 3 seconds
-      setTimeout(() => {
-        setDeleteMessage(null);
-      }, 3000);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Check for edit query param and open modal
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (plants.length === 0) return; // Wait for plants to load
+    
     const params = new URLSearchParams(window.location.search);
     const editId = params.get("edit");
-    if (editId && plants.length > 0 && !isModalOpen) {
+    
+    // If edit param exists and is different from current editing plant
+    if (editId) {
       const plantToEdit = plants.find((p) => p.id === editId);
       if (plantToEdit) {
-        handleOpenModal(plantToEdit);
-        // Clean up URL
+        // If modal is not open OR we're editing a different plant, open/switch
+        if (!isModalOpen || editingPlantId !== editId) {
+          handleOpenModal(plantToEdit);
+        }
+      } else {
+        // Plant not found in current list, close modal and remove param
+        if (isModalOpen) {
+          handleCloseModal();
+        }
         window.history.replaceState({}, "", "/internal/plants");
+      }
+    } else {
+      // No edit param, ensure modal is closed if it was open in edit mode
+      if (isModalOpen && modalMode === "edit") {
+        handleCloseModal();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plants, isModalOpen]);
+  }, [plants, isModalOpen, editingPlantId, modalMode]);
 
   // Check for modal=add query param and open Add Plant modal
   useEffect(() => {
@@ -364,6 +368,30 @@ export default function PlantsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isModalOpen]);
+
+  // Handle browser back/forward navigation for edit modal
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = () => {
+      // When user navigates back/forward, re-check the URL
+      const params = new URLSearchParams(window.location.search);
+      const editId = params.get("edit");
+      
+      if (editId && plants.length > 0) {
+        const plantToEdit = plants.find((p) => p.id === editId);
+        if (plantToEdit) {
+          handleOpenModal(plantToEdit);
+        }
+      } else if (isModalOpen && modalMode === "edit") {
+        handleCloseModal();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plants, isModalOpen, modalMode]);
 
   const handleLoadMore = () => {
     setLimit((prev) => Math.min(prev + 50, 200));
@@ -502,6 +530,9 @@ export default function PlantsPage() {
       return;
     }
 
+    // Store plant name before deletion for success message
+    const plantName = plant.name;
+
     setDeletingPlantId(plant.id);
     setDeleteMessage(null);
 
@@ -521,19 +552,22 @@ export default function PlantsPage() {
         throw new Error(result.body?.error || "Failed to delete plant");
       }
 
-      // Success: show message and refresh list
+      // Success: remove plant from local array (no refetch)
+      setPlants((prevPlants) => prevPlants.filter((p) => p.id !== plant.id));
+      
+      // Update total count
+      setTotalCount((prev) => Math.max(0, prev - 1));
+
+      // Show success notification (floating)
       setDeleteMessage({
         type: "success",
-        text: `Plant "${plant.name}" deleted successfully.`,
+        text: `${plantName} deleted`,
       });
 
-      // Refresh the plants list
-      await fetchPlants();
-
-      // Clear message after 3 seconds
+      // Clear notification after 2.5 seconds
       setTimeout(() => {
         setDeleteMessage(null);
-      }, 3000);
+      }, 2500);
     } catch (err) {
       console.error("Error deleting plant:", err);
       setDeleteMessage({
@@ -572,9 +606,27 @@ export default function PlantsPage() {
     }
   };
 
+  const handleEditClick = (plant: Plant) => {
+    // For Edit modal, update URL which will trigger the modal to open
+    // This ensures URL is the single source of truth for modal state
+    const newUrl = `/internal/plants?edit=${plant.id}`;
+    window.history.pushState({}, "", newUrl);
+    // Manually trigger modal open since pushState doesn't fire popstate
+    handleOpenModal(plant);
+  };
+
   const handleOpenModal = (plant?: Plant) => {
     if (plant) {
-      // Edit mode
+      // Edit mode - capture scroll position
+      const rowElement = plantRowRefs.current.get(plant.id);
+      if (rowElement) {
+        const rect = rowElement.getBoundingClientRect();
+        setScrollAnchor({
+          plantId: plant.id,
+          offsetTop: rect.top,
+        });
+      }
+      
       setModalMode("edit");
       setEditingPlantId(plant.id);
       setFormData({
@@ -599,6 +651,7 @@ export default function PlantsPage() {
       setModalMode("create");
       setEditingPlantId(null);
       setExistingImageUrl(null);
+      setScrollAnchor(null);
       setFormData({
         name: "",
         scientific_name: "",
@@ -617,6 +670,8 @@ export default function PlantsPage() {
     setFormErrors({});
     setSubmitError(null);
     setSubmitSuccess(false);
+    setSubmitSuccessMessage(null);
+    setSaveSuccess(null);
     setIsModalOpen(true);
   };
 
@@ -629,6 +684,7 @@ export default function PlantsPage() {
     setModalMode("create");
     setEditingPlantId(null);
     setExistingImageUrl(null);
+    setScrollAnchor(null);
     setFormData({
       name: "",
       scientific_name: "",
@@ -646,6 +702,16 @@ export default function PlantsPage() {
     setFormErrors({});
     setSubmitError(null);
     setSubmitSuccess(false);
+    setSubmitSuccessMessage(null);
+    
+    // Remove edit query param if present (for edit mode)
+    // Do NOT touch URL for create mode (modal=add already cleaned up by its own effect)
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("edit")) {
+        window.history.replaceState({}, "", "/internal/plants");
+      }
+    }
   };
 
   const handleInputChange = (
@@ -856,10 +922,26 @@ export default function PlantsPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Restore scroll position to the anchor plant
+  const restoreScrollPosition = () => {
+    if (!scrollAnchor) return;
+    
+    // Use requestAnimationFrame to ensure DOM has updated
+    requestAnimationFrame(() => {
+      const rowElement = plantRowRefs.current.get(scrollAnchor.plantId);
+      if (rowElement) {
+        const currentRect = rowElement.getBoundingClientRect();
+        const scrollDelta = currentRect.top - scrollAnchor.offsetTop;
+        window.scrollBy({ top: scrollDelta, behavior: "instant" });
+      }
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent, saveAndNext = false) => {
     e.preventDefault();
     setSubmitError(null);
     setSubmitSuccess(false);
+    setSubmitSuccessMessage(null);
     
     // Validate form
     if (!validateForm()) {
@@ -872,6 +954,9 @@ export default function PlantsPage() {
     }
     
     setIsSubmitting(true);
+    
+    // Capture plant name before update (for success messages)
+    const plantNameBeforeUpdate = modalMode === "edit" ? formData.name : null;
     
     const formDataToSend = new FormData();
     formDataToSend.append("name", formData.name.trim());
@@ -904,20 +989,76 @@ export default function PlantsPage() {
 
       const result = await safeReadJson(response);
       if (!result.ok) {
-        throw new Error(result.body?.error || "Failed to create plant");
+        throw new Error(result.body?.error || "Failed to save plant");
       }
 
-      // Success: show message, refresh list, close modal
+      // Success: show message
       setSubmitSuccess(true);
-      await fetchPlants();
       
-      // Close modal after brief delay to show success message
-      setTimeout(() => {
-        handleCloseModal();
-      }, 1500);
+      // Update plants list based on mode
+      if (modalMode === "create") {
+        // Create: refetch to get new plant with correct ordering
+        await fetchPlants();
+        // Close modal after brief delay
+        setTimeout(() => {
+          handleCloseModal();
+        }, 1500);
+      } else {
+        // Edit: update in-place without refetching
+        const updatedPlant = result.body?.data;
+        if (updatedPlant) {
+          setPlants((prevPlants) =>
+            prevPlants.map((p) => (p.id === editingPlantId ? { ...p, ...updatedPlant } : p))
+          );
+        }
+        
+        // Handle Save & Next
+        if (saveAndNext) {
+          // Show inline modal confirmation for Save & Next with plant name
+          if (plantNameBeforeUpdate) {
+            setSubmitError(null); // Clear any previous errors
+            setSubmitSuccessMessage(`${plantNameBeforeUpdate} updated`);
+            // submitSuccess is already true, it will show the green success banner
+          }
+          
+          // Find next plant in current list
+          const currentIndex = plants.findIndex((p) => p.id === editingPlantId);
+          if (currentIndex !== -1 && currentIndex < plants.length - 1) {
+            const nextPlant = plants[currentIndex + 1];
+            // Small delay to show success message before switching
+            setTimeout(() => {
+              // Update URL with pushState (not replaceState) for browser history
+              const newUrl = `/internal/plants?edit=${nextPlant.id}`;
+              window.history.pushState({}, "", newUrl);
+              // The URL change will trigger the useEffect to load next plant
+              // We need to manually trigger it since pushState doesn't fire popstate
+              handleOpenModal(nextPlant);
+            }, 800);
+          }
+        } else {
+          // Regular save: show success IN MODAL, then auto-close
+          const successText = plantNameBeforeUpdate ? `${plantNameBeforeUpdate} updated successfully` : "";
+          
+          if (successText) {
+            // Show success message in modal
+            setSaveSuccess(successText);
+            
+            // Auto-close modal after 1 second
+            setTimeout(() => {
+              setSaveSuccess(null);
+              handleCloseModal();
+              restoreScrollPosition();
+            }, 1000);
+          } else {
+            // Fallback if no plant name
+            handleCloseModal();
+            restoreScrollPosition();
+          }
+        }
+      }
     } catch (err) {
-      console.error("Error creating plant:", err);
-      setSubmitError(err instanceof Error ? err.message : "Failed to create plant");
+      console.error("Error saving plant:", err);
+      setSubmitError(err instanceof Error ? err.message : "Failed to save plant");
     } finally {
       setIsSubmitting(false);
     }
@@ -1117,22 +1258,11 @@ export default function PlantsPage() {
         </div>
       )}
 
-      {/* Delete Message */}
-      {deleteMessage && (
-        <div
-          className={`border rounded-lg p-4 ${
-            deleteMessage.type === "success"
-              ? "bg-green-50 border-green-200"
-              : "bg-red-50 border-red-200"
-          }`}
-        >
-          <p
-            className={`text-sm ${
-              deleteMessage.type === "success"
-                ? "text-green-800"
-                : "text-red-800"
-            }`}
-          >
+      {/* Banner Messages */}
+      {/* Error banner - rendered at top of page */}
+      {deleteMessage?.type === "error" && deleteMessage.text && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-800">
             {deleteMessage.text}
           </p>
         </div>
@@ -1268,7 +1398,17 @@ export default function PlantsPage() {
                       {displayPlants.map((plant) => {
                         const thumbnailUrl = getThumbnailUrl(plant);
                         return (
-                          <tr key={plant.id} className="hover:bg-gray-50 group">
+                          <tr 
+                            key={plant.id} 
+                            className="hover:bg-gray-50 group"
+                            ref={(el) => {
+                              if (el) {
+                                plantRowRefs.current.set(plant.id, el);
+                              } else {
+                                plantRowRefs.current.delete(plant.id);
+                              }
+                            }}
+                          >
                             {visibleColumns.thumbnail && (
                               <td className="px-4 py-3 whitespace-nowrap">
                                 {thumbnailUrl ? (
@@ -1418,7 +1558,7 @@ export default function PlantsPage() {
                               <td className="sticky right-0 bg-white group-hover:bg-gray-50 px-4 py-3 whitespace-nowrap z-10">
                                 <div className="flex items-center gap-3">
                                   <button
-                                    onClick={() => handleOpenModal(plant)}
+                                    onClick={() => handleEditClick(plant)}
                                     className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                                   >
                                     Edit
@@ -1457,6 +1597,13 @@ export default function PlantsPage() {
                     <div
                       key={plant.id}
                       className="bg-white rounded-lg border border-gray-200 p-4 space-y-3"
+                      ref={(el) => {
+                        if (el) {
+                          plantRowRefs.current.set(plant.id, el as any);
+                        } else {
+                          plantRowRefs.current.delete(plant.id);
+                        }
+                      }}
                     >
                       {/* Top row: thumbnail + name + scientific name + published badge */}
                       <div className="flex items-start gap-3">
@@ -1530,7 +1677,7 @@ export default function PlantsPage() {
                       {/* Bottom row: Actions */}
                       <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
                         <button
-                          onClick={() => handleOpenModal(plant)}
+                          onClick={() => handleEditClick(plant)}
                           className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                         >
                           Edit
@@ -1607,7 +1754,7 @@ export default function PlantsPage() {
                 {submitSuccess && (
                   <div className="bg-green-50 border border-green-200 rounded-md p-3">
                     <p className="text-sm text-green-800">
-                      {modalMode === "edit" ? "Plant updated successfully!" : "Plant created successfully!"}
+                      {submitSuccessMessage || (modalMode === "edit" ? "Plant updated successfully!" : "Plant created successfully!")}
                     </p>
                   </div>
                 )}
@@ -2064,19 +2211,44 @@ export default function PlantsPage() {
                   </p>
                 </div>
 
+                {/* Success Message - shown in modal before auto-close */}
+                {saveSuccess && (
+                  <div className="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-2 text-sm text-green-800">
+                    ✓ {saveSuccess}
+                  </div>
+                )}
+
                 {/* Modal Footer */}
                 <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                   <button
                     type="button"
                     onClick={handleCloseModal}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || saveSuccess !== null}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
+                  {modalMode === "edit" && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleSubmit(e as any, true)}
+                      disabled={isSubmitting || !isFormValid() || saveSuccess !== null || (() => {
+                        const currentIndex = plants.findIndex((p) => p.id === editingPlantId);
+                        return currentIndex === -1 || currentIndex >= plants.length - 1;
+                      })()}
+                      className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={(() => {
+                        const currentIndex = plants.findIndex((p) => p.id === editingPlantId);
+                        const isLastPlant = currentIndex === -1 || currentIndex >= plants.length - 1;
+                        return isLastPlant ? "This is the last plant in the list" : "Save and edit next plant";
+                      })()}
+                    >
+                      {isSubmitting ? "Saving..." : "Save & Next"}
+                    </button>
+                  )}
                   <button
                     type="submit"
-                    disabled={isSubmitting || !isFormValid()}
+                    disabled={isSubmitting || !isFormValid() || saveSuccess !== null}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSubmitting 
