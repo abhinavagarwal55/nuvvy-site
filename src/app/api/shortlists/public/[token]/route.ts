@@ -84,10 +84,11 @@ export async function GET(
     // Supabase returns foreign key relationships as objects (one-to-one) or arrays (one-to-many)
     let customerName: string | null = null;
     if (shortlistData?.customer) {
-      if (Array.isArray(shortlistData.customer)) {
-        customerName = shortlistData.customer[0]?.name || null;
-      } else {
-        customerName = shortlistData.customer.name || null;
+      const customer = shortlistData.customer as any;
+      if (Array.isArray(customer)) {
+        customerName = customer[0]?.name || null;
+      } else if (customer && typeof customer === 'object' && 'name' in customer) {
+        customerName = customer.name || null;
       }
     }
 
