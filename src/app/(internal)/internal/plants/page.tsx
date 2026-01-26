@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo, type RefObject, type MouseEventHandler } from "react";
-import { PLANT_CATEGORIES, LIGHT_CONDITIONS } from "@/config/plantOptions";
+import { PLANT_CATEGORIES, LIGHT_CONDITIONS, PRICE_BANDS } from "@/config/plantOptions";
 import { PLANT_FIELD_DEFS, DEFAULT_VISIBLE_COLUMNS, INITIAL_VISIBLE_COLUMNS } from "@/lib/internal/plants/plantFields";
 
 // Helper to safely read JSON from response, handling HTML errors and empty bodies
@@ -43,6 +43,7 @@ interface Plant {
   lifespan?: string;
   horticulturist_notes?: string;
   can_be_procured?: boolean;
+  price_band?: string | null;
   created_at?: string;
   updated_at?: string;
   thumbnail_url?: string;
@@ -69,11 +70,12 @@ interface PlantFormData {
   lifespan: string;
   horticulturist_notes: string;
   can_be_procured: boolean;
+  price_band: string;
   image: File | null;
 }
 
-// Scrollable fields exclude can_be_procured (checkbox doesn't need scrolling)
-type ScrollableField = Exclude<keyof PlantFormData, "can_be_procured">;
+// Scrollable fields exclude can_be_procured (checkbox doesn't need scrolling) and image (file input)
+type ScrollableField = Exclude<keyof PlantFormData, "can_be_procured" | "image">;
 
 export default function PlantsPage() {
   const [plants, setPlants] = useState<Plant[]>([]);
@@ -83,9 +85,11 @@ export default function PlantsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [publishedFilter, setPublishedFilter] = useState<"all" | "published" | "non-published">("all");
-  const [limit, setLimit] = useState(25);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [lightFilter, setLightFilter] = useState<string>("all");
+  const [priceBandFilter, setPriceBandFilter] = useState<string[]>([]); // Multi-select for price bands
+  const [limit, setLimit] = useState(10000); // Fetch all plants by default
   const [offset, setOffset] = useState(0);
-  const [showAll, setShowAll] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingPlantId, setEditingPlantId] = useState<string | null>(null);
@@ -102,6 +106,7 @@ export default function PlantsPage() {
     lifespan: "",
     horticulturist_notes: "",
     can_be_procured: false,
+    price_band: "",
     image: null,
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof PlantFormData, string>>>({});
@@ -123,6 +128,7 @@ export default function PlantsPage() {
     return { ...INITIAL_VISIBLE_COLUMNS, ...DEFAULT_VISIBLE_COLUMNS };
   });
   const [isColumnsPopoverOpen, setIsColumnsPopoverOpen] = useState(false);
+  const [isPriceBandPopoverOpen, setIsPriceBandPopoverOpen] = useState(false);
 
   // Scroll anchor state for preserving list position
   const [scrollAnchor, setScrollAnchor] = useState<{ plantId: string; offsetTop: number } | null>(null);
@@ -143,6 +149,7 @@ export default function PlantsPage() {
   const toxicityRef = useRef<HTMLInputElement>(null);
   const lifespanRef = useRef<HTMLInputElement>(null);
   const horticulturist_notesRef = useRef<HTMLTextAreaElement>(null);
+  const price_bandRef = useRef<HTMLSelectElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   
   // Map of refs for scroll-to-first-error logic (all as HTMLElement)
@@ -157,16 +164,14 @@ export default function PlantsPage() {
     toxicity: toxicityRef,
     lifespan: lifespanRef,
     horticulturist_notes: horticulturist_notesRef,
-    image: imageRef,
+    price_band: price_bandRef,
   };
 
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery);
-      setLimit(25); // Reset limit when search changes
       setOffset(0); // Reset offset when search changes
-      setShowAll(false); // Reset show all when search changes
     }, 300);
 
     return () => clearTimeout(timer);
@@ -179,13 +184,9 @@ export default function PlantsPage() {
     setError(null);
 
     try {
-      // Determine limit: if showAll is true, fetch with a large limit (we'll use totalCount after first fetch)
-      // Otherwise use the current limit
-      // For first fetch, we don't know totalCount yet, so use limit
-      const effectiveLimit = showAll ? (totalCount > 0 ? totalCount : 10000) : limit;
-      
+      // Fetch all plants by default (limit is set to 10000)
       const params = new URLSearchParams({
-        limit: effectiveLimit.toString(),
+        limit: limit.toString(),
         offset: offset.toString(),
         ...(debouncedQuery && { q: debouncedQuery }),
         published: publishedFilter === "all" ? "all" : publishedFilter === "published" ? "published" : "non_published",
@@ -213,7 +214,7 @@ export default function PlantsPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedQuery, publishedFilter, limit, offset, showAll, totalCount, sortKey, sortDir]);
+  }, [debouncedQuery, publishedFilter, limit, offset, sortKey, sortDir]);
 
   useEffect(() => {
     fetchPlants();
@@ -221,9 +222,7 @@ export default function PlantsPage() {
 
   // Reset pagination when published filter changes
   useEffect(() => {
-    setLimit(25);
     setOffset(0);
-    setShowAll(false);
   }, [publishedFilter]);
 
   // Load sort state from localStorage on mount
@@ -397,15 +396,6 @@ export default function PlantsPage() {
     setLimit((prev) => Math.min(prev + 50, 200));
   };
 
-  const handleShowAll = () => {
-    if (totalCount > 0) {
-      setShowAll(true);
-      // Set limit to totalCount to fetch all rows
-      setLimit(totalCount);
-      setOffset(0);
-    }
-  };
-
   // Sorting function
   const applySort = (plantsToSort: Plant[], key: string | null, dir: "asc" | "desc" | null): Plant[] => {
     if (!key || !dir) {
@@ -462,9 +452,38 @@ export default function PlantsPage() {
     return sorted;
   };
 
-  // Plants are already filtered and sorted by the API
-  // Use plants directly (no client-side filtering/sorting needed)
-  const displayPlants = plants;
+  // Apply client-side filters for category, light, and price band
+  const displayPlants = useMemo(() => {
+    let filtered = plants;
+    
+    // Apply category filter
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((plant) => plant.category === categoryFilter);
+    }
+    
+    // Apply light filter
+    if (lightFilter !== "all") {
+      filtered = filtered.filter((plant) => plant.light === lightFilter);
+    }
+    
+    // Apply price band filter (multi-select)
+    if (priceBandFilter.length > 0) {
+      filtered = filtered.filter((plant) => {
+        // Check if "not-set" is selected and plant has no price band
+        const hasNotSet = priceBandFilter.includes("not-set");
+        const isNotSet = !plant.price_band || plant.price_band.trim() === "";
+        
+        if (hasNotSet && isNotSet) {
+          return true;
+        }
+        
+        // Check if plant's price band matches any selected price bands
+        return priceBandFilter.includes(plant.price_band || "");
+      });
+    }
+    
+    return filtered;
+  }, [plants, categoryFilter, lightFilter, priceBandFilter]);
 
   // Handle column header click
   const handleSort = (key: string) => {
@@ -641,6 +660,7 @@ export default function PlantsPage() {
         lifespan: plant.lifespan || "",
         horticulturist_notes: plant.horticulturist_notes || "",
         can_be_procured: plant.can_be_procured || false,
+        price_band: plant.price_band || "",
         image: null, // New image (optional in edit mode)
       });
       // Set existing image URL for preview
@@ -664,6 +684,7 @@ export default function PlantsPage() {
         lifespan: "",
         horticulturist_notes: "",
         can_be_procured: false,
+        price_band: "",
         image: null,
       });
     }
@@ -696,6 +717,7 @@ export default function PlantsPage() {
       toxicity: "",
       lifespan: "",
       horticulturist_notes: "",
+      price_band: "",
       can_be_procured: false,
       image: null,
     });
@@ -815,7 +837,11 @@ export default function PlantsPage() {
     if (!formData.horticulturist_notes.trim()) {
       errors.horticulturist_notes = "Horticulturist notes is required";
     }
-    
+
+    if (!formData.price_band.trim()) {
+      errors.price_band = "Price band is required";
+    }
+
     // Image validation:
     // - Create mode: image file is required
     // - Edit mode: either new image file OR existing image must be present
@@ -871,7 +897,6 @@ export default function PlantsPage() {
       "toxicity",
       "lifespan",
       "horticulturist_notes",
-      "image",
     ];
 
     // Find first field with error (only scrollable fields)
@@ -970,6 +995,7 @@ export default function PlantsPage() {
     formDataToSend.append("lifespan", formData.lifespan.trim());
     formDataToSend.append("horticulturist_notes", formData.horticulturist_notes.trim());
     formDataToSend.append("can_be_procured", formData.can_be_procured.toString());
+    formDataToSend.append("price_band", formData.price_band.trim());
     
     // Image is required in create mode, optional in edit mode
     if (formData.image) {
@@ -1084,6 +1110,7 @@ export default function PlantsPage() {
       formData.toxicity.trim() !== "" &&
       formData.lifespan.trim() !== "" &&
       formData.horticulturist_notes.trim() !== "" &&
+      formData.price_band.trim() !== "" &&
       imageOk &&
       Object.keys(formErrors).length === 0
     );
@@ -1227,20 +1254,175 @@ export default function PlantsPage() {
           </div>
         </div>
 
-        {/* Count + Show All */}
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-gray-600">
-            Showing {displayPlants.length} of {totalCount} plants
+        {/* Additional Filters - Category, Light, Price Band */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Category Filter */}
+          <div>
+            <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 mb-1">
+              Category
+            </label>
+            <select
+              id="category-filter"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Categories</option>
+              {PLANT_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
           </div>
-          {!showAll && displayPlants.length < totalCount && totalCount > 0 && (
+
+          {/* Light Filter */}
+          <div>
+            <label htmlFor="light-filter" className="block text-sm font-medium text-gray-700 mb-1">
+              Light Requirement
+            </label>
+            <select
+              id="light-filter"
+              value={lightFilter}
+              onChange={(e) => setLightFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Light Conditions</option>
+              {LIGHT_CONDITIONS.map((light) => (
+                <option key={light} value={light}>
+                  {light}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Price Band Filter - Multi-select */}
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Price Band
+            </label>
             <button
               type="button"
-              onClick={handleShowAll}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onClick={() => setIsPriceBandPopoverOpen(!isPriceBandPopoverOpen)}
+              className="w-full px-3 py-2 text-left border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
-              Show all
+              {priceBandFilter.length === 0 ? (
+                <span className="text-gray-500">Select price bands...</span>
+              ) : (
+                <span className="text-gray-900">
+                  {priceBandFilter.length} selected
+                </span>
+              )}
             </button>
-          )}
+            {isPriceBandPopoverOpen && (
+              <>
+                {/* Backdrop */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setIsPriceBandPopoverOpen(false)}
+                />
+                {/* Popover */}
+                <div className="absolute left-0 top-full mt-2 z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-900">Select Price Bands</h3>
+                    <button
+                      type="button"
+                      onClick={() => setPriceBandFilter([])}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {/* Not Set option */}
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={priceBandFilter.includes("not-set")}
+                        onChange={() => {
+                          setPriceBandFilter((prev) =>
+                            prev.includes("not-set")
+                              ? prev.filter((b) => b !== "not-set")
+                              : [...prev, "not-set"]
+                          );
+                        }}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700 italic">Not Set (Blank)</span>
+                    </label>
+                    {/* Price band options */}
+                    {PRICE_BANDS.map((band) => (
+                      <label key={band} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={priceBandFilter.includes(band)}
+                          onChange={() => {
+                            setPriceBandFilter((prev) =>
+                              prev.includes(band)
+                                ? prev.filter((b) => b !== band)
+                                : [...prev, band]
+                            );
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{band}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Active Filters Summary */}
+        {(categoryFilter !== "all" || lightFilter !== "all" || priceBandFilter.length > 0) && (
+          <div className="flex items-center gap-2 flex-wrap text-sm text-gray-600">
+            <span className="font-medium">Active filters:</span>
+            {categoryFilter !== "all" && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                Category: {categoryFilter}
+              </span>
+            )}
+            {lightFilter !== "all" && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                Light: {lightFilter}
+              </span>
+            )}
+            {priceBandFilter.map((band) => (
+              <span key={band} className="px-2 py-1 bg-blue-100 text-blue-800 rounded flex items-center gap-1">
+                Price: {band === "not-set" ? "Not Set" : band}
+                <button
+                  onClick={() => setPriceBandFilter((prev) => prev.filter((b) => b !== band))}
+                  className="ml-1 text-blue-600 hover:text-blue-900"
+                  title="Remove filter"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <button
+              onClick={() => {
+                setCategoryFilter("all");
+                setLightFilter("all");
+                setPriceBandFilter([]);
+              }}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium ml-2"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+
+        {/* Count */}
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-gray-600">
+            {(categoryFilter !== "all" || lightFilter !== "all" || priceBandFilter.length > 0) ? (
+              <>Showing {displayPlants.length} of {totalCount} plants (with filters applied)</>
+            ) : (
+              <>Showing all {totalCount} plants</>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1325,6 +1507,11 @@ export default function PlantsPage() {
                         {visibleColumns.watering_requirement && (
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                             Watering
+                          </th>
+                        )}
+                        {visibleColumns.price_band && (
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                            Price Band
                           </th>
                         )}
                         {visibleColumns.fertilization_requirement && (
@@ -1474,6 +1661,13 @@ export default function PlantsPage() {
                                   title={plant.watering_requirement || undefined}
                                 >
                                   {plant.watering_requirement || "-"}
+                                </div>
+                              </td>
+                            )}
+                            {visibleColumns.price_band && (
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">
+                                  {plant.price_band || "-"}
                                 </div>
                               </td>
                             )}
@@ -2143,6 +2337,48 @@ export default function PlantsPage() {
                   />
                   {formErrors.horticulturist_notes && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.horticulturist_notes}</p>
+                  )}
+                </div>
+
+                {/* Price Band */}
+                <div>
+                  <label
+                    htmlFor="price_band"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Price Band <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    ref={price_bandRef}
+                    id="price_band"
+                    name="price_band"
+                    required
+                    value={formData.price_band}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      if (formErrors.price_band) {
+                        setFormErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.price_band;
+                          return next;
+                        });
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      formErrors.price_band
+                        ? "border-red-300 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-blue-500"
+                    }`}
+                  >
+                    <option value="">Select price band</option>
+                    {PRICE_BANDS.map((band) => (
+                      <option key={band} value={band}>
+                        {band}
+                      </option>
+                    ))}
+                  </select>
+                  {formErrors.price_band && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.price_band}</p>
                   )}
                 </div>
 

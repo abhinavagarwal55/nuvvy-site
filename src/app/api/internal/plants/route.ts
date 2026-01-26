@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
     const toxicityRaw = formData.get("toxicity") as string | null;
     const lifespanRaw = formData.get("lifespan") as string | null;
     const horticulturist_notesRaw = formData.get("horticulturist_notes") as string | null;
+    const price_bandRaw = formData.get("price_band") as string | null;
     const imageFile = formData.get("image") as File | null;
 
     // Trim and validate ALL required fields
@@ -180,6 +181,7 @@ export async function POST(request: NextRequest) {
     const toxicity = toxicityRaw?.trim() || "";
     const lifespan = lifespanRaw?.trim() || "";
     const horticulturist_notes = horticulturist_notesRaw?.trim() || "";
+    const price_band = price_bandRaw?.trim() || "";
 
     // Validate can_be_procured is explicitly set (boolean)
     const can_be_procuredValue = formData.get("can_be_procured");
@@ -258,6 +260,13 @@ export async function POST(request: NextRequest) {
     if (!horticulturist_notes) {
       return NextResponse.json(
         { data: null, error: "Horticulturist notes is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!price_band) {
+      return NextResponse.json(
+        { data: null, error: "Price band is required" },
         { status: 400 }
       );
     }
@@ -352,6 +361,7 @@ export async function POST(request: NextRequest) {
         lifespan,
         horticulturist_notes,
         can_be_procured,
+        price_band,
         image_storage_url: imageStorageUrl,
         thumbnail_storage_url: thumbnailStorageUrl,
         airtable_id: crypto.randomUUID(), // Generate unique ID

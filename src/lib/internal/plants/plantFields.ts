@@ -52,6 +52,13 @@ export const PLANT_FIELD_DEFS: PlantFieldDef[] = [
     isLongText: true,
   },
   {
+    key: "price_band",
+    label: "Price Band",
+    requiredInTable: false,
+    defaultVisible: true,
+    sortable: false,
+  },
+  {
     key: "fertilization_requirement",
     label: "Fertilization",
     requiredInTable: false,
@@ -133,6 +140,7 @@ export const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
   category: true,
   light: true,
   watering_requirement: true,
+  price_band: true,
   published: true,
   updated_at: true,
   actions: true,

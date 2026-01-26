@@ -39,6 +39,7 @@ interface PlantDetail {
   lifespan?: string | null;
   horticulturist_notes?: string | null;
   can_be_procured?: boolean | null;
+  price_band?: string | null;
   image_storage_url?: string | null;
   image_url?: string | null;
   thumbnail_storage_url?: string | null;
@@ -342,6 +343,13 @@ export default function PlantDetailPage({ params }: { params: Promise<{ id: stri
               >
                 {plant.can_be_procured ? "Yes" : "No"}
               </span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Price Band
+              </label>
+              <p className="text-sm text-gray-900 break-words">{plant.price_band || "-"}</p>
             </div>
           </div>
 

@@ -6,16 +6,24 @@
 -- =========================================================
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
--- ENUM DEFINITIONS (approximate, for AI context)
+-- ENUM DEFINITIONS (authoritative from Supabase)
 
 -- customer_status
 -- values: 'ACTIVE', 'INACTIVE'
 
 -- shortlist_status
--- values: 'DRAFT', 'PUBLISHED', 'ARCHIVED'
+-- values:
+--   'DRAFT'
+--   'SENT_TO_CUSTOMER'
+--   'CUSTOMER_SUBMITTED'
+--   'SENT_BACK_TO_CUSTOMER'
+--   'TO_BE_PROCURED'
 
 -- actor_role / created_by_role
--- values: 'horticulturist', 'admin', 'system'
+-- values:
+--   'HORTICULTURIST'
+--   'CUSTOMER'
+--   'SYSTEM'
 
 CREATE TABLE public.customers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

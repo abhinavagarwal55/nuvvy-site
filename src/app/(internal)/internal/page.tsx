@@ -9,6 +9,10 @@ interface Stats {
   unpublished: number;
 }
 
+interface CustomerStats {
+  active: number;
+}
+
 interface RecentPlant {
   id: string;
   name: string;
@@ -17,12 +21,14 @@ interface RecentPlant {
 
 export default function InternalPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
   const [recent, setRecent] = useState<RecentPlant[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingCustomerStats, setLoadingCustomerStats] = useState(true);
   const [loadingRecent, setLoadingRecent] = useState(true);
 
   useEffect(() => {
-    // Fetch stats
+    // Fetch plant stats
     fetch("/api/internal/plants/stats")
       .then((res) => res.json())
       .then((json) => {
@@ -33,6 +39,19 @@ export default function InternalPage() {
       })
       .catch(() => {
         setLoadingStats(false);
+      });
+
+    // Fetch customer stats
+    fetch("/api/internal/customers/stats")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data) {
+          setCustomerStats(json.data);
+        }
+        setLoadingCustomerStats(false);
+      })
+      .catch(() => {
+        setLoadingCustomerStats(false);
       });
 
     // Fetch recent plants
@@ -93,41 +112,94 @@ export default function InternalPage() {
       {/* Quick Links */}
       <div className="bg-white p-4 md:p-6 rounded-lg border border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Links</h2>
-        <div className="flex flex-col gap-2 md:flex-row md:gap-3">
-          <Link
-            href="/internal/plants?modal=add"
-            className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-center md:text-left"
-          >
-            Add Plant
-          </Link>
-          <Link
-            href="/internal/plants"
-            className="w-full md:w-auto px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium text-center md:text-left"
-          >
-            View Plants
-          </Link>
+        
+        {/* Plants */}
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Plants</h3>
+          <div className="flex flex-col gap-2 md:flex-row md:gap-3">
+            <Link
+              href="/internal/plants?modal=add"
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-center md:text-left"
+            >
+              Add Plant
+            </Link>
+            <Link
+              href="/internal/plants"
+              className="w-full md:w-auto px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium text-center md:text-left"
+            >
+              View Plants
+            </Link>
+          </div>
+        </div>
+        
+        {/* Customers */}
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Customers</h3>
+          <div className="flex flex-col gap-2 md:flex-row md:gap-3">
+            <Link
+              href="/internal/customers"
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-center md:text-left"
+            >
+              Add Customer
+            </Link>
+            <Link
+              href="/internal/customers"
+              className="w-full md:w-auto px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium text-center md:text-left"
+            >
+              View Customers
+            </Link>
+          </div>
+        </div>
+        
+        {/* Shortlists */}
+        <div>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Shortlists</h3>
+          <div className="flex flex-col gap-2 md:flex-row md:gap-3">
+            <Link
+              href="/internal/shortlists"
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-center md:text-left"
+            >
+              View Shortlists
+            </Link>
+            <Link
+              href="/internal/customers"
+              className="w-full md:w-auto px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium text-center md:text-left"
+            >
+              Create Shortlist
+            </Link>
+          </div>
         </div>
       </div>
 
-      {/* Catalog Snapshot */}
+      {/* Quick Snapshot */}
       <div className="bg-white p-4 md:p-6 rounded-lg border border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Catalog Snapshot</h2>
-        {loadingStats ? (
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Snapshot</h2>
+        {(loadingStats || loadingCustomerStats) ? (
           <div className="text-sm text-gray-500">Loading...</div>
-        ) : stats ? (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="text-3xl font-bold text-gray-900">{stats.total}</div>
-              <div className="text-sm text-gray-600 mt-1">Total Plants</div>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="text-3xl font-bold text-gray-900">{stats.published}</div>
-              <div className="text-sm text-gray-600 mt-1">Published Plants</div>
-            </div>
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 col-span-2 md:col-span-1">
-              <div className="text-3xl font-bold text-gray-900">{stats.unpublished}</div>
-              <div className="text-sm text-gray-600 mt-1">Unpublished Plants</div>
-            </div>
+        ) : (stats || customerStats) ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            {stats && (
+              <>
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="text-3xl font-bold text-gray-900">{stats.total}</div>
+                  <div className="text-sm text-gray-600 mt-1">Total Plants</div>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="text-3xl font-bold text-gray-900">{stats.published}</div>
+                  <div className="text-sm text-gray-600 mt-1">Published Plants</div>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="text-3xl font-bold text-gray-900">{stats.unpublished}</div>
+                  <div className="text-sm text-gray-600 mt-1">Unpublished Plants</div>
+                </div>
+              </>
+            )}
+            {customerStats && (
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="text-3xl font-bold text-gray-900">{customerStats.active}</div>
+                <div className="text-sm text-gray-600 mt-1">Active Customers</div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-sm text-gray-500">Failed to load stats</div>

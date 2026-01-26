@@ -143,6 +143,7 @@ export async function PATCH(
     const toxicityRaw = formData.get("toxicity") as string | null;
     const lifespanRaw = formData.get("lifespan") as string | null;
     const horticulturist_notesRaw = formData.get("horticulturist_notes") as string | null;
+    const price_bandRaw = formData.get("price_band") as string | null;
     const can_be_procured_str = formData.get("can_be_procured") as string | null;
     const imageFile = formData.get("image") as File | null;
 
@@ -157,6 +158,7 @@ export async function PATCH(
     const toxicity = toxicityRaw?.trim() || "";
     const lifespan = lifespanRaw?.trim() || "";
     const horticulturist_notes = horticulturist_notesRaw?.trim() || "";
+    const price_band = price_bandRaw?.trim() || "";
 
     if (!name) {
       return NextResponse.json(
@@ -215,6 +217,12 @@ export async function PATCH(
     if (!horticulturist_notes) {
       return NextResponse.json(
         { data: null, error: "Horticulturist Notes are required" },
+        { status: 400 }
+      );
+    }
+    if (!price_band) {
+      return NextResponse.json(
+        { data: null, error: "Price band is required" },
         { status: 400 }
       );
     }
@@ -316,6 +324,7 @@ export async function PATCH(
       lifespan,
       horticulturist_notes,
       can_be_procured,
+      price_band,
       updated_at: new Date().toISOString(),
     };
 
