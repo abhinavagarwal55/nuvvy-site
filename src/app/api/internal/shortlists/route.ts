@@ -70,8 +70,12 @@ export async function GET(request: NextRequest) {
       
       // Derive status from latest version if it's CUSTOMER_SUBMITTED
       // This handles cases where the parent shortlist.status wasn't updated (old data)
+      // BUT: TO_BE_PROCURED status on the shortlist takes precedence (it's a terminal state)
       let derivedStatus = shortlist.status;
-      if (latestVersion?.status_at_time === "CUSTOMER_SUBMITTED") {
+      if (shortlist.status === "TO_BE_PROCURED") {
+        // TO_BE_PROCURED is terminal - always use it
+        derivedStatus = "TO_BE_PROCURED";
+      } else if (latestVersion?.status_at_time === "CUSTOMER_SUBMITTED") {
         derivedStatus = "CUSTOMER_SUBMITTED";
       }
       

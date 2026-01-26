@@ -55,6 +55,8 @@ interface ShortlistData {
   latest_submitted_version_number?: number;
   current_version_number?: number;
   showing_version_items?: boolean;
+  selected_version_number?: number;
+  selected_version_status?: string | null;
 }
 
 interface ItemFormData {
@@ -84,6 +86,9 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
   const [reviseError, setReviseError] = useState<string | null>(null);
   const [wasUpdate, setWasUpdate] = useState(false);
   const [sentVersionNumber, setSentVersionNumber] = useState<number | null>(null);
+  const [isDuplicating, setIsDuplicating] = useState(false);
+  const [isMovingToProcurement, setIsMovingToProcurement] = useState(false);
+  const [moveToProcurementSuccess, setMoveToProcurementSuccess] = useState(false);
   const [versions, setVersions] = useState<any[]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [viewingVersion, setViewingVersion] = useState<number | null>(null);
@@ -276,10 +281,27 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
     return isValid;
   };
 
+  // Check if viewing a CUSTOMER_SUBMITTED version (read-only)
+  // This must be in component scope to be used in JSX
+  const isViewingSubmittedVersion = (
+    (data?.selected_version_status === "CUSTOMER_SUBMITTED" || 
+     (data?.showing_version_items && data?.latest_submitted_version_number)) &&
+    !viewingVersion
+  );
+
+  // Check if shortlist is in TO_BE_PROCURED status
+  const isToBeProcured = data?.shortlist.status.toUpperCase() === "TO_BE_PROCURED";
+
   // Handle save
   const handleSave = async () => {
     setSaveSuccess(false);
     setSaveError(null);
+
+    // BLOCK: Cannot save submitted versions
+    if (isViewingSubmittedVersion) {
+      setSaveError("Customer-submitted versions cannot be modified. Create a new version to make changes.");
+      return;
+    }
 
     if (!validateForm()) {
       setSaveError("Please fix validation errors before saving");
@@ -291,6 +313,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
     try {
       const items = Array.from(itemsData.values()).map((item) => ({
         id: item.id,
+        plant_id: item.plant_id,
         quantity: parseInt(item.quantity, 10),
         notes: item.notes.trim() || null,
       }));
@@ -307,9 +330,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
         throw new Error(result.error || "Failed to save shortlist");
       }
 
-      // Update local state: increment current_version_number but keep latest_sent_version_number unchanged
-      // This ensures has_unsent_changes remains true if it was true before
-      // hasUnsentChanges = current_version_number > latest_sent_version_number
+      // Normal flow: Update local state
       if (data) {
         const currentVersion = data.shortlist.current_version_number || 0;
         const latestSentVersion = data.latest_sent_version_number || 0;
@@ -336,6 +357,73 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
       setIsSaving(false);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Handle duplicate shortlist
+  const handleDuplicate = async () => {
+    setIsDuplicating(true);
+    setSaveError(null);
+
+    try {
+      const response = await fetch(`/api/internal/shortlists/${shortlistId}/duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        throw new Error(result.error || "Failed to duplicate shortlist");
+      }
+
+      // Redirect to the new duplicated shortlist (Step 1)
+      if (result.data?.id) {
+        router.push(`/internal/shortlists/new?customerId=${data?.shortlist.customer_uuid || ""}&shortlistId=${result.data.id}`);
+      } else {
+        throw new Error("Duplicate created but no ID returned");
+      }
+    } catch (err) {
+      console.error("Error duplicating shortlist:", err);
+      setSaveError(err instanceof Error ? err.message : "Failed to duplicate shortlist");
+      setIsDuplicating(false);
+    }
+  };
+
+  // Handle move to procurement
+  const handleMoveToProcurement = async () => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      "This will mark the shortlist as ready for procurement. You will not be able to edit it further. Continue?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsMovingToProcurement(true);
+    setSaveError(null);
+    setMoveToProcurementSuccess(false);
+
+    try {
+      const response = await fetch(`/api/internal/shortlists/${shortlistId}/move-to-procurement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        throw new Error(result.error || "Failed to move shortlist to procurement");
+      }
+
+      // On success, redirect to shortlist list page
+      // This ensures the list page shows the updated status
+      router.push("/internal/shortlists");
+    } catch (err) {
+      console.error("Error moving to procurement:", err);
+      setSaveError(err instanceof Error ? err.message : "Failed to move shortlist to procurement");
+      setIsMovingToProcurement(false);
     }
   };
 
@@ -738,23 +826,23 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
             <span className="text-sm font-medium text-gray-700">Shortlist: </span>
             <span className="text-sm text-gray-900 font-semibold">{(viewingVersion !== null && versionData ? versionData.shortlist : data?.shortlist)?.title}</span>
           </div>
-          {!viewingVersion && data && (data.shortlist.status.toUpperCase() === "SENT_TO_CUSTOMER" || data.shortlist.status.toUpperCase() === "CUSTOMER_SUBMITTED") && (
+          {!viewingVersion && data && data.selected_version_number && (
             <div>
               <span className="text-xs text-gray-600">
-                Customer is viewing{" "}
+                {data.selected_version_status === "CUSTOMER_SUBMITTED" ? "Customer submitted" : "Customer is viewing"}{" "}
                 <span className="font-medium">
-                  v{data.latest_submitted_version_number || data.latest_sent_version_number || 0}
+                  v{data.selected_version_number}
                 </span>
+                {data.selected_version_status === "CUSTOMER_SUBMITTED" && (
+                  <>
+                    {" "}·{" "}
+                    <span className="text-amber-600 font-medium">(read-only)</span>
+                  </>
+                )}
                 {data.has_unsent_changes && (
                   <>
                     {" "}·{" "}
                     <span className="text-amber-600">You are editing a newer draft</span>
-                  </>
-                )}
-                {data.showing_version_items && data.latest_submitted_version_number && (
-                  <>
-                    {" "}·{" "}
-                    <span className="text-blue-600">Showing submitted version</span>
                   </>
                 )}
               </span>
@@ -787,6 +875,32 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
       {saveSuccess && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <p className="text-green-800">✓ Shortlist saved successfully!</p>
+        </div>
+      )}
+
+      {/* Move to Procurement Success Banner */}
+      {moveToProcurementSuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <p className="text-green-800">✓ Shortlist moved to procurement</p>
+        </div>
+      )}
+
+      {/* Warning: Viewing Submitted Version */}
+      {!viewingVersion && data && isViewingSubmittedVersion && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <p className="text-amber-800 text-sm">
+            <span className="font-medium">⚠️ Read-only:</span> This shortlist was submitted by the customer and cannot be edited.
+            Use "Duplicate" to create a new editable copy, or "Move to Procurement" to proceed.
+          </p>
+        </div>
+      )}
+
+      {/* Warning: To Be Procured */}
+      {!viewingVersion && data && isToBeProcured && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <p className="text-purple-800 text-sm">
+            <span className="font-medium">📦 Ready for Procurement:</span> This shortlist has been marked for procurement and cannot be edited.
+          </p>
         </div>
       )}
 
@@ -901,69 +1015,87 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
           </div>
           {showVersionHistory && (
             <div className="divide-y divide-gray-200">
-              {versions.map((version) => (
-              <div
-                key={version.id}
-                className={`p-4 md:p-6 ${
-                  version.is_current ? "bg-blue-50" : "bg-white"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-semibold text-gray-900">
-                          v{version.version_number}
-                        </span>
-                        {version.is_current && (
-                          <span className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">
-                            (current)
+              {versions.map((version) => {
+                // Determine if this version is the selected/default version being displayed
+                const isSelectedVersion = !viewingVersion && data?.selected_version_number === version.version_number;
+                const isCurrentDraft = version.is_current && !data?.showing_version_items;
+                
+                return (
+                <div
+                  key={version.id}
+                  className={`p-4 md:p-6 ${
+                    isSelectedVersion ? "bg-green-50 border-l-4 border-green-500" : isCurrentDraft ? "bg-blue-50" : "bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-semibold text-gray-900">
+                            v{version.version_number}
                           </span>
-                        )}
-                      </div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        {formatVersionStatus(version.status_at_time)}
-                      </div>
-                      <div className="mt-1 text-xs text-gray-500">
-                        {formatVersionDate(version.created_at)}
+                          {isSelectedVersion && (
+                            <span className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full">
+                              (viewing)
+                            </span>
+                          )}
+                          {isCurrentDraft && !isSelectedVersion && (
+                            <span className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">
+                              (current)
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-sm text-gray-600">
+                          {formatVersionStatus(version.status_at_time)}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {formatVersionDate(version.created_at)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {version.status_at_time === "SENT_TO_CUSTOMER" && version.has_public_link && (
-                      <>
-                        {/* For current version, use handleViewCurrentVersion; for historical, use handleViewVersion */}
+                    <div className="flex items-center gap-2">
+                      {(version.status_at_time === "SENT_TO_CUSTOMER" || version.status_at_time === "CUSTOMER_SUBMITTED") && version.has_public_link && (
+                        <>
+                          {/* For selected version, no View button needed; for others, show View */}
+                          {!isSelectedVersion && (
+                            <button
+                              onClick={() => version.is_current && !data?.showing_version_items
+                                ? handleViewCurrentVersion() 
+                                : handleViewVersion(version.version_number)}
+                              className="px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-300 rounded-md hover:bg-blue-50"
+                            >
+                              View
+                            </button>
+                          )}
+                          {isSelectedVersion && (
+                            <span className="px-4 py-2 text-sm font-medium text-green-700 bg-green-100 rounded-md">
+                              Currently viewing
+                            </span>
+                          )}
+                          <button
+                            onClick={() => handleCopyVersionLink(shortlistId)}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                          >
+                            Copy link
+                          </button>
+                        </>
+                      )}
+                      {isCurrentDraft && !version.has_public_link && !isSelectedVersion && (
                         <button
-                          onClick={() => version.is_current 
-                            ? handleViewCurrentVersion() 
-                            : handleViewVersion(version.version_number)}
+                          onClick={handleViewCurrentVersion}
                           className="px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-300 rounded-md hover:bg-blue-50"
                         >
-                          View
+                          View Current
                         </button>
-                        <button
-                          onClick={() => handleCopyVersionLink(shortlistId)}
-                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                        >
-                          Copy link
-                        </button>
-                      </>
-                    )}
-                    {version.is_current && !version.has_public_link && (
-                      <button
-                        onClick={handleViewCurrentVersion}
-                        className="px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-300 rounded-md hover:bg-blue-50"
-                      >
-                        View Current
-                      </button>
-                    )}
-                    {version.is_current && version.status_at_time !== "SENT_TO_CUSTOMER" && (
-                      <span className="text-sm text-gray-500">Currently editing</span>
-                    )}
+                      )}
+                      {isCurrentDraft && version.status_at_time !== "SENT_TO_CUSTOMER" && version.status_at_time !== "CUSTOMER_SUBMITTED" && !isSelectedVersion && (
+                        <span className="text-sm text-gray-500">Currently editing</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1056,8 +1188,8 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
                           type="number"
                           min="1"
                           value={formData.quantity}
-                          readOnly={viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0)}
-                          disabled={viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0)}
+                          readOnly={isViewingSubmittedVersion || isToBeProcured || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
+                          disabled={isViewingSubmittedVersion || isToBeProcured || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
                           onChange={(e) =>
                             updateItem(item.id, { quantity: e.target.value })
                           }
@@ -1101,12 +1233,14 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
 
                     {/* Actions */}
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="text-sm text-red-600 hover:text-red-800"
-                      >
-                        Remove
-                      </button>
+                      {!isViewingSubmittedVersion && !isToBeProcured && (
+                        <button
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="text-sm text-red-600 hover:text-red-800"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -1198,8 +1332,8 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
                   <textarea
                     rows={3}
                     value={formData.notes}
-                    readOnly={viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0)}
-                    disabled={viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0)}
+                    readOnly={isViewingSubmittedVersion || isToBeProcured || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
+                    disabled={isViewingSubmittedVersion || isToBeProcured || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
                     onChange={(e) =>
                       updateItem(item.id, { notes: e.target.value })
                     }
@@ -1209,12 +1343,14 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
                 </div>
 
                 {/* Remove */}
-                <button
-                  onClick={() => handleRemoveItem(item.id)}
-                  className="text-sm text-red-600 hover:text-red-800"
-                >
-                  Remove plant
-                </button>
+                {!isViewingSubmittedVersion && !isToBeProcured && (
+                  <button
+                    onClick={() => handleRemoveItem(item.id)}
+                    className="text-sm text-red-600 hover:text-red-800"
+                  >
+                    Remove plant
+                  </button>
+                )}
               </div>
             );
           })}
@@ -1259,41 +1395,67 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
               ← Back to plant selection
             </button>
           </div>
-          {/* Right group: Save Draft + Send/Revise - grouped on desktop, stacked on mobile */}
+          {/* Right group: Buttons based on version status */}
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto relative z-30">
-            <button
-              onClick={handleSave}
-              disabled={isSaving || isPublishing || isRevising || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
-              className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
-            >
-              {isSaving ? "Saving..." : "Save Draft"}
-            </button>
-            {data && (data.shortlist.status.toUpperCase() === "DRAFT" || data.shortlist.status.toUpperCase() === "SENT_BACK_TO_CUSTOMER") && (
-              <button
-                onClick={handlePublish}
-                disabled={isSaving || isPublishing || isRevising || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
-                className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
-              >
-                {isPublishing ? "Sending..." : "Send to Customer"}
-              </button>
-            )}
-            {data && data.shortlist.status.toUpperCase() === "SENT_TO_CUSTOMER" && data.has_unsent_changes && (
-              <button
-                onClick={handlePublish}
-                disabled={isSaving || isPublishing || isRevising || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
-                className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
-              >
-                {isPublishing ? "Sending..." : "Send Update to Customer"}
-              </button>
-            )}
-            {data && data.shortlist.status.toUpperCase() === "SENT_TO_CUSTOMER" && !data.has_unsent_changes && (
-              <button
-                onClick={handleRevise}
-                disabled={isSaving || isPublishing || isRevising || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
-                className="px-6 py-3 text-sm font-medium text-white bg-yellow-600 rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
-              >
-                {isRevising ? "Revising..." : "Revise"}
-              </button>
+            {/* CUSTOMER_SUBMITTED: Show "Duplicate" and "Move to Procurement" */}
+            {(isViewingSubmittedVersion || (data?.shortlist.status.toUpperCase() === "CUSTOMER_SUBMITTED")) ? (
+              <>
+                <button
+                  onClick={handleDuplicate}
+                  disabled={isDuplicating || isMovingToProcurement}
+                  className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
+                >
+                  {isDuplicating ? "Duplicating..." : "Duplicate"}
+                </button>
+                <button
+                  onClick={handleMoveToProcurement}
+                  disabled={isDuplicating || isMovingToProcurement}
+                  className="px-6 py-3 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
+                >
+                  {isMovingToProcurement ? "Moving..." : "Move to Procurement"}
+                </button>
+              </>
+            ) : isToBeProcured ? (
+              // TO_BE_PROCURED: No action buttons (read-only)
+              null
+            ) : (
+              <>
+                {/* DRAFT/SENT_BACK: Show Save Draft + Send to Customer */}
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving || isPublishing || isRevising || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
+                  className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
+                >
+                  {isSaving ? "Saving..." : "Save Draft"}
+                </button>
+                {data && (data.shortlist.status.toUpperCase() === "DRAFT" || data.shortlist.status.toUpperCase() === "SENT_BACK_TO_CUSTOMER") && (
+                  <button
+                    onClick={handlePublish}
+                    disabled={isSaving || isPublishing || isRevising || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
+                    className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
+                  >
+                    {isPublishing ? "Sending..." : (data.latest_sent_version_number && data.latest_sent_version_number > 0) ? "Send Update to Customer" : "Send to Customer"}
+                  </button>
+                )}
+                {data && data.shortlist.status.toUpperCase() === "SENT_TO_CUSTOMER" && data.has_unsent_changes && (
+                  <button
+                    onClick={handlePublish}
+                    disabled={isSaving || isPublishing || isRevising || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
+                    className="px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
+                  >
+                    {isPublishing ? "Sending..." : "Send Update to Customer"}
+                  </button>
+                )}
+                {data && data.shortlist.status.toUpperCase() === "SENT_TO_CUSTOMER" && !data.has_unsent_changes && (
+                  <button
+                    onClick={handleRevise}
+                    disabled={isSaving || isPublishing || isRevising || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
+                    className="px-6 py-3 text-sm font-medium text-white bg-yellow-600 rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto relative z-30"
+                  >
+                    {isRevising ? "Revising..." : "Revise"}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
