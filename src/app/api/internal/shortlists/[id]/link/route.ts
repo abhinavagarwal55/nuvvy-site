@@ -30,6 +30,35 @@ export async function GET(
 
     const supabase = getSupabaseAdmin();
 
+    // Helper to get canonical public base URL (strips internal subdomains/paths)
+    const getPublicBaseUrl = (): string => {
+      // Priority 1: Use explicit NEXT_PUBLIC_BASE_URL if set
+      if (process.env.NEXT_PUBLIC_BASE_URL) {
+        let baseUrl = process.env.NEXT_PUBLIC_BASE_URL.trim();
+        // Strip trailing slash
+        if (baseUrl.endsWith("/")) {
+          baseUrl = baseUrl.slice(0, -1);
+        }
+        // Guard: strip /internal path if present
+        baseUrl = baseUrl.replace(/\/internal\/?$/, "");
+        // Guard: strip internal. subdomain if present
+        baseUrl = baseUrl.replace(/^https?:\/\/internal\./, (match) => match.replace("internal.", ""));
+        return baseUrl;
+      }
+
+      // Priority 2: Derive from request headers
+      const host = request.headers.get("host") || "localhost:3000";
+      const protocol = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+      
+      // Guard: strip internal. subdomain
+      let cleanHost = host.replace(/^internal\./, "");
+      // Guard: strip /internal path (if host includes path)
+      cleanHost = cleanHost.split("/")[0];
+      
+      const baseUrl = `${protocol}://${cleanHost}`;
+      return baseUrl;
+    };
+
     // Get or create stable public link
     const getOrCreateActiveLink = async (shortlistId: string): Promise<string | null> => {
       // Check for existing active link
@@ -46,12 +75,11 @@ export async function GET(
       const token = createHash("sha256").update(`${shortlistId}-${secret}`).digest("hex").substring(0, 32);
       const tokenHash = createHash("sha256").update(token).digest("hex");
 
+      const baseUrl = getPublicBaseUrl();
+
       if (existingLink) {
         // Link exists - return URL using deterministic token
         // /s/:token is the public customer-facing shortlist route
-        const host = request.headers.get("host") || "localhost:3000";
-        const protocol = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`;
         return `${baseUrl}/s/${token}`;
       }
 
@@ -72,9 +100,6 @@ export async function GET(
       }
 
       // /s/:token is the public customer-facing shortlist route
-      const host = request.headers.get("host") || "localhost:3000";
-      const protocol = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`;
       return `${baseUrl}/s/${token}`;
     };
 
