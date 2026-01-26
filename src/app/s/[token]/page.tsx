@@ -195,6 +195,24 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     });
   };
 
+  // Increment quantity
+  const incrementQuantity = (itemId: string) => {
+    if (!isEditable) return;
+    const current = items.get(itemId);
+    const currentQty = current?.quantity || 1;
+    updateQuantity(itemId, currentQty + 1);
+  };
+
+  // Decrement quantity
+  const decrementQuantity = (itemId: string) => {
+    if (!isEditable) return;
+    const current = items.get(itemId);
+    const currentQty = current?.quantity || 1;
+    if (currentQty > 1) {
+      updateQuantity(itemId, currentQty - 1);
+    }
+  };
+
   // Update item note
   const updateNote = (itemId: string, note: string) => {
     if (!isEditable) return;
@@ -368,6 +386,15 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
           </div>
         )}
 
+        {/* Above-the-fold CTA */}
+        {isEditable && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-900 text-center">
+              Review your plants, adjust quantities if needed, and confirm to proceed.
+            </p>
+          </div>
+        )}
+
         {/* Top Estimated Total */}
         {hasItems && hasValidEstimate && (
           <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm">
@@ -478,22 +505,51 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                         </div>
                       )}
 
-                      {/* Quantity Input */}
+                      {/* Quantity Control */}
                       <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                           Quantity
                         </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={itemState.quantity}
-                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value, 10) || 1)}
-                          readOnly={isSubmitted}
-                          disabled={!isEditable}
-                          className={`w-24 px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !isEditable ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-white border-gray-300"
-                          }`}
-                        />
+                        <div className="flex items-center gap-3">
+                          {/* Minus Button */}
+                          <button
+                            type="button"
+                            onClick={() => decrementQuantity(item.id)}
+                            disabled={!isEditable || itemState.quantity <= 1 || isSubmitted}
+                            className={`flex-shrink-0 w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-semibold transition-colors ${
+                              !isEditable || itemState.quantity <= 1 || isSubmitted
+                                ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed"
+                                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100"
+                            }`}
+                            aria-label="Decrease quantity"
+                          >
+                            −
+                          </button>
+                          
+                          {/* Quantity Display */}
+                          <div className="flex-1 min-w-[60px] text-center">
+                            <span className={`text-lg font-semibold ${
+                              !isEditable ? "text-gray-500" : "text-gray-900"
+                            }`}>
+                              {itemState.quantity}
+                            </span>
+                          </div>
+                          
+                          {/* Plus Button */}
+                          <button
+                            type="button"
+                            onClick={() => incrementQuantity(item.id)}
+                            disabled={!isEditable || isSubmitted}
+                            className={`flex-shrink-0 w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-semibold transition-colors ${
+                              !isEditable || isSubmitted
+                                ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed"
+                                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100"
+                            }`}
+                            aria-label="Increase quantity"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
 
                       {/* Item Cost */}
@@ -543,7 +599,13 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
 
         {/* Primary CTA */}
         {isEditable && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="bg-white rounded-lg border-2 border-blue-200 p-6 shadow-sm">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm font-medium text-blue-900">Final confirmation step</span>
+            </div>
             <button
               onClick={handleFinalize}
               disabled={isSubmitting || items.size === 0}
