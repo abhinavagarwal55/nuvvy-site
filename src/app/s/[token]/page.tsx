@@ -300,11 +300,21 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
 
   // Error state
   if (error || !data) {
+    // Check if error is related to Supabase initialization
+    const isServiceError = error?.includes("supabaseUrl") || error?.includes("temporarily unavailable");
+    
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center max-w-md">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Shortlist Not Found</h1>
-          <p className="text-gray-600">{error || "The shortlist you're looking for doesn't exist or is no longer available."}</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {isServiceError ? "Service Unavailable" : "Shortlist Not Found"}
+          </h1>
+          <p className="text-gray-600">
+            {isServiceError 
+              ? "This link is temporarily unavailable. Please contact Nuvvy."
+              : (error || "The shortlist you're looking for doesn't exist or is no longer available.")
+            }
+          </p>
         </div>
       </div>
     );

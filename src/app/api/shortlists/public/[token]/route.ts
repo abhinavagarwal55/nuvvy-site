@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 // Force dynamic behavior
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-// Create Supabase client with service role
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
 
 // GET /api/shortlists/public/[token]
 // Returns the version to display for a customer-facing shortlist page
@@ -29,7 +22,17 @@ export async function GET(
       );
     }
 
-    const supabase = getSupabaseAdmin();
+    // Create Supabase admin client with proper error handling
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+    } catch (err) {
+      console.error("Failed to initialize Supabase client:", err);
+      return NextResponse.json(
+        { error: "Service temporarily unavailable. Please contact Nuvvy." },
+        { status: 503 }
+      );
+    }
 
     // Step 1: Validate token - hash the token and find matching public link
     const tokenHash = createHash("sha256").update(token).digest("hex");
