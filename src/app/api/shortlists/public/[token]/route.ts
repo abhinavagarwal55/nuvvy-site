@@ -61,7 +61,37 @@ export async function GET(
 
     const shortlistId = publicLink.shortlist_id;
 
-    // Step 2: Find the version to display using version selection logic
+    // Step 2: Fetch shortlist metadata (title, description) and customer name
+    const { data: shortlistData, error: shortlistError } = await supabase
+      .from("shortlists")
+      .select(`
+        id,
+        title,
+        description,
+        customer:customers!fk_shortlists_customer (
+          name
+        )
+      `)
+      .eq("id", shortlistId)
+      .maybeSingle();
+
+    if (shortlistError) {
+      console.error("Error fetching shortlist metadata:", shortlistError);
+      // Don't fail the request if metadata fetch fails, just log it
+    }
+
+    // Extract customer name (handle nested structure from Supabase join)
+    // Supabase returns foreign key relationships as objects (one-to-one) or arrays (one-to-many)
+    let customerName: string | null = null;
+    if (shortlistData?.customer) {
+      if (Array.isArray(shortlistData.customer)) {
+        customerName = shortlistData.customer[0]?.name || null;
+      } else {
+        customerName = shortlistData.customer.name || null;
+      }
+    }
+
+    // Step 3: Find the version to display using version selection logic
     // Prefer latest CUSTOMER_SUBMITTED (final submitted state), fallback to latest SENT_TO_CUSTOMER (editable state)
     // NEVER load DRAFT, TO_BE_PROCURED, or other internal-only statuses
     
@@ -114,7 +144,7 @@ export async function GET(
       );
     }
 
-    // Step 3: Fetch version items with plant details
+    // Step 4: Fetch version items with plant details
     const { data: versionItems, error: itemsError } = await supabase
       .from("shortlist_version_items")
       .select(`
@@ -152,6 +182,7 @@ export async function GET(
       plant_id: item.plant_id,
       quantity: item.quantity,
       note: item.note,
+      why_picked_for_balcony: item.why_picked_for_balcony,
       plant: item.plant,
     }));
 
@@ -163,6 +194,9 @@ export async function GET(
         created_at: versionToLoad.created_at,
       },
       items,
+      customer_name: customerName || null,
+      shortlist_title: shortlistData?.title || null,
+      shortlist_description: shortlistData?.description || null,
     });
   } catch (err) {
     console.error("Error in GET /api/shortlists/public/[token]:", err);

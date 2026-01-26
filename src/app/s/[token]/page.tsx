@@ -337,51 +337,50 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     );
   }
 
-  const customerName = data.customer_name || "there";
-  const shortlistTitle = data.shortlist_title || `Proposal v${data.version.version_number}`;
+  const customerName = data.customer_name;
   const hasValidEstimate = estimate.min > 0 || estimate.max > 0;
   const hasItems = data && data.items && data.items.length > 0 && Array.from(items.values()).some(item => item.quantity > 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Personalization Header */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <div className="mb-4">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Hi {customerName} 👋
-            </h1>
-            <p className="text-lg text-gray-700 mt-1">{shortlistTitle}</p>
-            {data.shortlist_description && (
-              <p className="text-sm text-gray-600 mt-2">{data.shortlist_description}</p>
-            )}
-          </div>
-          {isEditable && (
-            <p className="text-sm text-gray-600">
-              You can adjust quantities or remove plants before finalizing.
-            </p>
-          )}
+        {/* Personalized Hero Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
+            {customerName ? `${customerName}, here's your plant shortlist 🌿` : "Here's your plant shortlist 🌿"}
+          </h1>
+          <p className="text-base text-gray-600">
+            Curated by your Nuvvy horticulturist for your space
+          </p>
         </div>
 
-        {/* Top Estimated Cost */}
-        {hasItems && (
-          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+        {/* Shortlist Title + Description */}
+        {data.shortlist_title && (
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              {data.shortlist_title}
+            </h2>
+            {data.shortlist_description && (
+              <p className="text-base text-gray-600">
+                {data.shortlist_description}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Top Estimated Total */}
+        {hasItems && hasValidEstimate && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
               <span className="text-base font-semibold text-gray-900">Estimated total</span>
-              {hasValidEstimate ? (
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-xl font-bold text-gray-900">
-                    {formatCurrency(estimate.midpoint)}
-                  </span>
-                  <span className="text-xs text-gray-600">
-                    Final price may range between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-sm text-gray-500">Price information unavailable</span>
-                </div>
-              )}
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(estimate.midpoint)}
+                </span>
+                <span className="text-xs text-gray-500">
+                  Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -391,7 +390,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
             <p className="text-green-800 text-sm flex items-center gap-2">
               <span>✅</span>
-              <span>This shortlist has already been submitted to Nuvvy. No further changes can be made.</span>
+              <span>Shortlist confirmed. Our team is reviewing this and will contact you shortly.</span>
             </p>
           </div>
         )}
@@ -408,17 +407,17 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
               const thumbnailUrl = getThumbnailUrl(item.plant);
 
               return (
-                <div key={item.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div key={item.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                   <div className="flex flex-col sm:flex-row gap-4">
-                    {/* Plant Image */}
+                    {/* Plant Image - Larger with rounded corners and shadow */}
                     {thumbnailUrl && (
                       <div className="flex-shrink-0">
                         <Image
                           src={thumbnailUrl}
                           alt={item.plant?.name || "Plant"}
-                          width={120}
-                          height={120}
-                          className="rounded-lg object-cover"
+                          width={180}
+                          height={180}
+                          className="rounded-xl object-cover shadow-md"
                         />
                       </div>
                     )}
@@ -464,12 +463,18 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                               <span className="text-gray-600">{item.plant.watering_requirement}</span>
                             </div>
                           )}
-                          {item.why_picked_for_balcony && (
-                            <div>
-                              <span className="font-medium text-gray-700">Horticulturist notes: </span>
-                              <span className="text-gray-600">{item.why_picked_for_balcony}</span>
-                            </div>
-                          )}
+                        </div>
+                      )}
+
+                      {/* Horticulturist Notes (Read-only) */}
+                      {item.why_picked_for_balcony && (
+                        <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
+                          <p className="text-sm font-medium text-green-900 mb-1">
+                            Horticulturist tip 🌱
+                          </p>
+                          <p className="text-sm text-green-800">
+                            {item.why_picked_for_balcony}
+                          </p>
                         </div>
                       )}
 
@@ -486,24 +491,6 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                           readOnly={isSubmitted}
                           disabled={!isEditable}
                           className={`w-24 px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !isEditable ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-white border-gray-300"
-                          }`}
-                        />
-                      </div>
-
-                      {/* Notes Input */}
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Notes (optional)
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={itemState.note}
-                          onChange={(e) => updateNote(item.id, e.target.value)}
-                          readOnly={isSubmitted}
-                          disabled={!isEditable}
-                          placeholder="Any special requests or notes..."
-                          className={`w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                             !isEditable ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-white border-gray-300"
                           }`}
                         />
@@ -537,39 +524,36 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             })}
         </div>
 
-        {/* Bottom Estimated Cost (shown for both editable and submitted shortlists) */}
-        {hasItems && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        {/* Bottom Estimated Total */}
+        {hasItems && hasValidEstimate && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
               <span className="text-base font-semibold text-gray-900">Estimated total</span>
-              {hasValidEstimate ? (
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-xl font-bold text-gray-900">
-                    {formatCurrency(estimate.midpoint)}
-                  </span>
-                  <span className="text-xs text-gray-600">
-                    Final price may range between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-sm text-gray-500">Price information unavailable</span>
-                </div>
-              )}
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(estimate.midpoint)}
+                </span>
+                <span className="text-xs text-gray-500">
+                  Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
+                </span>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Finalize Button */}
+        {/* Primary CTA */}
         {isEditable && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
             <button
               onClick={handleFinalize}
               disabled={isSubmitting || items.size === 0}
-              className="w-full px-6 py-3 text-base font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-6 py-4 text-base font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isSubmitting ? "Submitting..." : "Finalize & Send to Nuvvy"}
+              {isSubmitting ? "Submitting..." : "Confirm shortlist"}
             </button>
+            <p className="text-xs text-gray-500 text-center mt-3">
+              You won't be charged yet. Our team will confirm availability and next steps.
+            </p>
           </div>
         )}
       </div>
