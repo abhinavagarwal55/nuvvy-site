@@ -2,6 +2,8 @@ import { getHomepageContent } from "@/lib/homepage/getHomepageContent";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import HomepagePreviewContent from "./HomepagePreviewContent";
 
+export const dynamic = "force-dynamic";
+
 async function getPlantsByIds(plantIds: string[]) {
   if (!plantIds || plantIds.length === 0) return [];
 
