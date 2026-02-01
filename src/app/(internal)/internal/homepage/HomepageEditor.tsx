@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
 
 interface HomepageEditorProps {
@@ -9,7 +8,6 @@ interface HomepageEditorProps {
 }
 
 export default function HomepageEditor({ initialContent }: HomepageEditorProps) {
-  const router = useRouter();
   const [content, setContent] = useState<HomepageContent>(initialContent);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -300,8 +298,10 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
       }
 
       setSuccess(true);
-      // Redirect to preview page after successful save
-      router.push("/preview/homepage");
+      setSaving(false);
+      
+      // Open preview in new tab after successful save
+      window.open("/preview/homepage", "_blank");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
       setSaving(false);
@@ -324,14 +324,6 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
         )}
         {!success && !error && <div />}
         <div className="flex items-center gap-4">
-          <a
-            href="/preview/homepage"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-gray-600 hover:text-gray-900 underline"
-          >
-            Open Preview
-          </a>
           <button
             onClick={handleSave}
             disabled={saving}

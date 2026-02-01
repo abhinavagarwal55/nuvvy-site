@@ -1,6 +1,6 @@
 import { getHomepageContent } from "@/lib/homepage/getHomepageContent";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
-import HomepagePreviewContent from "./HomepagePreviewContent";
+import HomepagePreviewWrapper from "./HomepagePreviewWrapper";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,7 @@ export default async function HomepagePreviewPage() {
   const popularPlants = await getPlantsByIds(homepageContent.mostPopularPlants.plantIds);
 
   return (
-    <HomepagePreviewContent
+    <HomepagePreviewWrapper
       homepageContent={homepageContent}
       popularPlants={popularPlants}
       whatsappNumber={whatsappNumber}
