@@ -43,8 +43,15 @@ const config: Config = {
       transitionDuration: { DEFAULT: "250ms" },
       transitionTimingFunction: { smooth: "cubic-bezier(0.22, 1, 0.36, 1)" },
       fontFamily: {
-        sans: ["Inter","system-ui","Segoe UI","Roboto","Helvetica","Arial","sans-serif"],
-        display: ["Playfair Display","Inter","system-ui","sans-serif"],
+        sans: [
+          "var(--font-inter)",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "SF Pro Text",
+          "Segoe UI",
+          "Roboto",
+          "sans-serif",
+        ],
       },
     },
   },

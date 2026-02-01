@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "heroSection": {
+    "heroes": [
+      {
+        "id": "hero-1",
+        "heading": "Your plants. Thriving. Without effort.",
+        "subheading": "Expert horticulturist-led care for your balcony and garden",
+        "imageUrl": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b",
+        "order": 0
+      }
+    ]
+  },
+  "horticulturistCare": {
+    "title": "Horticulturist-led care",
+    "bullets": [
+      { "boldText": "Expert diagnosis", "restText": ", not guesswork" },
+      { "boldText": "Preventive care", "restText": " before issues escalate" },
+      { "boldText": "Peace of mind", "restText": " through professional oversight" }
+    ]
+  },
+  "compareNuvvyCare": {
+    "title": "Compare Nuvvy Care",
+    "rows": [
+      {
+        "label": "Pruning & basic care",
+        "regular": { "type": "check", "text": "Included" },
+        "nuvvy": { "type": "check", "text": "Included" }
+      },
+      {
+        "label": "Who plans plant care",
+        "regular": { "type": "warning", "text": "Gardener's experience" },
+        "nuvvy": { "type": "check", "text": "Horticulturist-led" }
+      },
+      {
+        "label": "Pest control",
+        "regular": { "type": "warning", "text": "After pests appear" },
+        "nuvvy": { "type": "check", "text": "Preventive & organic" }
+      },
+      {
+        "label": "Compost, fertilizers & inputs",
+        "regular": { "type": "warning", "text": "Often extra" },
+        "nuvvy": { "type": "check", "text": "Included in pricing" }
+      },
+      {
+        "label": "Horticulturist access",
+        "regular": { "type": "cross", "text": "Not available" },
+        "nuvvy": { "type": "check", "text": "Direct access" }
+      },
+      {
+        "label": "Scheduling & service experience",
+        "regular": { "type": "cross", "text": "No online scheduling" },
+        "nuvvy": { "type": "check", "text": "Easy scheduling & visit ratings" }
+      }
+    ]
+  },
+  "nuvvyCareVisit": {
+    "title": "Nuvvy Care Visit",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "title": "Appointment confirmation & heads-up",
+        "description": "We confirm your visit time and share what to expect.",
+        "imageUrl": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3"
+      },
+      {
+        "stepNumber": 2,
+        "title": "Plant health check",
+        "description": "We inspect all plants, soil, and growing conditions.",
+        "imageUrl": "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735"
+      },
+      {
+        "stepNumber": 3,
+        "title": "Care & treatment",
+        "description": "Pruning, fertilizing, pest control, and soil care as needed.",
+        "imageUrl": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b"
+      },
+      {
+        "stepNumber": 4,
+        "title": "Pots and leaf cleaning",
+        "description": "We clean pots and wipe leaves so plants look their best.",
+        "imageUrl": "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b"
+      },
+      {
+        "stepNumber": 5,
+        "title": "Horticulturist closes the loop",
+        "description": "We share what was done and what to watch for next.",
+        "imageUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d"
+      }
+    ]
+  },
+  "seeTheDifference": {
+    "title": "See the difference yourself",
+    "images": [
+      { "imageUrl": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b" }
+    ]
+  },
+  "pricing": {
+    "title": "Simple, transparent pricing",
+    "description": "Pricing is per visit, not monthly.",
+    "tiers": [
+      {
+        "label": "0–20 pots",
+        "pricePrimary": 1500,
+        "priceSecondary": null,
+        "frequencyPrimary": "Once every two weeks",
+        "frequencySecondary": null
+      },
+      {
+        "label": "20–40 pots",
+        "pricePrimary": 2500,
+        "priceSecondary": null,
+        "frequencyPrimary": "Once every two weeks",
+        "frequencySecondary": null
+      },
+      {
+        "label": "40+ pots",
+       "pricePrimary": 3500,
+        "priceSecondary": 2500,
+        "frequencyPrimary": "Weekly",
+        "frequencySecondary": "Once every two weeks"
+      }
+    ]
+  },
+  "expertLedPlantSelection": {
+    "heroes": [
+      {
+        "id": "plant-hero-1",
+        "heading": "Expert-led plant selection & setup",
+        "subheading": "Right plants. Right pots. Right placement.",
+        "imageUrl": "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b",
+        "order": 0
+      }
+    ]
+  },
+  "mostPopularPlants": {
+    "title": "Our most popular plants",
+    "plantIds": ["monstera", "snake-plant", "pothos"]
+  },
+  "socialProof": {
+    "headline": "50+ homes in Bangalore trust Nuvvy",
+    "subtext": "Serving premium gated communities across the city"
+  }
+}

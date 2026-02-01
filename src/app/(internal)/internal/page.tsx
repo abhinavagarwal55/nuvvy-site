@@ -109,6 +109,19 @@ export default function InternalPage() {
         <p className="text-gray-600 mt-1">Manage plants and content</p>
       </div>
 
+      {/* Website Content */}
+      <div className="bg-white p-4 md:p-6 rounded-lg border border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Website Content</h2>
+        <div>
+          <Link
+            href="/internal/homepage"
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
+          >
+            Edit Homepage
+          </Link>
+        </div>
+      </div>
+
       {/* Quick Links */}
       <div className="bg-white p-4 md:p-6 rounded-lg border border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Links</h2>
