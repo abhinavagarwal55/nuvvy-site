@@ -2,13 +2,117 @@
 
 import { useState, useEffect } from "react";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
+import InternalImageInput from "./InternalImageInput";
 
 interface HomepageEditorProps {
   initialContent: HomepageContent;
 }
 
+// Extended pricing tier type for editor (with pricingOptions)
+interface PricingOption {
+  frequency: string;
+  price: number;
+  isPopular?: boolean;
+}
+
+interface EditorPricingTier {
+  label: string;
+  pricingOptions: PricingOption[];
+}
+
+interface EditorPricing {
+  title: string;
+  description: string;
+  tiers: EditorPricingTier[];
+}
+
+// Transform schema pricing to editor format
+function transformPricingToEditor(pricing: HomepageContent["pricing"]): EditorPricing {
+  return {
+    title: pricing.title,
+    description: pricing.description,
+    tiers: pricing.tiers.map((tier, idx) => {
+      const options: PricingOption[] = [];
+      
+      // Add primary option
+      options.push({
+        frequency: tier.frequencyPrimary,
+        price: tier.pricePrimary,
+        isPopular: false,
+      });
+      
+      // Add secondary option if exists
+      if (tier.priceSecondary !== null && tier.frequencySecondary !== null) {
+        options.push({
+          frequency: tier.frequencySecondary,
+          price: tier.priceSecondary,
+          isPopular: idx === 2, // Tier 3 (40+ pots) - mark second option as popular by default
+        });
+      }
+      
+      // For Tier 3, if only one option exists, add default weekly option
+      // Default: primary option (not popular) + "Weekly" (popular)
+      if (idx === 2 && options.length === 1) {
+        options.push({
+          frequency: "Weekly",
+          price: tier.pricePrimary, // Use same price as primary for default
+          isPopular: true,
+        });
+      }
+      
+      return {
+        label: tier.label,
+        pricingOptions: options,
+      };
+    }),
+  };
+}
+
+// Transform editor pricing back to schema format
+// Note: Schema only supports 2 options max, so we take first 2
+function transformPricingToSchema(editorPricing: EditorPricing): HomepageContent["pricing"] {
+  return {
+    title: editorPricing.title,
+    description: editorPricing.description,
+    tiers: editorPricing.tiers.map((tier) => {
+      const firstOption = tier.pricingOptions[0];
+      const secondOption = tier.pricingOptions[1] || null;
+      
+      // Ensure we have at least one option
+      if (!firstOption) {
+        throw new Error(`Tier "${tier.label}" must have at least one pricing option`);
+      }
+      
+      return {
+        label: tier.label,
+        pricePrimary: firstOption.price,
+        frequencyPrimary: firstOption.frequency,
+        priceSecondary: secondOption?.price ?? null,
+        frequencySecondary: secondOption?.frequency ?? null,
+      };
+    }),
+  };
+}
+
 export default function HomepageEditor({ initialContent }: HomepageEditorProps) {
-  const [content, setContent] = useState<HomepageContent>(initialContent);
+  // Transform pricing to editor format
+  const [editorPricing, setEditorPricing] = useState<EditorPricing>(
+    transformPricingToEditor(initialContent.pricing)
+  );
+  
+  // Keep rest of content as-is, sync pricing when editorPricing changes
+  const [content, setContent] = useState<HomepageContent>({
+    ...initialContent,
+    pricing: transformPricingToSchema(transformPricingToEditor(initialContent.pricing)),
+  });
+  
+  // Sync editorPricing changes to content
+  useEffect(() => {
+    setContent((prev) => ({
+      ...prev,
+      pricing: transformPricingToSchema(editorPricing),
+    }));
+  }, [editorPricing]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -285,10 +389,16 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
     setSuccess(false);
 
     try {
+      // Transform editor pricing back to schema format
+      const contentToSave: HomepageContent = {
+        ...content,
+        pricing: transformPricingToSchema(editorPricing),
+      };
+      
       const response = await fetch("/api/internal/homepage", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content: contentToSave }),
       });
 
       const result = await response.json();
@@ -787,19 +897,17 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                    <input
-                      type="text"
+                    <InternalImageInput
                       value={step.imageUrl}
-                      onChange={(e) => {
+                      onChange={(url) => {
                         const newSteps = [...content.nuvvyCareVisit.steps];
-                        newSteps[idx] = { ...step, imageUrl: e.target.value };
+                        newSteps[idx] = { ...step, imageUrl: url };
                         setContent({
                           ...content,
                           nuvvyCareVisit: { ...content.nuvvyCareVisit, steps: newSteps },
                         });
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      label="Image URL"
                     />
                   </div>
                 </div>
@@ -843,19 +951,17 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
                 <h3 className="font-medium text-gray-700 mb-3">Image {idx + 1}</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                    <input
-                      type="text"
+                    <InternalImageInput
                       value={image.imageUrl}
-                      onChange={(e) => {
+                      onChange={(url) => {
                         const newImages = [...content.seeTheDifference.images];
-                        newImages[idx] = { ...image, imageUrl: e.target.value };
+                        newImages[idx] = { ...image, imageUrl: url };
                         setContent({
                           ...content,
                           seeTheDifference: { ...content.seeTheDifference, images: newImages },
                         });
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      label="Image URL"
                     />
                   </div>
                   <div>
@@ -900,9 +1006,9 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                 <input
                   type="text"
-                  value={content.pricing.title}
+                  value={editorPricing.title}
                   onChange={(e) =>
-                    setContent({ ...content, pricing: { ...content.pricing, title: e.target.value } })
+                    setEditorPricing({ ...editorPricing, title: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
@@ -910,16 +1016,16 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
-                  value={content.pricing.description}
+                  value={editorPricing.description}
                   onChange={(e) =>
-                    setContent({ ...content, pricing: { ...content.pricing, description: e.target.value } })
+                    setEditorPricing({ ...editorPricing, description: e.target.value })
                   }
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
               <div className="space-y-4">
-                {content.pricing.tiers.map((tier, idx) => (
+                {editorPricing.tiers.map((tier, idx) => (
               <div key={idx} className="border border-gray-200 rounded-lg p-4">
                 <h3 className="font-medium text-gray-700 mb-3">Tier {idx + 1}</h3>
                 <div className="space-y-3">
@@ -929,38 +1035,118 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
                       type="text"
                       value={tier.label}
                       onChange={(e) => {
-                        const newTiers = [...content.pricing.tiers];
+                        const newTiers = [...editorPricing.tiers];
                         newTiers[idx] = { ...tier, label: e.target.value };
-                        setContent({ ...content, pricing: { ...content.pricing, tiers: newTiers } });
+                        setEditorPricing({ ...editorPricing, tiers: newTiers });
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Primary Price</label>
-                    <input
-                      type="number"
-                      value={tier.pricePrimary}
-                      onChange={(e) => {
-                        const newTiers = [...content.pricing.tiers];
-                        newTiers[idx] = { ...tier, pricePrimary: Number(e.target.value) };
-                        setContent({ ...content, pricing: { ...content.pricing, tiers: newTiers } });
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Primary Frequency</label>
-                    <input
-                      type="text"
-                      value={tier.frequencyPrimary}
-                      onChange={(e) => {
-                        const newTiers = [...content.pricing.tiers];
-                        newTiers[idx] = { ...tier, frequencyPrimary: e.target.value };
-                        setContent({ ...content, pricing: { ...content.pricing, tiers: newTiers } });
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
+                  
+                  {/* Pricing Options */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-gray-700">Pricing Options</label>
+                      {idx === 2 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newTiers = [...editorPricing.tiers];
+                            newTiers[idx] = {
+                              ...tier,
+                              pricingOptions: [
+                                ...tier.pricingOptions,
+                                { frequency: "", price: 0, isPopular: false },
+                              ],
+                            };
+                            setEditorPricing({ ...editorPricing, tiers: newTiers });
+                          }}
+                          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          + Add Option
+                        </button>
+                      )}
+                    </div>
+                    
+                    {tier.pricingOptions.map((option, optionIdx) => (
+                      <div key={optionIdx} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 space-y-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Frequency</label>
+                              <input
+                                type="text"
+                                value={option.frequency}
+                                onChange={(e) => {
+                                  const newTiers = [...editorPricing.tiers];
+                                  const newOptions = [...tier.pricingOptions];
+                                  newOptions[optionIdx] = { ...option, frequency: e.target.value };
+                                  newTiers[idx] = { ...tier, pricingOptions: newOptions };
+                                  setEditorPricing({ ...editorPricing, tiers: newTiers });
+                                }}
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                placeholder="e.g., Once every two weeks"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Price (₹)</label>
+                              <input
+                                type="number"
+                                value={option.price}
+                                onChange={(e) => {
+                                  const newTiers = [...editorPricing.tiers];
+                                  const newOptions = [...tier.pricingOptions];
+                                  newOptions[optionIdx] = { ...option, price: Number(e.target.value) };
+                                  newTiers[idx] = { ...tier, pricingOptions: newOptions };
+                                  setEditorPricing({ ...editorPricing, tiers: newTiers });
+                                }}
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 pt-6">
+                            <label className="flex items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={option.isPopular || false}
+                                onChange={(e) => {
+                                  const newTiers = [...editorPricing.tiers];
+                                  const newOptions = [...tier.pricingOptions];
+                                  // Uncheck other options in this tier
+                                  newOptions.forEach((opt, i) => {
+                                    if (i === optionIdx) {
+                                      opt.isPopular = e.target.checked;
+                                    } else {
+                                      opt.isPopular = false;
+                                    }
+                                  });
+                                  newTiers[idx] = { ...tier, pricingOptions: newOptions };
+                                  setEditorPricing({ ...editorPricing, tiers: newTiers });
+                                }}
+                                className="rounded"
+                              />
+                              <span className="text-gray-600">Popular</span>
+                            </label>
+                            {tier.pricingOptions.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newTiers = [...editorPricing.tiers];
+                                  newTiers[idx] = {
+                                    ...tier,
+                                    pricingOptions: tier.pricingOptions.filter((_, i) => i !== optionIdx),
+                                  };
+                                  setEditorPricing({ ...editorPricing, tiers: newTiers });
+                                }}
+                                className="text-xs text-red-600 hover:text-red-700"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

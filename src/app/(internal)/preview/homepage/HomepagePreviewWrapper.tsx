@@ -289,6 +289,25 @@ export default function HomepagePreviewWrapper({
                   const isLastTier = idx === homepageContent.pricing.tiers.length - 1;
                   const hasSecondaryPrice = tier.priceSecondary !== null;
                   const hasSecondaryFrequency = tier.frequencySecondary !== null;
+                  
+                  // Build pricing options array (support both old and new format)
+                  const pricingOptions: Array<{ frequency: string; price: number; isPopular?: boolean }> = [];
+                  
+                  // Add primary option
+                  pricingOptions.push({
+                    frequency: tier.frequencyPrimary,
+                    price: tier.pricePrimary,
+                    isPopular: false,
+                  });
+                  
+                  // Add secondary option if exists
+                  if (hasSecondaryPrice && hasSecondaryFrequency) {
+                    pricingOptions.push({
+                      frequency: tier.frequencySecondary!,
+                      price: tier.priceSecondary!,
+                      isPopular: isLastTier, // Mark as popular for Tier 3 by default
+                    });
+                  }
 
                   return (
                     <div
@@ -299,30 +318,44 @@ export default function HomepagePreviewWrapper({
                           : "border border-gray-200 rounded-xl p-6 bg-gray-50"
                       }`}
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{tier.label}</h3>
-                          {hasSecondaryFrequency ? (
-                            <div className="mt-1 space-y-1">
-                              <p className="text-sm text-gray-600">
-                                ₹{tier.pricePrimary.toLocaleString("en-IN")} {tier.frequencyPrimary}
-                              </p>
-                              {hasSecondaryPrice && (
-                                <p className="text-sm text-gray-600">
-                                  OR ₹{tier.priceSecondary!.toLocaleString("en-IN")} {tier.frequencySecondary}
-                                </p>
-                              )}
+                      <div className="mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900">{tier.label}</h3>
+                      </div>
+                      
+                      {/* Render all pricing options */}
+                      <div className="space-y-3">
+                        {pricingOptions.map((option, optionIdx) => {
+                          const isPopular = option.isPopular || false;
+                          return (
+                            <div
+                              key={optionIdx}
+                              className={`flex justify-between items-center p-3 rounded-lg ${
+                                isPopular
+                                  ? "bg-green-100 border border-green-300"
+                                  : "bg-white border border-gray-200"
+                              }`}
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-700">
+                                    {option.frequency}
+                                  </span>
+                                  {isPopular && (
+                                    <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full font-medium">
+                                      Most Popular
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xl font-semibold text-gray-900">
+                                  ₹{option.price.toLocaleString("en-IN")}
+                                </div>
+                                <div className="text-xs text-gray-500">per visit</div>
+                              </div>
                             </div>
-                          ) : (
-                            <p className="text-sm text-gray-600 mt-1">{tier.frequencyPrimary}</p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-semibold text-gray-900">
-                            ₹{tier.pricePrimary.toLocaleString("en-IN")}
-                          </div>
-                          <div className="text-sm text-gray-500">per visit</div>
-                        </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
