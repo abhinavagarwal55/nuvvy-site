@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, X, AlertCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import HeroCarousel from "@/components/HeroCarousel";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
 
@@ -93,41 +94,44 @@ export default function HomepagePreviewWrapper({
             </svg>
           </a>
 
-          {/* 1. HERO SECTION - With carousel navigation */}
+          {/* 1. HERO SECTION - With carousel navigation (full-width) */}
           <HeroCarousel heroes={homepageContent.heroSection.heroes} />
 
-          {/* 2. HORTICULTURIST-LED CARE */}
-          <section className="relative overflow-visible bg-white pl-6 pr-0 min-h-[420px] flex items-center py-8">
-            {/* Text Content - Left aligned, in front */}
-            <div className="relative max-w-[58%] z-20 pr-4">
-              <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-4 whitespace-nowrap">
-                {homepageContent.horticulturistCare.title}
-              </h2>
-              
-              <div className="space-y-5">
-                {homepageContent.horticulturistCare.bullets.map((bullet, idx) => (
-                  <div key={idx} className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                      <Check className="w-3 h-3 text-green-600" />
-                    </div>
-                    <p className="text-gray-700 text-base leading-loose">
-                      <span className="font-semibold">{bullet.boldText}</span>
-                      {bullet.restText}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* Centralized width container */}
+          <div className={viewMode === "mobile" ? "px-4" : "max-w-6xl mx-auto px-6"}>
 
-            {/* Image - Right aligned, behind text, slightly left for better balance */}
-            <div className="absolute right-[-16px] bottom-[-16px] w-[68vw] max-w-[320px] z-10 flex justify-end">
-              {/* Container with white background to handle transparent PNG */}
-              <div className="relative bg-white rounded-b-3xl overflow-hidden">
-                <img
+          {/* 2. HORTICULTURIST-LED CARE */}
+          <section className="bg-white py-8">
+            <div className="flex flex-row gap-4 items-start">
+              {/* Text Content - Left side */}
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-semibold text-gray-900 mb-4 leading-tight break-words">
+                  {homepageContent.horticulturistCare.title}
+                </h2>
+                
+                <div className="space-y-5">
+                  {homepageContent.horticulturistCare.bullets.map((bullet, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                        <Check className="w-3 h-3 text-green-600" />
+                      </div>
+                      <p className="text-gray-700 text-base leading-loose">
+                        <span className="font-semibold">{bullet.boldText}</span>
+                        {bullet.restText}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Image - Right side */}
+              <div className="relative w-[120px] h-[160px] flex-shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                <Image
                   src="/images/horticulturist.png"
                   alt="Nuvvy horticulturist"
-                  className="w-full h-auto object-cover"
-                  style={{ aspectRatio: "3/4", display: "block" }}
+                  fill
+                  className="object-cover"
+                  sizes="120px"
                 />
                 {/* Soft fade at bottom edge */}
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/10 pointer-events-none" />
@@ -136,11 +140,10 @@ export default function HomepagePreviewWrapper({
           </section>
 
           {/* 3. COMPARE NUVVY CARE - Custom grid layout */}
-          <section className="py-8 px-6 bg-gray-50">
-            <div className="max-w-4xl mx-auto">
-              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6">
-                {homepageContent.compareNuvvyCare.title}
-              </h2>
+          <section className="py-8 bg-gray-50">
+            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6">
+              {homepageContent.compareNuvvyCare.title}
+            </h2>
               <div className="bg-white rounded-xl overflow-hidden shadow-sm">
                 {/* Column Headers */}
                 <div className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4 border-b border-gray-200 bg-gray-50">
@@ -195,17 +198,15 @@ export default function HomepagePreviewWrapper({
                   ))}
                 </div>
               </div>
-            </div>
           </section>
 
           {/* 4. NUVVY CARE VISIT - 5 steps with numbers overlaid on images */}
-          <section className="py-8 px-6 bg-white">
-            <div className="max-w-3xl mx-auto">
-              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-                {homepageContent.nuvvyCareVisit.title}
-              </h2>
-              <p className="text-sm text-gray-600 mb-6">What happens when we come over</p>
-              <div className="space-y-5">
+          <section className="py-8 bg-white">
+            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+              {homepageContent.nuvvyCareVisit.title}
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">What happens when we come over</p>
+            <div className="space-y-5">
                 {homepageContent.nuvvyCareVisit.steps.map((step, idx) => {
                   const stepNumberFormatted = step.stepNumber.toString().padStart(2, "0");
                   return (
@@ -235,16 +236,14 @@ export default function HomepagePreviewWrapper({
                     </div>
                   );
                 })}
-              </div>
             </div>
           </section>
 
           {/* 5. SEE THE DIFFERENCE YOURSELF (PROOF) */}
-          <section className="py-8 px-6 bg-gray-50">
-            <div className="max-w-6xl mx-auto">
-              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-                {homepageContent.seeTheDifference.title}
-              </h2>
+          <section className="py-8 bg-gray-50">
+            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+              {homepageContent.seeTheDifference.title}
+            </h2>
               <p className="text-sm text-gray-500 mb-6">
                 Real balconies. Real care. No filters.
               </p>
@@ -273,12 +272,11 @@ export default function HomepagePreviewWrapper({
                   View more transformations →
                 </button>
               </div>
-            </div>
           </section>
 
           {/* 6. PRICING (BASED ON NUMBER OF POTS) */}
-          <section className="py-8 px-6 bg-white">
-            <div className="max-w-2xl mx-auto">
+          <section className="py-8 bg-white">
+            <div className="max-w-2xl">
               <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
                 {homepageContent.pricing.title}
               </h2>
@@ -346,19 +344,18 @@ export default function HomepagePreviewWrapper({
             </div>
           </section>
 
-          {/* 7. EXPERT-LED PLANT SELECTION HERO ROTATOR */}
+          {/* 7. EXPERT-LED PLANT SELECTION HERO ROTATOR (full-width) */}
           <HeroCarousel heroes={homepageContent.expertLedPlantSelection.heroes} />
 
           {/* 8. OUR MOST POPULAR PLANTS */}
-          <section className="py-8 px-6 bg-gray-50">
-            <div className="max-w-6xl mx-auto">
-              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6">
-                {homepageContent.mostPopularPlants.title}
-              </h2>
+          <section className="py-8 bg-gray-50">
+            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6">
+              {homepageContent.mostPopularPlants.title}
+            </h2>
 
-              {/* Horizontal scroll carousel */}
-              <div className="overflow-x-auto pb-4 -mx-6 px-6">
-                <div className="flex gap-4 min-w-max">
+            {/* Horizontal scroll carousel */}
+            <div className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6">
+              <div className="flex gap-4 min-w-max">
                   {popularPlants.length > 0 ? (
                     popularPlants.map((plant) => {
                       const imageUrl = plant.image_storage_url || plant.image_url || plant.thumbnail_storage_url || plant.thumbnail_url || undefined;
@@ -392,24 +389,23 @@ export default function HomepagePreviewWrapper({
                   ) : (
                     <div className="text-gray-500 text-sm">No plants available</div>
                   )}
-                </div>
               </div>
+            </div>
 
-              <div className="mt-6">
-                <a
-                  href="#"
-                  className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
-                >
-                  Explore full plant catalog
-                  <ArrowRight className="w-4 h-4" />
-                </a>
-              </div>
+            <div className="mt-6">
+              <a
+                href="#"
+                className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
+              >
+                Explore full plant catalog
+                <ArrowRight className="w-4 h-4" />
+              </a>
             </div>
           </section>
 
           {/* 9. SOCIAL PROOF */}
-          <section className="py-8 px-6 bg-white">
-            <div className="max-w-2xl mx-auto">
+          <section className="py-8 bg-white">
+            <div className="max-w-2xl">
               <div className="space-y-6">
                 <div>
                   <p className="text-gray-600 text-lg">{homepageContent.socialProof.headline}</p>
@@ -422,8 +418,8 @@ export default function HomepagePreviewWrapper({
           </section>
 
           {/* 10. FINAL CTA */}
-          <section className="py-12 px-6 bg-gradient-to-br from-green-50 to-gray-50">
-            <div className="max-w-2xl mx-auto">
+          <section className="py-12 bg-gradient-to-br from-green-50 to-gray-50">
+            <div className="max-w-2xl">
               <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
                 Ready to give your plants expert care?
               </h2>
@@ -440,6 +436,7 @@ export default function HomepagePreviewWrapper({
               </a>
             </div>
           </section>
+          </div>
         </main>
       </div>
     </div>

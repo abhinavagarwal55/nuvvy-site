@@ -91,7 +91,7 @@ export default function HeroCarousel({ heroes }: HeroCarouselProps) {
 
   return (
     <section
-      className="relative w-full aspect-[16/9] md:aspect-[16/9] min-h-[400px] overflow-hidden"
+      className="relative w-full aspect-[16/9] md:aspect-[16/9] min-h-[260px] lg:min-h-[420px] overflow-hidden"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
