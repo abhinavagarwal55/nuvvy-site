@@ -94,16 +94,34 @@ function transformPricingToSchema(editorPricing: EditorPricing): HomepageContent
   };
 }
 
+// Normalize steps: sort by stepNumber once on load, then ignore stepNumber
+function normalizeSteps(steps: HomepageContent["nuvvyCareVisit"]["steps"]) {
+  // Sort by stepNumber to fix any ordering issues
+  const sorted = [...steps].sort((a, b) => a.stepNumber - b.stepNumber);
+  // Recompute stepNumber based on array index
+  return sorted.map((step, idx) => ({
+    ...step,
+    stepNumber: idx + 1,
+  }));
+}
+
 export default function HomepageEditor({ initialContent }: HomepageEditorProps) {
   // Transform pricing to editor format
   const [editorPricing, setEditorPricing] = useState<EditorPricing>(
     transformPricingToEditor(initialContent.pricing)
   );
   
+  // Normalize steps on initial load
+  const normalizedSteps = normalizeSteps(initialContent.nuvvyCareVisit.steps);
+  
   // Keep rest of content as-is, sync pricing when editorPricing changes
   const [content, setContent] = useState<HomepageContent>({
     ...initialContent,
     pricing: transformPricingToSchema(transformPricingToEditor(initialContent.pricing)),
+    nuvvyCareVisit: {
+      ...initialContent.nuvvyCareVisit,
+      steps: normalizedSteps,
+    },
   });
   
   // Sync editorPricing changes to content
@@ -383,16 +401,51 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
     }
   };
 
+  // Move step up or down
+  const handleMoveStep = (idx: number, direction: "up" | "down") => {
+    const steps = [...content.nuvvyCareVisit.steps];
+    const newIndex = direction === "up" ? idx - 1 : idx + 1;
+    
+    if (newIndex < 0 || newIndex >= steps.length) return;
+    
+    // Swap steps
+    [steps[idx], steps[newIndex]] = [steps[newIndex], steps[idx]];
+    
+    // Recompute stepNumber based on new positions
+    const reindexed = steps.map((step, i) => ({
+      ...step,
+      stepNumber: i + 1,
+    }));
+    
+    setContent({
+      ...content,
+      nuvvyCareVisit: {
+        ...content.nuvvyCareVisit,
+        steps: reindexed,
+      },
+    });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     setSuccess(false);
 
     try {
+      // Normalize steps: recompute stepNumber based on array index
+      const normalizedSteps = content.nuvvyCareVisit.steps.map((step, idx) => ({
+        ...step,
+        stepNumber: idx + 1,
+      }));
+      
       // Transform editor pricing back to schema format
       const contentToSave: HomepageContent = {
         ...content,
         pricing: transformPricingToSchema(editorPricing),
+        nuvvyCareVisit: {
+          ...content.nuvvyCareVisit,
+          steps: normalizedSteps,
+        },
       };
       
       const response = await fetch("/api/internal/homepage", {
@@ -853,17 +906,30 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
               <div className="space-y-4">
                 {content.nuvvyCareVisit.steps.map((step, idx) => (
               <div key={idx} className="border border-gray-200 rounded-lg p-4">
-                <h3 className="font-medium text-gray-700 mb-3">Step {step.stepNumber}</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Step Number (read-only)</label>
-                    <input
-                      type="number"
-                      value={step.stepNumber}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                    />
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium text-gray-700">Step {idx + 1}</h3>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleMoveStep(idx, "up")}
+                      disabled={idx === 0}
+                      className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed rounded border border-gray-300 transition-colors"
+                      title="Move up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveStep(idx, "down")}
+                      disabled={idx === content.nuvvyCareVisit.steps.length - 1}
+                      className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed rounded border border-gray-300 transition-colors"
+                      title="Move down"
+                    >
+                      ↓
+                    </button>
                   </div>
+                </div>
+                <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                     <input
