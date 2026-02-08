@@ -1,0 +1,631 @@
+"use client";
+
+import { useState } from "react";
+import { Check, X, AlertCircle, ArrowRight, LayoutGrid, UserCheck, MapPin, Flower2, RefreshCcw, Leaf, Droplet, IndianRupee } from "lucide-react";
+import Link from "next/link";
+import Image from "next/image";
+import HeroCarousel from "@/components/HeroCarousel";
+import SoundFamiliar from "@/components/sections/SoundFamiliar";
+import type { HomepageContent } from "@/lib/schemas/homepage.schema";
+import { WHATSAPP_MESSAGES, getWhatsAppLink } from "@/config/whatsapp";
+
+interface Plant {
+  id: string;
+  airtable_id?: string | null;
+  name: string;
+  light?: string | null;
+  category?: string | null;
+  watering_requirement?: string | null;
+  price_band?: string | null;
+  thumbnail_storage_url?: string | null;
+  thumbnail_url?: string | null;
+  image_storage_url?: string | null;
+  image_url?: string | null;
+}
+
+interface HomepageRendererProps {
+  homepageContent: HomepageContent;
+  popularPlants: Plant[];
+  whatsappNumber: string;
+  whatsappMessage: string;
+}
+
+export default function HomepageRenderer({
+  homepageContent,
+  popularPlants,
+  whatsappNumber,
+  whatsappMessage,
+}: HomepageRendererProps) {
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  return (
+    <main className="min-h-screen bg-white">
+      {/* 1. HERO SECTION - With carousel navigation (full-width) */}
+      <HeroCarousel heroes={homepageContent.heroSection.heroes} />
+
+      {/* Sound Familiar Section */}
+      <SoundFamiliar />
+
+      {/* Centralized width container */}
+      <div className="max-w-6xl mx-auto px-6">
+
+      {/* 2. INTRODUCING NUVVY */}
+      <section className="bg-white pt-6 pb-12">
+        <div className="space-y-8">
+          {/* Heading */}
+          <div>
+            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
+              Introducing Nuvvy
+            </h2>
+            <p className="text-lg text-gray-600">
+              India's first horticulturist-led garden care service for balconies.
+            </p>
+          </div>
+
+          {/* Main Image */}
+          <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100">
+            <Image
+              src="/images/Introducing_Nuvvy_Horticuturist_Image.png"
+              alt="Introducing Nuvvy"
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 100vw"
+              unoptimized
+            />
+          </div>
+
+          {/* Text Block */}
+          <div className="space-y-6">
+            <h3 className="text-2xl md:text-3xl font-semibold text-gray-900">
+              Why Nuvvy?
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                  <Check className="w-3 h-3 text-green-600" />
+                </div>
+                <p className="text-base text-gray-700 leading-relaxed">
+                  <span className="font-semibold">Peace of mind</span> through horticulturist oversight
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                  <Check className="w-3 h-3 text-green-600" />
+                </div>
+                <p className="text-base text-gray-700 leading-relaxed">
+                  <span className="font-semibold">Expert plant selection</span> — not guesswork
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                  <Check className="w-3 h-3 text-green-600" />
+                </div>
+                <p className="text-base text-gray-700 leading-relaxed">
+                  <span className="font-semibold">Preventive care</span> with pest control and regular fertilization
+                </p>
+              </div>
+            </div>
+            <p className="text-lg font-semibold text-gray-900 mt-6">
+              Bi-weekly care plans starting at ₹799/month
+            </p>
+
+            {/* CTA 1 - Introducing Nuvvy */}
+            <div className="mt-8">
+              <a
+                href={getWhatsAppLink(WHATSAPP_MESSAGES.balconyAssessment)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-8 py-3 rounded-lg text-center transition-colors shadow-lg"
+              >
+                Book free 30 mins consultation with Horticulturist about your Balcony
+              </a>
+              <p className="text-xs text-gray-500 mt-2 text-center md:text-left">No commitment</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. COMPARE NUVVY CARE - Custom grid layout */}
+      <section className="py-8 bg-gray-50">
+        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6">
+          {homepageContent.compareNuvvyCare.title}
+        </h2>
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+          {/* Column Headers */}
+          <div className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4 border-b border-gray-200 bg-gray-50">
+            <div className="text-sm font-semibold text-gray-900 leading-snug">
+              What
+            </div>
+            <div className="text-sm font-semibold text-gray-700 leading-snug">
+              Regular Gardener
+            </div>
+            <div className="text-sm font-semibold text-green-600 leading-snug">
+              Nuvvy Garden Care
+            </div>
+          </div>
+
+          {/* Comparison Rows */}
+          <div className="divide-y divide-gray-100">
+            {homepageContent.compareNuvvyCare.rows.map((row, idx) => (
+              <div key={idx} className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4">
+                {/* What matters column */}
+                <div className="text-sm text-gray-900 leading-relaxed flex items-center">
+                  {row.label}
+                </div>
+
+                {/* Regular Gardener column */}
+                <div className="flex items-center gap-2">
+                  {row.regular.type === "check" && (
+                    <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
+                  )}
+                  {row.regular.type === "warning" && (
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
+                  )}
+                  {row.regular.type === "cross" && (
+                    <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
+                  )}
+                  <span className="text-sm text-gray-700 leading-relaxed">{row.regular.text}</span>
+                </div>
+
+                {/* Nuvvy Garden Care column */}
+                <div className="flex items-center gap-2">
+                  {row.nuvvy.type === "check" && (
+                    <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
+                  )}
+                  {row.nuvvy.type === "warning" && (
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
+                  )}
+                  {row.nuvvy.type === "cross" && (
+                    <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
+                  )}
+                  <span className="text-sm text-gray-700 leading-relaxed">{row.nuvvy.text}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 4. NUVVY CARE VISIT - 5 steps with numbers overlaid on images */}
+      <section className="py-8 bg-white">
+        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+          {homepageContent.nuvvyCareVisit.title}
+        </h2>
+        <p className="text-sm text-gray-600 mb-6">What happens when we come over</p>
+        <div className="space-y-5">
+          {homepageContent.nuvvyCareVisit.steps.map((step, idx) => {
+            const stepNumberFormatted = step.stepNumber.toString().padStart(2, "0");
+            return (
+              <div
+                key={idx}
+                className="flex items-start gap-4 p-5 bg-gray-50 rounded-xl border border-gray-100"
+              >
+                {/* Thumbnail image with overlaid step number */}
+                <div className="relative flex-shrink-0">
+                  <img
+                    src={step.imageUrl}
+                    alt={step.title}
+                    className="rounded-lg object-cover"
+                    style={{ width: "72px", height: "72px" }}
+                  />
+                  {/* Step number badge overlay */}
+                  <div className="absolute top-1 left-1 bg-black/80 backdrop-blur-sm rounded-full w-6 h-6 flex items-center justify-center">
+                    <span className="text-[10px] font-semibold text-white leading-none">{stepNumberFormatted}</span>
+                  </div>
+                </div>
+                
+                {/* Text content */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-semibold text-gray-900 mb-1.5">{step.title}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{step.description}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 5. PROOF & SOCIAL PROOF */}
+      <section className="py-12 bg-gray-50">
+        <div className="space-y-10">
+          {/* Headlines */}
+          <div>
+            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
+              Loved by customers across Whitefield, Bangalore
+            </h2>
+            <p className="text-lg text-gray-600">
+              Real balconies. Real plants. Cared for by the Nuvvy team.
+            </p>
+          </div>
+
+          {/* Transformation Gallery */}
+          <div className="columns-2 md:columns-3 gap-3 md:gap-4">
+            {[
+              "/images/before-after/image-1.png",
+              "/images/before-after/image-2.jpeg",
+              "/images/before-after/image-3.jpeg",
+              "/images/before-after/image-4.jpeg",
+              "/images/before-after/image-5.png",
+              "/images/before-after/image-6.jpeg",
+            ].map((imagePath, idx) => (
+              <div
+                key={idx}
+                className="break-inside-avoid mb-4 md:mb-6"
+              >
+                <div
+                  className="relative w-full rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                  onClick={() => setLightboxImage(imagePath)}
+                >
+                  <img
+                    src={imagePath}
+                    alt={`Transformation ${idx + 1}`}
+                    className="w-full h-auto"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Society Social Proof Strip */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-500">
+              Balconies we care for in Whitefield
+            </h3>
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              {[
+                { name: "Windmills of Your Mind", image: "/images/societies/windmills of your mind.jpg" },
+                { name: "Prestige White Meadows", image: "/images/societies/prestige whitemeadows.jpeg" },
+                { name: "Prestige Shantiniketan", image: "/images/societies/prestige shantiniketan.jpg" },
+              ].map((society, idx) => (
+                <div key={idx} className="flex-shrink-0 w-32 md:w-40">
+                  <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 mb-2">
+                    <Image
+                      src={society.image}
+                      alt={society.name}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 128px, 160px"
+                      unoptimized
+                    />
+                  </div>
+                  <p className="text-sm text-gray-700 text-center leading-tight">
+                    {society.name}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Lightbox */}
+        {lightboxImage && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightboxImage(null)}
+          >
+            <div 
+              className="relative max-w-7xl max-h-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={lightboxImage}
+                alt="Full size view"
+                width={1200}
+                height={800}
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                unoptimized
+              />
+              <button
+                onClick={() => setLightboxImage(null)}
+                className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 6. PRICING */}
+      <section className="py-8 bg-white">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+            {homepageContent.pricing.title}
+          </h2>
+          <p className="text-sm text-gray-600 mb-6">
+            {homepageContent.pricing.description}
+          </p>
+
+          {/* Pricing Container */}
+          <div className="bg-stone-50 rounded-xl p-4 md:p-5 mb-6">
+            {/* Pricing Rows */}
+            <div className="space-y-0">
+              {homepageContent.pricing.tiers.map((tier, idx) => (
+                <div
+                  key={idx}
+                  className={idx < homepageContent.pricing.tiers.length - 1 ? "pb-3 border-b border-gray-200" : "pt-3 pb-0"}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="text-base font-semibold text-gray-900 mb-1.5">{tier.label}</h3>
+                    </div>
+                    {tier.pricePrimary && (
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-xl font-semibold text-gray-900">₹{tier.pricePrimary.toLocaleString("en-IN")} / {tier.frequencyPrimary}</div>
+                        {tier.priceSecondary && (
+                          <p className="text-xs text-gray-500 mt-0.5">≈ ₹{tier.priceSecondary.toLocaleString("en-IN")} {tier.frequencySecondary || "per visit"}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {!tier.pricePrimary && tier.frequencyPrimary && (
+                    <p className="text-sm text-gray-600">{tier.frequencyPrimary}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Included in Care */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">
+                Included in your care:
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                    <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
+                  </div>
+                  <p className="text-sm text-gray-700">Fertilizers and preventive pest control included</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                    <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
+                  </div>
+                  <p className="text-sm text-gray-700">Access to horticulturist guidance when needed</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                    <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
+                  </div>
+                  <p className="text-sm text-gray-700">Help with selecting the right plants for your balcony</p>
+                </div>
+              </div>
+            </div>
+
+            {/* CTA 2 - Pricing Section */}
+            <div className="mt-6">
+              <a
+                href={getWhatsAppLink(WHATSAPP_MESSAGES.pricingInquiry)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-6 py-3 rounded-full text-center transition-colors shadow-lg"
+              >
+                Get exact pricing for your balcony
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. EXPERT-LED PLANT SELECTION HERO ROTATOR (full-width) */}
+      <HeroCarousel heroes={homepageContent.expertLedPlantSelection.heroes} />
+
+      {/* HOW NUVVY SETS UP YOUR BALCONY */}
+      <section className="py-8 bg-white">
+        <div className="mb-6">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+            How Nuvvy sets up your balcony
+          </h2>
+          <p className="text-sm text-gray-600">
+            End-to-end, horticulturist-led plant selection and setup.
+          </p>
+        </div>
+
+        {/* Steps */}
+        <div className="space-y-0">
+          {/* Step 01 */}
+          <div className="pb-4 border-b border-gray-200">
+            <div className="flex items-start gap-3">
+              <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">01</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <h3 className="text-base font-semibold text-gray-900">Explore the catalog</h3>
+                  <LayoutGrid className="w-4 h-4 text-blue-500 flex-shrink-0" strokeWidth={2} />
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Choose from 150+ curated indoor and balcony plants for Indian homes.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 02 */}
+          <div className="py-4 border-b border-gray-200">
+            <div className="flex items-start gap-3">
+              <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">02</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <h3 className="text-base font-semibold text-gray-900">Horticulturist shortlisting</h3>
+                  <UserCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" strokeWidth={2} />
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Plants selected based on your balcony's light, heat, wind, and space.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 03 */}
+          <div className="py-4 border-b border-gray-200">
+            <div className="flex items-start gap-3">
+              <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">03</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <h3 className="text-base font-semibold text-gray-900">Trusted local sourcing</h3>
+                  <MapPin className="w-4 h-4 text-amber-500 flex-shrink-0" strokeWidth={2} />
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Procured from trusted Bangalore nurseries at competitive pricing.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 04 */}
+          <div className="py-4 border-b border-gray-200">
+            <div className="flex items-start gap-3">
+              <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">04</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <h3 className="text-base font-semibold text-gray-900">Proper potting & setup</h3>
+                  <Flower2 className="w-4 h-4 text-green-600 flex-shrink-0" strokeWidth={2} />
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Each plant is potted with the right soil mix and container.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 05 */}
+          <div className="pt-4">
+            <div className="flex items-start gap-3">
+              <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">05</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <h3 className="text-base font-semibold text-gray-900">Placement + ongoing care</h3>
+                  <RefreshCcw className="w-4 h-4 text-teal-500 flex-shrink-0" strokeWidth={2} />
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Placed beautifully — and then cared for by Nuvvy's team.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Trust connector */}
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            Unlike marketplaces, we don't disappear after delivery. The same team that selects your plants also cares for them.
+          </p>
+        </div>
+
+        {/* Optional CTA */}
+        <div className="mt-5">
+          <a
+            href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("I'd like help choosing plants for my balcony")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
+          >
+            Get help choosing plants for your balcony
+            <ArrowRight className="w-4 h-4" />
+          </a>
+        </div>
+      </section>
+
+      {/* 8. EXPLORE NUVVY CATALOG */}
+      <section className="py-8 bg-gray-50">
+        <div className="mb-5">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+            {homepageContent.mostPopularPlants.title}
+          </h2>
+          <p className="text-sm text-gray-600">
+            Curated plants that work well with Nuvvy care.
+          </p>
+        </div>
+
+        {/* Horizontal scroll carousel */}
+        <div className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6">
+          <div className="flex gap-3 min-w-max">
+            {popularPlants.length > 0 ? (
+              popularPlants.map((plant) => {
+                const imageUrl = plant.image_storage_url || plant.image_url || plant.thumbnail_storage_url || plant.thumbnail_url || undefined;
+                const catalogId = plant.airtable_id || plant.id;
+                
+                return (
+                  <Link key={plant.id} href={`/plantcatalog/${catalogId}`}>
+                    <div className="flex-shrink-0 w-48">
+                      <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+                        <div className="relative h-40 bg-gray-200">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={plant.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-200" />
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <h3 className="text-sm font-semibold text-gray-900 mb-2 leading-tight">{plant.name}</h3>
+                          <div className="space-y-1">
+                            {plant.category && (
+                              <div className="flex items-center gap-2">
+                                <Leaf className="w-3.5 h-3.5 text-green-600 flex-shrink-0" strokeWidth={2} />
+                                <span className="text-xs text-gray-700">{plant.category}</span>
+                              </div>
+                            )}
+                            {plant.watering_requirement && (
+                              <div className="flex items-center gap-2">
+                                <Droplet className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" strokeWidth={2} />
+                                <span className="text-xs text-gray-700">{plant.watering_requirement}</span>
+                              </div>
+                            )}
+                            {plant.price_band && (
+                              <div className="flex items-center gap-2">
+                                <IndianRupee className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" strokeWidth={2} />
+                                <span className="text-xs text-gray-700">{plant.price_band}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })
+            ) : (
+              <div className="text-gray-500 text-sm">No plants available</div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <Link
+            href="/plantcatalog"
+            className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
+          >
+            Explore full plant catalog
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </section>
+
+      {/* 9. FINAL CTA (CTA 3) */}
+      <section className="py-12 bg-gradient-to-br from-green-50 to-gray-50">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
+            Ready to give your plants expert care?
+          </h2>
+          <p className="text-gray-600 mb-6 text-lg">
+            Direct reply from a horticulture expert
+          </p>
+          <a
+            href={getWhatsAppLink(WHATSAPP_MESSAGES.generalChat)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-10 py-4 rounded-lg text-lg transition-colors shadow-lg"
+          >
+            Chat with Nuvvy team on WhatsApp
+          </a>
+        </div>
+      </section>
+      </div>
+    </main>
+  );
+}
