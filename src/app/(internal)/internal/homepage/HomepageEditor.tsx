@@ -426,6 +426,15 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
     });
   };
 
+  // Helper to normalize subheading: use "." if empty/whitespace/placeholder
+  const normalizeSubheading = (subheading: string): string => {
+    const trimmed = subheading.trim();
+    if (trimmed === "" || trimmed === "_") {
+      return ".";
+    }
+    return subheading;
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -438,9 +447,26 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
         stepNumber: idx + 1,
       }));
       
+      // Normalize hero subheadings: auto-fill empty ones with "."
+      const normalizedHeroSection = {
+        heroes: content.heroSection.heroes.map((hero) => ({
+          ...hero,
+          subheading: normalizeSubheading(hero.subheading),
+        })),
+      };
+      
+      const normalizedExpertPlantHero = {
+        heroes: content.expertLedPlantSelection.heroes.map((hero) => ({
+          ...hero,
+          subheading: normalizeSubheading(hero.subheading),
+        })),
+      };
+      
       // Transform editor pricing back to schema format
       const contentToSave: HomepageContent = {
         ...content,
+        heroSection: normalizedHeroSection,
+        expertLedPlantSelection: normalizedExpertPlantHero,
         pricing: transformPricingToSchema(editorPricing),
         nuvvyCareVisit: {
           ...content.nuvvyCareVisit,

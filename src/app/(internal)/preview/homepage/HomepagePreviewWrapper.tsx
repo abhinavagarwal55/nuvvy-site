@@ -1,17 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { Check, X, AlertCircle, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Check, X, AlertCircle, ArrowRight, LayoutGrid, UserCheck, MapPin, Flower2, RefreshCcw, Leaf, Droplet, IndianRupee } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import HeroCarousel from "@/components/HeroCarousel";
+import SoundFamiliar from "@/components/sections/SoundFamiliar";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
+import { WHATSAPP_MESSAGES, getWhatsAppLink } from "@/config/whatsapp";
 
 interface Plant {
   id: string;
   airtable_id?: string | null;
   name: string;
   light?: string | null;
+  category?: string | null;
+  watering_requirement?: string | null;
+  price_band?: string | null;
   thumbnail_storage_url?: string | null;
   thumbnail_url?: string | null;
   image_storage_url?: string | null;
@@ -32,6 +37,20 @@ export default function HomepagePreviewWrapper({
   whatsappMessage,
 }: HomepagePreviewWrapperProps) {
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [showStickyCTA, setShowStickyCTA] = useState(false);
+
+  // Show sticky CTA only after scrolling past trust section
+  useEffect(() => {
+    const handleScroll = () => {
+      // Show sticky CTA after scrolling past ~600px (after hero + trust sections)
+      const scrollY = window.scrollY || window.pageYOffset;
+      setShowStickyCTA(scrollY > 600);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">
@@ -76,65 +95,107 @@ export default function HomepagePreviewWrapper({
         }
       >
         <main className="min-h-screen bg-white">
-          {/* Floating WhatsApp CTA - Fixed bottom-right */}
-          <a
-            href={`https://wa.me/${whatsappNumber}?text=${whatsappMessage}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#20BA5A] text-white rounded-full p-4 shadow-lg transition-all hover:scale-110"
-            aria-label="Contact on WhatsApp"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
+          {/* Floating WhatsApp CTA - Fixed bottom-right (CTA 3) */}
+          {showStickyCTA && (
+            <a
+              href={getWhatsAppLink(WHATSAPP_MESSAGES.generalChat)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#20BA5A] text-white rounded-full p-4 shadow-lg transition-all hover:scale-110"
+              aria-label="Contact on WhatsApp"
             >
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
-            </svg>
-          </a>
+              <svg
+                className="w-6 h-6"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+              </svg>
+            </a>
+          )}
 
           {/* 1. HERO SECTION - With carousel navigation (full-width) */}
           <HeroCarousel heroes={homepageContent.heroSection.heroes} />
 
+          {/* Sound Familiar Section - Preview Only */}
+          <SoundFamiliar />
+
           {/* Centralized width container */}
           <div className={viewMode === "mobile" ? "px-4" : "max-w-6xl mx-auto px-6"}>
 
-          {/* 2. HORTICULTURIST-LED CARE */}
-          <section className="bg-white py-8">
-            <div className="flex flex-row gap-4 items-start">
-              {/* Text Content - Left side */}
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl md:text-2xl lg:text-3xl font-semibold text-gray-900 mb-4 leading-tight break-words">
-                  {homepageContent.horticulturistCare.title}
+          {/* 2. INTRODUCING NUVVY - Preview Only */}
+          <section className="bg-white pt-6 pb-12">
+            <div className="space-y-8">
+              {/* Heading */}
+              <div>
+                <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
+                  Introducing Nuvvy
                 </h2>
-                
-                <div className="space-y-5">
-                  {homepageContent.horticulturistCare.bullets.map((bullet, idx) => (
-                    <div key={idx} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                        <Check className="w-3 h-3 text-green-600" />
-                      </div>
-                      <p className="text-gray-700 text-base leading-loose">
-                        <span className="font-semibold">{bullet.boldText}</span>
-                        {bullet.restText}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-lg text-gray-600">
+                  India's first horticulturist-led garden care service for balconies.
+                </p>
               </div>
 
-              {/* Image - Right side */}
-              <div className="relative w-[120px] h-[160px] flex-shrink-0 overflow-hidden rounded-xl bg-gray-100">
+              {/* Main Image */}
+              <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100">
                 <Image
-                  src="/images/horticulturist.png"
-                  alt="Nuvvy horticulturist"
+                  src="/images/Introducing_Nuvvy_Horticuturist_Image.png"
+                  alt="Introducing Nuvvy"
                   fill
                   className="object-cover"
-                  sizes="120px"
+                  sizes="(max-width: 768px) 100vw, 100vw"
+                  unoptimized
                 />
-                {/* Soft fade at bottom edge */}
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/10 pointer-events-none" />
+              </div>
+
+              {/* Text Block */}
+              <div className="space-y-6">
+                <h3 className="text-2xl md:text-3xl font-semibold text-gray-900">
+                  Why Nuvvy?
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                      <Check className="w-3 h-3 text-green-600" />
+                    </div>
+                    <p className="text-base text-gray-700 leading-relaxed">
+                      <span className="font-semibold">Peace of mind</span> through horticulturist oversight
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                      <Check className="w-3 h-3 text-green-600" />
+                    </div>
+                    <p className="text-base text-gray-700 leading-relaxed">
+                      <span className="font-semibold">Expert plant selection</span> — not guesswork
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                      <Check className="w-3 h-3 text-green-600" />
+                    </div>
+                    <p className="text-base text-gray-700 leading-relaxed">
+                      <span className="font-semibold">Preventive care</span> with pest control and regular fertilization
+                    </p>
+                  </div>
+                </div>
+                <p className="text-lg font-semibold text-gray-900 mt-6">
+                  Bi-weekly care plans starting at ₹799/month
+                </p>
+
+                {/* CTA 1 - Introducing Nuvvy */}
+                <div className="mt-8">
+                  <a
+                    href={getWhatsAppLink(WHATSAPP_MESSAGES.balconyAssessment)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-8 py-3 rounded-lg text-center transition-colors shadow-lg"
+                  >
+                    Book free 30 mins consultation with Horticulturist about your Balcony
+                  </a>
+                  <p className="text-xs text-gray-500 mt-2 text-center md:text-left">No commitment</p>
+                </div>
               </div>
             </div>
           </section>
@@ -170,10 +231,10 @@ export default function HomepagePreviewWrapper({
                       {/* Regular Gardener column */}
                       <div className="flex items-center gap-2">
                         {row.regular.type === "check" && (
-                          <Check className="w-5 h-5 flex-shrink-0 text-green-600" strokeWidth={2.5} />
+                          <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
                         )}
                         {row.regular.type === "warning" && (
-                          <AlertCircle className="w-5 h-5 flex-shrink-0 text-yellow-500" strokeWidth={2.5} />
+                          <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
                         )}
                         {row.regular.type === "cross" && (
                           <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
@@ -184,10 +245,10 @@ export default function HomepagePreviewWrapper({
                       {/* Nuvvy Garden Care column */}
                       <div className="flex items-center gap-2">
                         {row.nuvvy.type === "check" && (
-                          <Check className="w-5 h-5 flex-shrink-0 text-green-600" strokeWidth={2.5} />
+                          <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
                         )}
                         {row.nuvvy.type === "warning" && (
-                          <AlertCircle className="w-5 h-5 flex-shrink-0 text-yellow-500" strokeWidth={2.5} />
+                          <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
                         )}
                         {row.nuvvy.type === "cross" && (
                           <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
@@ -239,167 +300,352 @@ export default function HomepagePreviewWrapper({
             </div>
           </section>
 
-          {/* 5. SEE THE DIFFERENCE YOURSELF (PROOF) */}
-          <section className="py-8 bg-gray-50">
-            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-              {homepageContent.seeTheDifference.title}
-            </h2>
-              <p className="text-sm text-gray-500 mb-6">
-                Real balconies. Real care. No filters.
-              </p>
-              
-              {/* Masonry-style image grid - 2 columns, natural stacking */}
-              <div className="columns-2 gap-3 mb-8">
-                {homepageContent.seeTheDifference.images.map((image, idx) => (
-                  <div key={idx} className="break-inside-avoid mb-3">
-                    <div className="rounded-lg overflow-hidden">
+          {/* 5. PROOF & SOCIAL PROOF - Preview Only */}
+          <section className="py-12 bg-gray-50">
+            <div className="space-y-10">
+              {/* Headlines */}
+              <div>
+                <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
+                  Loved by customers across Whitefield, Bangalore
+                </h2>
+                <p className="text-lg text-gray-600">
+                  Real balconies. Real plants. Cared for by the Nuvvy team.
+                </p>
+              </div>
+
+              {/* Transformation Gallery */}
+              <div className="columns-2 md:columns-3 gap-3 md:gap-4">
+                {[
+                  "/images/before-after/image-1.png",
+                  "/images/before-after/image-2.jpeg",
+                  "/images/before-after/image-3.jpeg",
+                  "/images/before-after/image-4.jpeg",
+                  "/images/before-after/image-5.png",
+                  "/images/before-after/image-6.jpeg",
+                ].map((imageUrl, idx) => (
+                  <div
+                    key={idx}
+                    className="break-inside-avoid mb-4 md:mb-6"
+                  >
+                    <div
+                      className="relative w-full rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                      onClick={() => setLightboxImage(imageUrl)}
+                    >
                       <img
-                        src={image.imageUrl}
+                        src={imageUrl}
                         alt={`Transformation ${idx + 1}`}
-                        className="w-full h-auto object-contain"
+                        className="w-full h-auto"
                         loading="lazy"
                       />
                     </div>
-                    {image.caption && (
-                      <p className="text-xs text-gray-600 mt-2 px-1">{image.caption}</p>
-                    )}
                   </div>
                 ))}
               </div>
-              
-              <div className="text-center">
-                <button className="text-green-600 font-medium text-sm hover:text-green-700 transition-colors">
-                  View more transformations →
-                </button>
+
+              {/* Society Social Proof Strip */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-gray-500">
+                  Balconies we care for in Whitefield
+                </h3>
+                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  {[
+                    { name: "Windmills of Your Mind", image: "/images/societies/windmills of your mind.jpg" },
+                    { name: "Prestige White Meadows", image: "/images/societies/prestige whitemeadows.jpeg" },
+                    { name: "Prestige Shantiniketan", image: "/images/societies/prestige shantiniketan.jpg" },
+                  ].map((society, idx) => (
+                    <div key={idx} className="flex-shrink-0 w-32 md:w-40">
+                      <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 mb-2">
+                        <Image
+                          src={society.image}
+                          alt={society.name}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 128px, 160px"
+                          unoptimized
+                        />
+                      </div>
+                      <p className="text-sm text-gray-700 text-center leading-tight">
+                        {society.name}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
+            </div>
+
+            {/* Lightbox */}
+            {lightboxImage && (
+              <div
+                className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+                onClick={() => setLightboxImage(null)}
+              >
+                <div 
+                  className="relative max-w-7xl max-h-full"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Image
+                    src={lightboxImage}
+                    alt="Full size view"
+                    width={1200}
+                    height={800}
+                    className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                    unoptimized
+                  />
+                  <button
+                    onClick={() => setLightboxImage(null)}
+                    className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
+                    aria-label="Close"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
-          {/* 6. PRICING (BASED ON NUMBER OF POTS) */}
+          {/* 6. PRICING - Preview Only */}
           <section className="py-8 bg-white">
             <div className="max-w-2xl">
-              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
-                {homepageContent.pricing.title}
+              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+                Simple, transparent pricing
               </h2>
-              <p className="text-gray-600 mb-6 text-lg">
-                {homepageContent.pricing.description}
+              <p className="text-sm text-gray-600 mb-6">
+                Includes 2 visits per month (once every two weeks).
               </p>
 
-              <div className="space-y-6 mb-8">
-                {homepageContent.pricing.tiers.map((tier, idx) => {
-                  const isLastTier = idx === homepageContent.pricing.tiers.length - 1;
-                  const hasSecondaryPrice = tier.priceSecondary !== null;
-                  const hasSecondaryFrequency = tier.frequencySecondary !== null;
-                  
-                  // Build pricing options array (support both old and new format)
-                  const pricingOptions: Array<{ frequency: string; price: number; isPopular?: boolean }> = [];
-                  
-                  // Add primary option
-                  pricingOptions.push({
-                    frequency: tier.frequencyPrimary,
-                    price: tier.pricePrimary,
-                    isPopular: false,
-                  });
-                  
-                  // Add secondary option if exists
-                  if (hasSecondaryPrice && hasSecondaryFrequency) {
-                    pricingOptions.push({
-                      frequency: tier.frequencySecondary!,
-                      price: tier.priceSecondary!,
-                      isPopular: isLastTier, // Mark as popular for Tier 3 by default
-                    });
-                  }
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`${
-                        isLastTier
-                          ? "border-2 border-green-200 rounded-xl p-6 bg-green-50"
-                          : "border border-gray-200 rounded-xl p-6 bg-gray-50"
-                      }`}
-                    >
-                      <div className="mb-3">
-                        <h3 className="text-lg font-semibold text-gray-900">{tier.label}</h3>
+              {/* Pricing Container */}
+              <div className="bg-stone-50 rounded-xl p-4 md:p-5 mb-6">
+                {/* Pricing Rows */}
+                <div className="space-y-0">
+                  {/* Row 1: 0-20 plants */}
+                  <div className="pb-3 border-b border-gray-200">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold text-gray-900 mb-1.5">0–20 plants</h3>
                       </div>
-                      
-                      {/* Render all pricing options */}
-                      <div className="space-y-3">
-                        {pricingOptions.map((option, optionIdx) => {
-                          const isPopular = option.isPopular || false;
-                          return (
-                            <div
-                              key={optionIdx}
-                              className={`flex justify-between items-center p-3 rounded-lg ${
-                                isPopular
-                                  ? "bg-green-100 border border-green-300"
-                                  : "bg-white border border-gray-200"
-                              }`}
-                            >
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium text-gray-700">
-                                    {option.frequency}
-                                  </span>
-                                  {isPopular && (
-                                    <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full font-medium">
-                                      Most Popular
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xl font-semibold text-gray-900">
-                                  ₹{option.price.toLocaleString("en-IN")}
-                                </div>
-                                <div className="text-xs text-gray-500">per visit</div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-xl font-semibold text-gray-900">₹799 / month</div>
+                        <p className="text-xs text-gray-500 mt-0.5">≈ ₹400 per visit</p>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+
+                  {/* Row 2: 21-40 plants */}
+                  <div className="py-3 border-b border-gray-200">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold text-gray-900 mb-1.5">21–40 plants</h3>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-xl font-semibold text-gray-900">₹1,099 / month</div>
+                        <p className="text-xs text-gray-500 mt-0.5">≈ ₹550 per visit</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 3: 40+ plants */}
+                  <div className="pt-3 pb-0">
+                    <h3 className="text-base font-semibold text-gray-900 mb-1">40+ plants</h3>
+                    <p className="text-sm text-gray-600">Weekly & bi-weekly plans available</p>
+                  </div>
+                </div>
+
+                {/* Included in Care */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h3 className="text-base font-semibold text-gray-900 mb-3">
+                    Included in your care:
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                        <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
+                      </div>
+                      <p className="text-sm text-gray-700">Fertilizers and preventive pest control included</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                        <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
+                      </div>
+                      <p className="text-sm text-gray-700">Access to horticulturist guidance when needed</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                        <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
+                      </div>
+                      <p className="text-sm text-gray-700">Help with selecting the right plants for your balcony</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CTA 2 - Pricing Section */}
+                <div className="mt-6">
+                  <a
+                    href={getWhatsAppLink(WHATSAPP_MESSAGES.pricingInquiry)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-6 py-3 rounded-full text-center transition-colors shadow-lg"
+                  >
+                    Get exact pricing for your balcony
+                  </a>
+                </div>
               </div>
-
-              <p className="text-sm text-gray-600 mb-8">
-                Includes all inputs, pest control & horticulturist oversight
-              </p>
-
-              <a
-                href={`https://wa.me/${whatsappNumber}?text=${whatsappMessage}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
-              >
-                Talk to us on WhatsApp for exact pricing
-              </a>
             </div>
           </section>
 
           {/* 7. EXPERT-LED PLANT SELECTION HERO ROTATOR (full-width) */}
           <HeroCarousel heroes={homepageContent.expertLedPlantSelection.heroes} />
 
-          {/* 8. OUR MOST POPULAR PLANTS */}
+          {/* HOW NUVVY SETS UP YOUR BALCONY */}
+          <section className="py-8 bg-white">
+            <div className="mb-6">
+              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+                How Nuvvy sets up your balcony
+              </h2>
+              <p className="text-sm text-gray-600">
+                End-to-end, horticulturist-led plant selection and setup.
+              </p>
+            </div>
+
+            {/* Steps */}
+            <div className="space-y-0">
+              {/* Step 01 */}
+              <div className="pb-4 border-b border-gray-200">
+                <div className="flex items-start gap-3">
+                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">01</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <h3 className="text-base font-semibold text-gray-900">Explore the catalog</h3>
+                      <LayoutGrid className="w-4 h-4 text-blue-500 flex-shrink-0" strokeWidth={2} />
+                    </div>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Choose from 150+ curated indoor and balcony plants for Indian homes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 02 */}
+              <div className="py-4 border-b border-gray-200">
+                <div className="flex items-start gap-3">
+                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">02</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <h3 className="text-base font-semibold text-gray-900">Horticulturist shortlisting</h3>
+                      <UserCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" strokeWidth={2} />
+                    </div>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Plants selected based on your balcony's light, heat, wind, and space.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 03 */}
+              <div className="py-4 border-b border-gray-200">
+                <div className="flex items-start gap-3">
+                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">03</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <h3 className="text-base font-semibold text-gray-900">Trusted local sourcing</h3>
+                      <MapPin className="w-4 h-4 text-amber-500 flex-shrink-0" strokeWidth={2} />
+                    </div>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Procured from trusted Bangalore nurseries at competitive pricing.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 04 */}
+              <div className="py-4 border-b border-gray-200">
+                <div className="flex items-start gap-3">
+                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">04</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <h3 className="text-base font-semibold text-gray-900">Proper potting & setup</h3>
+                      <Flower2 className="w-4 h-4 text-green-600 flex-shrink-0" strokeWidth={2} />
+                    </div>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Each plant is potted with the right soil mix and container.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 05 */}
+              <div className="pt-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">05</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <h3 className="text-base font-semibold text-gray-900">Placement + ongoing care</h3>
+                      <RefreshCcw className="w-4 h-4 text-teal-500 flex-shrink-0" strokeWidth={2} />
+                    </div>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Placed beautifully — and then cared for by Nuvvy's team.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Trust connector */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Unlike marketplaces, we don't disappear after delivery. The same team that selects your plants also cares for them.
+              </p>
+            </div>
+
+            {/* Optional CTA */}
+            <div className="mt-5">
+              <a
+                href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("I'd like help choosing plants for my balcony")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
+              >
+                Get help choosing plants for your balcony
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
+          </section>
+
+          {/* 8. EXPLORE NUVVY CATALOG */}
           <section className="py-8 bg-gray-50">
-            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6">
-              {homepageContent.mostPopularPlants.title}
-            </h2>
+            <div className="mb-5">
+              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+                Explore Nuvvy catalog
+              </h2>
+              <p className="text-sm text-gray-600">
+                Curated plants that work well with Nuvvy care.
+              </p>
+            </div>
 
             {/* Horizontal scroll carousel */}
             <div className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6">
-              <div className="flex gap-4 min-w-max">
+              <div className="flex gap-3 min-w-max">
                   {popularPlants.length > 0 ? (
                     popularPlants.map((plant) => {
                       const imageUrl = plant.image_storage_url || plant.image_url || plant.thumbnail_storage_url || plant.thumbnail_url || undefined;
-                      const descriptor = plant.light || "Easy care";
                       const catalogId = plant.airtable_id || plant.id;
+                      
+                      // Build attributes array
+                      const attributes = [];
+                      if (plant.category) {
+                        attributes.push(plant.category);
+                      }
+                      if (plant.watering_requirement) {
+                        attributes.push(plant.watering_requirement);
+                      }
+                      if (plant.price_band) {
+                        attributes.push(plant.price_band);
+                      }
                       
                       return (
                         <Link key={plant.id} href={`/plantcatalog/${catalogId}`}>
-                          <div className="flex-shrink-0 w-56">
+                          <div className="flex-shrink-0 w-48">
                             <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-                              <div className="relative h-48 bg-gray-200">
+                              <div className="relative h-40 bg-gray-200">
                                 {imageUrl ? (
                                   <img
                                     src={imageUrl}
@@ -410,9 +656,28 @@ export default function HomepagePreviewWrapper({
                                   <div className="w-full h-full bg-gray-200" />
                                 )}
                               </div>
-                              <div className="p-4">
-                                <h3 className="font-semibold text-gray-900 mb-1">{plant.name}</h3>
-                                <p className="text-sm text-gray-500">{descriptor}</p>
+                              <div className="p-3">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-2 leading-tight">{plant.name}</h3>
+                                <div className="space-y-1">
+                                  {plant.category && (
+                                    <div className="flex items-center gap-2">
+                                      <Leaf className="w-3.5 h-3.5 text-green-600 flex-shrink-0" strokeWidth={2} />
+                                      <span className="text-xs text-gray-700">{plant.category}</span>
+                                    </div>
+                                  )}
+                                  {plant.watering_requirement && (
+                                    <div className="flex items-center gap-2">
+                                      <Droplet className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" strokeWidth={2} />
+                                      <span className="text-xs text-gray-700">{plant.watering_requirement}</span>
+                                    </div>
+                                  )}
+                                  {plant.price_band && (
+                                    <div className="flex items-center gap-2">
+                                      <IndianRupee className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" strokeWidth={2} />
+                                      <span className="text-xs text-gray-700">{plant.price_band}</span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -425,32 +690,18 @@ export default function HomepagePreviewWrapper({
               </div>
             </div>
 
-            <div className="mt-6">
-              <a
-                href="#"
+            <div className="mt-4">
+              <Link
+                href="/plantcatalog"
                 className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
               >
                 Explore full plant catalog
                 <ArrowRight className="w-4 h-4" />
-              </a>
+              </Link>
             </div>
           </section>
 
-          {/* 9. SOCIAL PROOF */}
-          <section className="py-8 bg-white">
-            <div className="max-w-2xl">
-              <div className="space-y-6">
-                <div>
-                  <p className="text-gray-600 text-lg">{homepageContent.socialProof.headline}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-lg">{homepageContent.socialProof.subtext}</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 10. FINAL CTA */}
+          {/* 9. FINAL CTA (CTA 3) */}
           <section className="py-12 bg-gradient-to-br from-green-50 to-gray-50">
             <div className="max-w-2xl">
               <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
@@ -460,12 +711,12 @@ export default function HomepagePreviewWrapper({
                 Direct reply from a horticulture expert
               </p>
               <a
-                href={`https://wa.me/${whatsappNumber}?text=${whatsappMessage}`}
+                href={getWhatsAppLink(WHATSAPP_MESSAGES.generalChat)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-10 py-4 rounded-lg text-lg transition-colors shadow-lg"
               >
-                Start a conversation on WhatsApp
+                Chat with Nuvvy team on WhatsApp
               </a>
             </div>
           </section>

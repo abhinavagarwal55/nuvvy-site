@@ -11,7 +11,7 @@ async function getPlantsByIds(plantIds: string[]) {
   
   const { data, error } = await supabase
     .from("plants")
-    .select("id, airtable_id, name, light, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url")
+    .select("id, airtable_id, name, light, category, watering_requirement, price_band, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url")
     .in("id", plantIds)
     .eq("can_be_procured", true);
 

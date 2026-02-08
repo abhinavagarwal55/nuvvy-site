@@ -91,7 +91,7 @@ export default function HeroCarousel({ heroes }: HeroCarouselProps) {
 
   return (
     <section
-      className="relative w-full aspect-[16/9] md:aspect-[16/9] min-h-[260px] lg:min-h-[420px] overflow-hidden"
+      className="relative w-full min-h-[60vh] lg:min-h-[52vh] overflow-hidden"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -106,19 +106,16 @@ export default function HeroCarousel({ heroes }: HeroCarouselProps) {
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
 
       {/* Content - Left aligned, absolutely positioned in lower third */}
-      <div className="absolute bottom-12 left-6 right-6">
+      <div className="absolute bottom-8 md:bottom-12 left-6 right-6">
         <div className="max-w-2xl text-white">
-          <h1 className="text-4xl md:text-5xl font-semibold mb-4 leading-tight">
+          <h1 className="text-4xl md:text-5xl font-semibold leading-tight">
             {activeHero.heading}
           </h1>
-          <p className="text-lg md:text-xl text-white/90 mb-8">
-            {activeHero.subheading}
-          </p>
         </div>
 
         {/* Carousel dots - clickable if more than one hero */}
         {sortedHeroes.length > 1 && (
-          <div className="flex gap-2 mt-6">
+          <div className="flex gap-2 mt-4">
             {sortedHeroes.map((_, idx) => (
               <button
                 key={idx}
