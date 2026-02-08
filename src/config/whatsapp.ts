@@ -7,9 +7,9 @@ export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
 
 // Pre-written message templates for different CTAs
 export const WHATSAPP_MESSAGES = {
-  balconyAssessment: "I'd like to book a free 30-minute consultation with a horticulturist about my balcony and understand what would work best for my space.",
-  pricingInquiry: "I'm interested in your garden care plans and would like to get exact pricing for my balcony.",
-  generalChat: "I'm exploring garden care for my balcony and would like to chat with your team.",
+  balconyAssessment: "Hi, I'd like to book a free 30-minute consultation with a horticulturist about my balcony and understand what would work best for my space.",
+  pricingInquiry: "Hi, I'm interested in your garden care plans and would like to get exact pricing for my balcony.",
+  generalChat: "Hi I'm exploring garden care for my balcony and would like to chat with your team.",
 } as const;
 
 /**

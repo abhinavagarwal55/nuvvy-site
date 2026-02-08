@@ -44,7 +44,7 @@ export default function HomepageRenderer({
       <HeroCarousel heroes={homepageContent.heroSection.heroes} />
 
       {/* Sound Familiar Section */}
-      <SoundFamiliar />
+      <SoundFamiliar usePublicImage={false} />
 
       {/* Centralized width container */}
       <div className="max-w-6xl mx-auto px-6">

@@ -1,7 +1,11 @@
 import Image from "next/image";
 import { publicImage } from "@/lib/publicAssets";
 
-export default function SoundFamiliar() {
+interface SoundFamiliarProps {
+  usePublicImage?: boolean;
+}
+
+export default function SoundFamiliar({ usePublicImage = true }: SoundFamiliarProps) {
   const cards = [
     {
       title: "Plants not thriving",
@@ -20,6 +24,11 @@ export default function SoundFamiliar() {
       image: "/images/sound-familiar/not time to manage final.PNG",
     },
   ];
+
+  // Helper to get image path - use publicImage if needed, otherwise plain path
+  const getImagePath = (path: string) => {
+    return usePublicImage ? publicImage(path) : path;
+  };
 
   return (
     <section className="bg-white py-12">
@@ -41,7 +50,7 @@ export default function SoundFamiliar() {
             >
               <div className="relative aspect-[4/3] w-full bg-gray-100">
                 <Image
-                  src={publicImage(card.image)}
+                  src={getImagePath(card.image)}
                   alt={card.title}
                   fill
                   className="object-cover"
