@@ -370,7 +370,12 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("/api/internal/homepage/upload-image", {
+      // Use absolute path for API to bypass basePath prefix
+      const uploadApiUrl = typeof window !== "undefined" 
+        ? `${window.location.origin}/api/internal/homepage/upload-image`
+        : "/api/internal/homepage/upload-image";
+
+      const response = await fetch(uploadApiUrl, {
         method: "POST",
         body: formData,
       });
@@ -474,7 +479,12 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
         },
       };
       
-      const response = await fetch("/api/internal/homepage", {
+      // Use absolute path for API to bypass basePath prefix
+      const apiUrl = typeof window !== "undefined" 
+        ? `${window.location.origin}/api/internal/homepage`
+        : "/api/internal/homepage";
+      
+      const response = await fetch(apiUrl, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: contentToSave }),
