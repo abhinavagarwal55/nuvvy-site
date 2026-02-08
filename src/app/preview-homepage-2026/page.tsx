@@ -17,41 +17,70 @@ export const metadata: Metadata = {
 async function getPlantsByIds(plantIds: string[]) {
   if (!plantIds || plantIds.length === 0) return [];
 
-  const supabase = await createServerSupabaseClient();
-  
-  const { data, error } = await supabase
-    .from("plants")
-    .select("id, airtable_id, name, light, category, watering_requirement, price_band, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url")
-    .in("id", plantIds)
-    .eq("can_be_procured", true);
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    const { data, error } = await supabase
+      .from("plants")
+      .select("id, airtable_id, name, light, category, watering_requirement, price_band, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url")
+      .in("id", plantIds)
+      .eq("can_be_procured", true);
 
-  if (error || !data) {
-    console.error("Error fetching plants:", error);
+    if (error || !data) {
+      console.error("Error fetching plants:", error);
+      return [];
+    }
+
+    // Create a map for quick lookup
+    const plantMap = new Map(data.map((p) => [p.id, p]));
+    
+    // Preserve order from plantIds and filter out missing plants
+    return plantIds
+      .map((id) => plantMap.get(id))
+      .filter((plant): plant is NonNullable<typeof plant> => plant !== undefined);
+  } catch (error) {
+    console.error("Error in getPlantsByIds:", error);
     return [];
   }
-
-  // Create a map for quick lookup
-  const plantMap = new Map(data.map((p) => [p.id, p]));
-  
-  // Preserve order from plantIds and filter out missing plants
-  return plantIds
-    .map((id) => plantMap.get(id))
-    .filter((plant): plant is NonNullable<typeof plant> => plant !== undefined);
 }
 
 export default async function PreviewHomepagePage() {
-  // Fetch draft content
-  const homepageContent = await getHomepageContent("draft");
+  try {
+    // Fetch draft content
+    const homepageContent = await getHomepageContent("draft");
 
-  // Fetch popular plants
-  const popularPlants = await getPlantsByIds(homepageContent.mostPopularPlants.plantIds);
+    // Fetch popular plants
+    const popularPlants = await getPlantsByIds(homepageContent.mostPopularPlants.plantIds);
 
-  return (
-    <HomepageRenderer
-      homepageContent={homepageContent}
-      popularPlants={popularPlants}
-      whatsappNumber={WHATSAPP_NUMBER}
-      whatsappMessage={WHATSAPP_MESSAGES.generalChat}
-    />
-  );
+    return (
+      <HomepageRenderer
+        homepageContent={homepageContent}
+        popularPlants={popularPlants}
+        whatsappNumber={WHATSAPP_NUMBER}
+        whatsappMessage={WHATSAPP_MESSAGES.generalChat}
+      />
+    );
+  } catch (error) {
+    // Log error for debugging
+    console.error("Error loading preview homepage:", error);
+
+    // Return a user-friendly error page
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-2xl font-semibold text-gray-900 mb-4">
+            Preview Unavailable
+          </h1>
+          <p className="text-gray-600 mb-2">
+            {error instanceof Error
+              ? error.message
+              : "Unable to load draft homepage content."}
+          </p>
+          <p className="text-sm text-gray-500 mt-4">
+            Please ensure draft content exists in the database.
+          </p>
+        </div>
+      </main>
+    );
+  }
 }
