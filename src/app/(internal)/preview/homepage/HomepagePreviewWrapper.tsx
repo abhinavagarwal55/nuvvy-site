@@ -8,6 +8,7 @@ import HeroCarousel from "@/components/HeroCarousel";
 import SoundFamiliar from "@/components/sections/SoundFamiliar";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
 import { WHATSAPP_MESSAGES, getWhatsAppLink } from "@/config/whatsapp";
+import { publicImage } from "@/lib/publicAssets";
 
 interface Plant {
   id: string;
@@ -140,7 +141,7 @@ export default function HomepagePreviewWrapper({
               {/* Main Image */}
               <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100">
                 <Image
-                  src="/images/Introducing_Nuvvy_Horticuturist_Image.png"
+                  src={publicImage("/images/Introducing_Nuvvy_Horticuturist_Image.png")}
                   alt="Introducing Nuvvy"
                   fill
                   className="object-cover"
@@ -322,7 +323,9 @@ export default function HomepagePreviewWrapper({
                   "/images/before-after/image-4.jpeg",
                   "/images/before-after/image-5.png",
                   "/images/before-after/image-6.jpeg",
-                ].map((imageUrl, idx) => (
+                ].map((imagePath, idx) => {
+                  const imageUrl = publicImage(imagePath);
+                  return (
                   <div
                     key={idx}
                     className="break-inside-avoid mb-4 md:mb-6"
@@ -339,7 +342,8 @@ export default function HomepagePreviewWrapper({
                       />
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Society Social Proof Strip */}
@@ -356,7 +360,7 @@ export default function HomepagePreviewWrapper({
                     <div key={idx} className="flex-shrink-0 w-32 md:w-40">
                       <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 mb-2">
                         <Image
-                          src={society.image}
+                          src={publicImage(society.image)}
                           alt={society.name}
                           fill
                           className="object-cover"

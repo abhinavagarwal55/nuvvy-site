@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { publicImage } from "@/lib/publicAssets";
 
 export default function SoundFamiliar() {
   const cards = [
@@ -40,7 +41,7 @@ export default function SoundFamiliar() {
             >
               <div className="relative aspect-[4/3] w-full bg-gray-100">
                 <Image
-                  src={card.image}
+                  src={publicImage(card.image)}
                   alt={card.title}
                   fill
                   className="object-cover"
