@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import HeroCarousel from "@/components/HeroCarousel";
 import SoundFamiliar from "@/components/sections/SoundFamiliar";
+import SimplePricing from "@/components/sections/SimplePricing";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
 import { WHATSAPP_MESSAGES, getWhatsAppLink } from "@/config/whatsapp";
 import { publicImage } from "@/lib/publicAssets";
@@ -407,94 +408,8 @@ export default function HomepagePreviewWrapper({
             )}
           </section>
 
-          {/* 6. PRICING - Preview Only */}
-          <section className="py-8 bg-white">
-            <div className="max-w-2xl">
-              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-                Simple, transparent pricing
-              </h2>
-              <p className="text-sm text-gray-600 mb-6">
-                Includes 2 visits per month (once every two weeks).
-              </p>
-
-              {/* Pricing Container */}
-              <div className="bg-stone-50 rounded-xl p-4 md:p-5 mb-6">
-                {/* Pricing Rows */}
-                <div className="space-y-0">
-                  {/* Row 1: 0-20 plants */}
-                  <div className="pb-3 border-b border-gray-200">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="text-base font-semibold text-gray-900 mb-1.5">0–20 plants</h3>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-xl font-semibold text-gray-900">₹799 / month</div>
-                        <p className="text-xs text-gray-500 mt-0.5">≈ ₹400 per visit</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Row 2: 21-40 plants */}
-                  <div className="py-3 border-b border-gray-200">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="text-base font-semibold text-gray-900 mb-1.5">21–40 plants</h3>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-xl font-semibold text-gray-900">₹1,099 / month</div>
-                        <p className="text-xs text-gray-500 mt-0.5">≈ ₹550 per visit</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Row 3: 40+ plants */}
-                  <div className="pt-3 pb-0">
-                    <h3 className="text-base font-semibold text-gray-900 mb-1">40+ plants</h3>
-                    <p className="text-sm text-gray-600">Weekly & bi-weekly plans available</p>
-                  </div>
-                </div>
-
-                {/* Included in Care */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h3 className="text-base font-semibold text-gray-900 mb-3">
-                    Included in your care:
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                        <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
-                      </div>
-                      <p className="text-sm text-gray-700">Fertilizers and preventive pest control included</p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                        <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
-                      </div>
-                      <p className="text-sm text-gray-700">Access to horticulturist guidance when needed</p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                        <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
-                      </div>
-                      <p className="text-sm text-gray-700">Help with selecting the right plants for your balcony</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* CTA 2 - Pricing Section */}
-                <div className="mt-6">
-                  <a
-                    href={getWhatsAppLink(WHATSAPP_MESSAGES.pricingInquiry)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-6 py-3 rounded-full text-center transition-colors shadow-lg"
-                  >
-                    Get exact pricing for your balcony
-                  </a>
-                </div>
-              </div>
-            </div>
-          </section>
+          {/* 6. PRICING */}
+          <SimplePricing />
 
           {/* 7. EXPERT-LED PLANT SELECTION HERO ROTATOR (full-width) */}
           <HeroCarousel heroes={homepageContent.expertLedPlantSelection.heroes} />
