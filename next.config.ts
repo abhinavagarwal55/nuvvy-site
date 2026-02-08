@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
+// Read basePath from environment variable, default to empty string
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 const nextConfig: NextConfig = {
+  basePath: basePath,
+  assetPrefix: basePath,
   eslint: { ignoreDuringBuilds: true },
   // Allow remote images used in the Inspiration Gallery and Airtable attachments
   images: {
