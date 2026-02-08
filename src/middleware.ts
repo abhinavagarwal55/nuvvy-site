@@ -64,11 +64,6 @@ export async function middleware(request: NextRequest) {
   // Production: subdomain-based routing
   // Check if request is for internal subdomain
   if (hostname.startsWith("internal.") || hostname === "internal.nuvvy.in") {
-    // Allow /preview/* routes to work directly without rewrite
-    if (url.pathname.startsWith("/preview")) {
-      return response;
-    }
-    
     // Rewrite to internal app routes
     // Rewrite root and all paths to /internal/* routes
     if (url.pathname === "/") {

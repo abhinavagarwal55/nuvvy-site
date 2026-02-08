@@ -370,7 +370,7 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
       const formData = new FormData();
       formData.append("file", file);
 
-      // Use absolute path for API to bypass basePath prefix
+      // Use absolute path for API calls
       const uploadApiUrl = typeof window !== "undefined" 
         ? `${window.location.origin}/api/internal/homepage/upload-image`
         : "/api/internal/homepage/upload-image";
@@ -479,7 +479,7 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
         },
       };
       
-      // Use absolute path for API to bypass basePath prefix
+      // Use absolute path for API calls
       const apiUrl = typeof window !== "undefined" 
         ? `${window.location.origin}/api/internal/homepage`
         : "/api/internal/homepage";
@@ -498,9 +498,6 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
 
       setSuccess(true);
       setSaving(false);
-      
-      // Open preview in new tab after successful save
-      window.open("/preview/homepage", "_blank");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
       setSaving(false);
@@ -509,7 +506,7 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
 
   return (
     <div className="space-y-8">
-      {/* Save Button & Preview Link */}
+      {/* Save Button */}
       <div className="flex items-center justify-between bg-white rounded-lg p-4 shadow-sm">
         {(success || error) && (
           <div>
@@ -528,7 +525,7 @@ export default function HomepageEditor({ initialContent }: HomepageEditorProps) 
             disabled={saving}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
-            {saving ? "Saving..." : "Save & Preview"}
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
