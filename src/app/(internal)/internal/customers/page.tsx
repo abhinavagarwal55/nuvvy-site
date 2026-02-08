@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getInternalApiUrl } from "@/lib/internal/apiUrl";
 
 // Type for customer
 interface Customer {
@@ -64,7 +65,7 @@ export default function CustomersPage() {
       if (searchQuery) params.append("q", searchQuery);
       if (statusFilter !== "all") params.append("status", statusFilter);
       
-      const response = await fetch(`/api/internal/customers?${params.toString()}`);
+      const response = await fetch(getInternalApiUrl(`/api/internal/customers?${params.toString()}`));
       const data = await response.json();
       
       if (!response.ok) {
@@ -164,12 +165,12 @@ export default function CustomersPage() {
     const customerNameBeforeUpdate = modalMode === "edit" ? formData.name : null;
     
     try {
-      const url = modalMode === "edit" && editingCustomerId
+      const apiPath = modalMode === "edit" && editingCustomerId
         ? `/api/internal/customers/${editingCustomerId}`
         : "/api/internal/customers";
       const method = modalMode === "edit" ? "PUT" : "POST";
       
-      const response = await fetch(url, {
+      const response = await fetch(getInternalApiUrl(apiPath), {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
