@@ -1,4 +1,6 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
 import { publicImage } from "@/lib/publicAssets";
 
 interface SoundFamiliarProps {
@@ -6,28 +8,37 @@ interface SoundFamiliarProps {
 }
 
 export default function SoundFamiliar({ usePublicImage = true }: SoundFamiliarProps) {
+  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
+
   const cards = [
     {
       title: "Plants not thriving",
-      image: "/images/sound-familiar/plants not thriving_final.PNG",
+      image: "/images/sound-familiar/plants not thriving_final.png",
     },
     {
       title: "Not sure what works here",
-      image: "/images/sound-familiar/Not sure what works_final.PNG",
+      image: "/images/sound-familiar/Not sure what works_final.png",
     },
     {
       title: "Care feels inconsistent",
-      image: "/images/sound-familiar/Care feels inconsistent_final.PNG",
+      image: "/images/sound-familiar/Care feels inconsistent_final.png",
     },
     {
       title: "No time to manage",
-      image: "/images/sound-familiar/not time to manage final.PNG",
+      image: "/images/sound-familiar/not time to manage final.png",
     },
   ];
 
   // Helper to get image path - use publicImage if needed, otherwise plain path
   const getImagePath = (path: string) => {
-    return usePublicImage ? publicImage(path) : path;
+    const basePath = usePublicImage ? publicImage(path) : path;
+    // Use regular img tag with proper URL encoding for files with spaces
+    // Next.js Image component can have issues with spaces in production
+    return basePath;
+  };
+
+  const handleImageError = (idx: number) => {
+    setImageErrors((prev) => ({ ...prev, [idx]: true }));
   };
 
   return (
@@ -48,15 +59,20 @@ export default function SoundFamiliar({ usePublicImage = true }: SoundFamiliarPr
               key={idx}
               className="overflow-hidden rounded-2xl bg-white shadow-sm"
             >
-              <div className="relative aspect-[4/3] w-full bg-gray-100">
-                <Image
-                  src={getImagePath(card.image)}
-                  alt={card.title}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 50vw, 50vw"
-                  unoptimized
-                />
+              <div className="relative aspect-[4/3] w-full bg-gray-100 overflow-hidden">
+                {imageErrors[idx] ? (
+                  <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                    <span className="text-gray-400 text-xs">Image not available</span>
+                  </div>
+                ) : (
+                  <img
+                    src={getImagePath(card.image)}
+                    alt={card.title}
+                    className="w-full h-full object-cover"
+                    onError={() => handleImageError(idx)}
+                    loading="lazy"
+                  />
+                )}
               </div>
               <div className="px-3 py-2 md:px-4 md:py-3 bg-gray-200">
                 <h3 className="text-sm font-semibold leading-snug text-gray-900 md:text-base">
