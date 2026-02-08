@@ -28,7 +28,7 @@ export default function SimplePricing() {
                   <div className="flex-1">
                     <h3 className="text-base font-semibold text-gray-900 mb-1.5">{tier.label}</h3>
                   </div>
-                  {tier.monthlyPrice ? (
+                  {tier.monthlyPrice && tier.perVisitPrice ? (
                     <div className="text-right flex-shrink-0">
                       <div className="text-xl font-semibold text-gray-900">
                         ₹{tier.monthlyPrice.toLocaleString("en-IN")} / month
