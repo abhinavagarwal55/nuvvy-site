@@ -44,16 +44,13 @@ export default function SoundFamiliar({ usePublicImage = true }: SoundFamiliarPr
   return (
     <section className="bg-white py-12">
       <div className="max-w-[640px] mx-auto px-4 md:px-6">
-        <div className="mb-6 text-center">
-          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+        <div className="mb-8 md:mb-12 text-center">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900">
             Does this sound familiar?
           </h2>
-          <p className="text-lg text-gray-600">
-            A few signs your balcony needs better care.
-          </p>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 gap-4 md:gap-6">
           {cards.map((card, idx) => (
             <div
               key={idx}

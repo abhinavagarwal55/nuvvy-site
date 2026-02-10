@@ -62,16 +62,13 @@ export default function HomepageRenderer({
         <div className="space-y-8">
           {/* Heading */}
           <div className="text-center">
-            <h2 className="text-3xl md:text-4xl font-semibold text-[#1F3D2B] mb-3">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold text-[#1F3D2B] leading-tight mb-3">
               Meet Nuvvy
             </h2>
-            <p className="text-lg text-gray-600">
-              India's first horticulturist-led garden care service for balconies.
-            </p>
           </div>
 
           {/* Main Image */}
-          <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100">
+          <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 mb-8">
             <Image
               src="/images/Introducing_Nuvvy_Horticuturist_Image.png"
               alt="Introducing Nuvvy"
@@ -82,53 +79,50 @@ export default function HomepageRenderer({
             />
           </div>
 
-          {/* Text Block */}
-          <div className="space-y-6">
-            <h3 className="text-2xl md:text-3xl font-semibold text-gray-900 text-center">
-              Why Nuvvy?
-            </h3>
-            <div className="space-y-4 text-left">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                  <Check className="w-3 h-3 text-green-600" />
-                </div>
-                <p className="text-base text-gray-700 leading-relaxed">
-                  <span className="font-semibold">Peace of mind</span> through horticulturist oversight
-                </p>
+          {/* Bullet Points */}
+          <div className="space-y-4 text-left mb-6">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                <Check className="w-3 h-3 text-green-600" />
               </div>
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                  <Check className="w-3 h-3 text-green-600" />
-                </div>
-                <p className="text-base text-gray-700 leading-relaxed">
-                  <span className="font-semibold">Expert plant selection</span> — not guesswork
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                  <Check className="w-3 h-3 text-green-600" />
-                </div>
-                <p className="text-base text-gray-700 leading-relaxed">
-                  <span className="font-semibold">Preventive care</span> with pest control and regular fertilization
-                </p>
-              </div>
+              <p className="text-base text-gray-700 leading-relaxed">
+                <span className="font-semibold">Horticulturist-led plant care</span> so your garden stays healthy without guesswork
+              </p>
             </div>
-            <p className="text-lg font-semibold text-gray-900 mt-6">
-              Bi-weekly care plans starting at ₹799/month
-            </p>
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                <Check className="w-3 h-3 text-green-600" />
+              </div>
+              <p className="text-base text-gray-700 leading-relaxed">
+                <span className="font-semibold">Right plants, right pots</span> chosen and installed for your balcony conditions
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                <Check className="w-3 h-3 text-green-600" />
+              </div>
+              <p className="text-base text-gray-700 leading-relaxed">
+                <span className="font-semibold">All-inclusive care</span> with pest control and fertilization already covered
+              </p>
+            </div>
+          </div>
 
-            {/* CTA 1 - Introducing Nuvvy */}
-            <div className="mt-8 text-center">
-              <a
-                href={getWhatsAppLink(WHATSAPP_MESSAGES.balconyAssessment)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-8 py-3 rounded-lg transition-colors shadow-lg"
-              >
-                Book free 30 mins consultation with Horticulturist about your Balcony
-              </a>
-              <p className="text-xs text-gray-500 mt-2">No commitment</p>
-            </div>
+          {/* Pricing Line */}
+          <p className="text-lg font-semibold text-gray-900 mb-6 text-center">
+            Garden care plans starting at ₹799/month
+          </p>
+
+          {/* CTA 1 - Introducing Nuvvy */}
+          <div className="text-center">
+            <a
+              href={getWhatsAppLink(WHATSAPP_MESSAGES.balconyAssessment)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-8 py-3 rounded-lg transition-colors shadow-lg"
+            >
+              Book free 30 mins consultation with Horticulturist about your Balcony
+            </a>
+            <p className="text-xs text-gray-500 mt-2">No commitment</p>
           </div>
         </div>
       </section>
