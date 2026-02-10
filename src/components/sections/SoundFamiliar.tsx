@@ -46,7 +46,7 @@ export default function SoundFamiliar({ usePublicImage = true }: SoundFamiliarPr
       <div className="max-w-[640px] mx-auto px-4 md:px-6">
         <div className="mb-6 text-center">
           <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-            Sound familiar?
+            Does this sound familiar?
           </h2>
           <p className="text-lg text-gray-600">
             A few signs your balcony needs better care.

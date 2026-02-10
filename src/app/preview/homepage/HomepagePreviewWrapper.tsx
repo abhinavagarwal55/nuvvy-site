@@ -138,8 +138,8 @@ export default function HomepagePreviewWrapper({
             <div className="space-y-8">
               {/* Heading */}
               <div className="text-center">
-                <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
-                  Introducing Nuvvy
+                <h2 className="text-3xl md:text-4xl font-semibold text-[#1F3D2B] mb-3">
+                  Meet Nuvvy
                 </h2>
                 <p className="text-lg text-gray-600">
                   India's first horticulturist-led garden care service for balconies.
