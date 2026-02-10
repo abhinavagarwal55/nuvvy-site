@@ -139,7 +139,7 @@ export default function HomepageRenderer({
               What
             </div>
             <div className="text-sm font-semibold text-gray-700 leading-snug">
-              Regular Gardener
+              Traditional Gardener
             </div>
             <div className="text-sm font-semibold text-green-600 leading-snug">
               Nuvvy Garden Care
@@ -190,11 +190,10 @@ export default function HomepageRenderer({
 
       {/* 4. NUVVY CARE VISIT - 5 steps with numbers overlaid on images */}
       <section className="py-8 bg-white">
-        <div className="text-center mb-6">
-          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900">
             {homepageContent.nuvvyCareVisit.title}
           </h2>
-          <p className="text-sm text-gray-600">What happens when we come over</p>
         </div>
         <div className="space-y-5 text-left">
           {homepageContent.nuvvyCareVisit.steps.map((step, idx) => {
