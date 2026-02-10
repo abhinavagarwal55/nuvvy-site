@@ -105,9 +105,9 @@ export default function HeroCarousel({ heroes }: HeroCarouselProps) {
       {/* Dark gradient overlay at bottom */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
 
-      {/* Content - Left aligned, absolutely positioned in lower third */}
+      {/* Content - Center aligned, absolutely positioned in lower third */}
       <div className="absolute bottom-8 md:bottom-12 left-6 right-6">
-        <div className="max-w-2xl text-white">
+        <div className="max-w-2xl mx-auto text-white text-center">
           <h1 className="text-4xl md:text-5xl font-semibold leading-tight">
             {activeHero.heading}
           </h1>

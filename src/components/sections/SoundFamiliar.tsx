@@ -43,8 +43,8 @@ export default function SoundFamiliar({ usePublicImage = true }: SoundFamiliarPr
 
   return (
     <section className="bg-white py-12">
-      <div className="max-w-6xl mx-auto px-4 md:px-6">
-        <div className="mb-6">
+      <div className="max-w-[640px] mx-auto px-4 md:px-6">
+        <div className="mb-6 text-center">
           <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
             Sound familiar?
           </h2>

@@ -7,16 +7,18 @@ import { getWhatsAppLink, WHATSAPP_MESSAGES } from "@/config/whatsapp";
 export default function SimplePricing() {
   return (
     <section className="py-8 bg-white">
-      <div className="max-w-2xl">
-        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-          {PRICING_TITLE}
-        </h2>
-        <p className="text-sm text-gray-600 mb-6">
-          {PRICING_SUBTITLE}
-        </p>
+      <div className="max-w-[640px] mx-auto px-6">
+        <div className="text-center mb-6">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+            {PRICING_TITLE}
+          </h2>
+          <p className="text-sm text-gray-600">
+            {PRICING_SUBTITLE}
+          </p>
+        </div>
 
         {/* Pricing Container */}
-        <div className="bg-stone-50 rounded-xl p-4 md:p-5 mb-6">
+        <div className="bg-stone-50 rounded-xl p-4 md:p-5 mb-6 text-left">
           {/* Pricing Rows */}
           <div className="space-y-0">
             {GARDEN_CARE_PRICING.map((tier, idx) => (

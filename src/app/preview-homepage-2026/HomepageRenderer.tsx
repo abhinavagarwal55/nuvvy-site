@@ -5,10 +5,13 @@ import { Check, X, AlertCircle, ArrowRight, LayoutGrid, UserCheck, MapPin, Flowe
 import Link from "next/link";
 import Image from "next/image";
 import HeroCarousel from "@/components/HeroCarousel";
+import ClassicHero from "@/components/heroes/ClassicHero";
+import SnabbitHero from "@/components/heroes/SnabbitHero";
 import SoundFamiliar from "@/components/sections/SoundFamiliar";
 import SimplePricing from "@/components/sections/SimplePricing";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
 import { WHATSAPP_MESSAGES, getWhatsAppLink } from "@/config/whatsapp";
+import { HOMEPAGE_CONFIG } from "@/config/homepage";
 
 interface Plant {
   id: string;
@@ -41,20 +44,24 @@ export default function HomepageRenderer({
 
   return (
     <main className="min-h-screen bg-white">
-      {/* 1. HERO SECTION - With carousel navigation (full-width) */}
-      <HeroCarousel heroes={homepageContent.heroSection.heroes} />
+      {/* 1. HERO SECTION - Toggle between classic and snabbit variants */}
+      {HOMEPAGE_CONFIG.heroVariant === "classic" ? (
+        <ClassicHero heroes={homepageContent.heroSection.heroes} />
+      ) : (
+        <SnabbitHero />
+      )}
 
       {/* Sound Familiar Section */}
       <SoundFamiliar usePublicImage={false} />
 
       {/* Centralized width container */}
-      <div className="max-w-6xl mx-auto px-6">
+      <div className="max-w-[640px] mx-auto px-6">
 
       {/* 2. INTRODUCING NUVVY */}
       <section className="bg-white pt-6 pb-12">
         <div className="space-y-8">
           {/* Heading */}
-          <div>
+          <div className="text-center">
             <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
               Introducing Nuvvy
             </h2>
@@ -77,10 +84,10 @@ export default function HomepageRenderer({
 
           {/* Text Block */}
           <div className="space-y-6">
-            <h3 className="text-2xl md:text-3xl font-semibold text-gray-900">
+            <h3 className="text-2xl md:text-3xl font-semibold text-gray-900 text-center">
               Why Nuvvy?
             </h3>
-            <div className="space-y-4">
+            <div className="space-y-4 text-left">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
                   <Check className="w-3 h-3 text-green-600" />
@@ -111,16 +118,16 @@ export default function HomepageRenderer({
             </p>
 
             {/* CTA 1 - Introducing Nuvvy */}
-            <div className="mt-8">
+            <div className="mt-8 text-center">
               <a
                 href={getWhatsAppLink(WHATSAPP_MESSAGES.balconyAssessment)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-8 py-3 rounded-lg text-center transition-colors shadow-lg"
+                className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-8 py-3 rounded-lg transition-colors shadow-lg"
               >
                 Book free 30 mins consultation with Horticulturist about your Balcony
               </a>
-              <p className="text-xs text-gray-500 mt-2 text-center md:text-left">No commitment</p>
+              <p className="text-xs text-gray-500 mt-2">No commitment</p>
             </div>
           </div>
         </div>
@@ -128,10 +135,10 @@ export default function HomepageRenderer({
 
       {/* 3. COMPARE NUVVY CARE - Custom grid layout */}
       <section className="py-8 bg-gray-50">
-        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6">
+        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6 text-center">
           {homepageContent.compareNuvvyCare.title}
         </h2>
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm text-left">
           {/* Column Headers */}
           <div className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4 border-b border-gray-200 bg-gray-50">
             <div className="text-sm font-semibold text-gray-900 leading-snug">
@@ -189,11 +196,13 @@ export default function HomepageRenderer({
 
       {/* 4. NUVVY CARE VISIT - 5 steps with numbers overlaid on images */}
       <section className="py-8 bg-white">
-        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-          {homepageContent.nuvvyCareVisit.title}
-        </h2>
-        <p className="text-sm text-gray-600 mb-6">What happens when we come over</p>
-        <div className="space-y-5">
+        <div className="text-center mb-6">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
+            {homepageContent.nuvvyCareVisit.title}
+          </h2>
+          <p className="text-sm text-gray-600">What happens when we come over</p>
+        </div>
+        <div className="space-y-5 text-left">
           {homepageContent.nuvvyCareVisit.steps.map((step, idx) => {
             const stepNumberFormatted = step.stepNumber.toString().padStart(2, "0");
             return (
@@ -230,7 +239,7 @@ export default function HomepageRenderer({
       <section className="py-12 bg-gray-50">
         <div className="space-y-10">
           {/* Headlines */}
-          <div>
+          <div className="text-center">
             <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
               Loved by customers across Whitefield, Bangalore
             </h2>
@@ -337,7 +346,7 @@ export default function HomepageRenderer({
 
       {/* HOW NUVVY SETS UP YOUR BALCONY */}
       <section className="py-8 bg-white">
-        <div className="mb-6">
+        <div className="mb-6 text-center">
           <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
             How Nuvvy sets up your balcony
           </h2>
@@ -347,7 +356,7 @@ export default function HomepageRenderer({
         </div>
 
         {/* Steps */}
-        <div className="space-y-0">
+        <div className="space-y-0 text-left">
           {/* Step 01 */}
           <div className="pb-4 border-b border-gray-200">
             <div className="flex items-start gap-3">
@@ -452,7 +461,7 @@ export default function HomepageRenderer({
 
       {/* 8. EXPLORE NUVVY CATALOG */}
       <section className="py-8 bg-gray-50">
-        <div className="mb-5">
+        <div className="mb-5 text-center">
           <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
             {homepageContent.mostPopularPlants.title}
           </h2>
@@ -531,7 +540,7 @@ export default function HomepageRenderer({
 
       {/* 9. FINAL CTA (CTA 3) */}
       <section className="py-12 bg-gradient-to-br from-green-50 to-gray-50">
-        <div className="max-w-2xl">
+        <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
             Ready to give your plants expert care?
           </h2>
