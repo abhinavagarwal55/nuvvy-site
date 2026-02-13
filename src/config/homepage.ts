@@ -13,3 +13,7 @@ export const HOMEPAGE_CONFIG = {
    */
   heroVariant: "snabbit" as HeroVariant,
 } as const;
+
+export const homepageFlags = {
+  showCompareSection: false,
+};

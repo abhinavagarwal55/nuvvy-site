@@ -16,7 +16,7 @@ export default function SoundFamiliar({ usePublicImage = true }: SoundFamiliarPr
       image: "/images/sound-familiar/plants not thriving_final.png",
     },
     {
-      title: "Not sure what works here",
+      title: "Not sure what plants would work",
       image: "/images/sound-familiar/Not sure what works_final.png",
     },
     {

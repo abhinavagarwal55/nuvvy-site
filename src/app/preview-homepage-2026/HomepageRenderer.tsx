@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X, AlertCircle, ArrowRight, LayoutGrid, UserCheck, MapPin, Flower2, RefreshCcw, Leaf, Droplet, IndianRupee } from "lucide-react";
+import { Check, X, AlertCircle, ArrowRight, LayoutGrid, UserCheck, MapPin, Flower2, RefreshCcw, Leaf, Droplet, IndianRupee, Shield } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import HeroCarousel from "@/components/HeroCarousel";
@@ -11,7 +11,7 @@ import SoundFamiliar from "@/components/sections/SoundFamiliar";
 import SimplePricing from "@/components/sections/SimplePricing";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
 import { WHATSAPP_MESSAGES, getWhatsAppLink } from "@/config/whatsapp";
-import { HOMEPAGE_CONFIG } from "@/config/homepage";
+import { HOMEPAGE_CONFIG, homepageFlags } from "@/config/homepage";
 
 interface Plant {
   id: string;
@@ -57,176 +57,260 @@ export default function HomepageRenderer({
       {/* Centralized width container */}
       <div className="max-w-[640px] mx-auto px-6">
 
-      {/* 2. INTRODUCING NUVVY */}
+      {/* 2. MEET NUVVY */}
       <section className="bg-white pt-6 pb-12">
-        <div className="space-y-8">
-          {/* Heading */}
-          <div className="text-center">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold text-[#1F3D2B] leading-tight mb-3">
-              Meet Nuvvy
-            </h2>
-          </div>
+        <div className="bg-[#F8FAF8] rounded-3xl px-6 py-12 md:px-12 md:py-16 shadow-sm">
+          <div className="space-y-10">
+            {/* Heading */}
+            <div className="text-center">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold text-[#1F3D2B] leading-tight mb-0">
+                Meet Nuvvy
+              </h2>
+            </div>
 
-          {/* Main Image */}
-          <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 mb-8">
-            <Image
-              src="/images/Introducing_Nuvvy_Horticuturist_Image.png"
-              alt="Introducing Nuvvy"
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 100vw"
-              unoptimized
-            />
-          </div>
-
-          {/* Bullet Points */}
-          <div className="space-y-4 text-left mb-6">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                <Check className="w-3 h-3 text-green-600" />
-              </div>
-              <p className="text-base text-gray-700 leading-relaxed">
-                <span className="font-semibold">Horticulturist-led plant care</span> so your garden stays healthy without guesswork
+            {/* Subheadline */}
+            <div className="text-center -mt-1">
+              <p className="text-2xl md:text-3xl font-normal text-gray-800 max-w-[720px] mx-auto leading-[1.25]">
+                <span className="text-green-700 font-semibold">Horticulturist-led</span> plant care so your balcony and indoors stay <span className="text-green-700 font-semibold">green</span> — without effort.
               </p>
             </div>
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                <Check className="w-3 h-3 text-green-600" />
+
+            {/* Two Service Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+            {/* Card 1: Garden Care */}
+            <a
+              href="#garden-care"
+              className="group bg-white rounded-2xl shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col"
+            >
+              {/* Image - Top 50% of card */}
+              <div className="relative w-full aspect-[4/3] overflow-hidden bg-gray-100">
+                <Image
+                  src="/images/Introducing_Nuvvy_Horticuturist_Image.png"
+                  alt="Garden Care"
+                  fill
+                  className="object-cover rounded-t-2xl"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  unoptimized
+                />
               </div>
-              <p className="text-base text-gray-700 leading-relaxed">
-                <span className="font-semibold">Right plants, right pots</span> chosen and installed for your balcony conditions
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                <Check className="w-3 h-3 text-green-600" />
+              {/* Content */}
+              <div className="p-6 md:p-8 flex-1 flex flex-col">
+                <h3 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-3">
+                  Professional Garden Care
+                </h3>
+                <p className="text-base md:text-lg text-gray-700 leading-relaxed">
+                  Ongoing expert maintenance that keeps your plants healthy, pest-free, and thriving — without guesswork.
+                </p>
               </div>
-              <p className="text-base text-gray-700 leading-relaxed">
-                <span className="font-semibold">All-inclusive care</span> with pest control and fertilization already covered
-              </p>
-            </div>
+            </a>
+
+            {/* Card 2: Plant Ordering & Setup */}
+            <a
+              href="#plant-setup"
+              className="group bg-white rounded-2xl shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col"
+            >
+              {/* Image - Top 50% of card */}
+              <div className="relative w-full aspect-[4/3] overflow-hidden bg-gray-100">
+                <Image
+                  src="/images/plant_ordering_card.png"
+                  alt="Plant Ordering & Setup"
+                  fill
+                  className="object-cover rounded-t-2xl"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  unoptimized
+                />
+              </div>
+              {/* Content */}
+              <div className="p-6 md:p-8 flex-1 flex flex-col">
+                <h3 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-3">
+                  Plant Ordering & Setup
+                </h3>
+                <p className="text-base md:text-lg text-gray-700 leading-relaxed">
+                  Expert-led plant selection, soil preparation, and installation — fully handled for you.
+                </p>
+              </div>
+            </a>
           </div>
 
-          {/* Pricing Line */}
-          <p className="text-lg font-semibold text-gray-900 mb-6 text-center">
-            Garden care plans starting at ₹799/month
-          </p>
-
-          {/* CTA 1 - Introducing Nuvvy */}
-          <div className="text-center">
+          {/* CTA */}
+          <div className="text-center pt-4">
             <a
               href={getWhatsAppLink(WHATSAPP_MESSAGES.balconyAssessment)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-8 py-3 rounded-lg transition-colors shadow-lg"
             >
-              Book free 30 mins consultation with Horticulturist about your Balcony
+              Book a Free 30-Minute Consultation
             </a>
             <p className="text-xs text-gray-500 mt-2">No commitment</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. PROFESSIONAL GARDEN CARE */}
+      <section className="mt-10 mb-10">
+        <div className="max-w-[640px] mx-auto px-4">
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm px-6 py-10 md:px-10 md:py-12">
+            <div className="space-y-10">
+              {/* Headline */}
+              <div className="text-center">
+                <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold text-[#1F3D2B] leading-tight">
+                  Professional Garden Care
+                </h2>
+              </div>
+
+            {/* Three Value Pillars */}
+            <div className="space-y-6 md:grid md:grid-cols-3 md:gap-8 md:space-y-0">
+              {/* Block 1 */}
+              <div className="flex gap-3 items-center">
+                <div className="w-6 flex justify-center">
+                  <span className="text-xl leading-none">✅</span>
+                </div>
+                <div className="flex flex-col">
+                  <div className="font-medium text-base text-gray-900">
+                    Horticulturist-Led Care
+                  </div>
+                  <div className="text-base text-gray-700 leading-snug mt-1">
+                    Structured, SOP-based plant management.
+                  </div>
+                </div>
+              </div>
+
+              {/* Block 2 */}
+              <div className="flex gap-3 items-center">
+                <div className="w-6 flex justify-center">
+                  <span className="text-xl leading-none">✅</span>
+                </div>
+                <div className="flex flex-col">
+                  <div className="font-medium text-base text-gray-900">
+                    Verified & Trusted Gardeners
+                  </div>
+                  <div className="text-base text-gray-700 leading-snug mt-1">
+                    Background-checked and professionally trained.
+                  </div>
+                </div>
+              </div>
+
+              {/* Block 3 */}
+              <div className="flex gap-3 items-center">
+                <div className="w-6 flex justify-center">
+                  <span className="text-xl leading-none">✅</span>
+                </div>
+                <div className="flex flex-col">
+                  <div className="font-medium text-base text-gray-900">
+                    Inputs Included
+                  </div>
+                  <div className="text-base text-gray-700 leading-snug mt-1">
+                    Fertilizers and preventive pest control covered.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+              {/* How It Works Section */}
+              <div className="space-y-10">
+                <div className="text-center">
+                  <h3 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                    How it works?
+                  </h3>
+                </div>
+                <div className="space-y-10">
+                  {homepageContent.nuvvyCareVisit.steps.map((step, idx) => {
+                    const stepTitles = [
+                      "Free Horticulturist Consultation",
+                      "Online Appointment Confirmation & Heads-Up",
+                      "Plant Health Check",
+                      "Expert Preventive Care & Treatment",
+                      "Post-Visit Update & Next Steps"
+                    ];
+                    return (
+                      <div key={idx} className="relative">
+                        {/* Large image */}
+                        <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                          <img
+                            src={idx === 0 ? "/images/female_horticulturist_landscape.png" : idx === 4 ? "/images/post_completion.png" : step.imageUrl}
+                            alt={stepTitles[idx]}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        {/* Step title below image */}
+                        <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                          {stepTitles[idx]}
+                        </h4>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* 3. COMPARE NUVVY CARE - Custom grid layout */}
-      <section className="py-8 bg-gray-50">
-        <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6 text-center">
-          {homepageContent.compareNuvvyCare.title}
-        </h2>
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm text-left">
-          {/* Column Headers */}
-          <div className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4 border-b border-gray-200 bg-gray-50">
-            <div className="text-sm font-semibold text-gray-900 leading-snug">
-              What
-            </div>
-            <div className="text-sm font-semibold text-gray-700 leading-snug">
-              Traditional Gardener
-            </div>
-            <div className="text-sm font-semibold text-green-600 leading-snug">
-              Nuvvy Garden Care
-            </div>
-          </div>
-
-          {/* Comparison Rows */}
-          <div className="divide-y divide-gray-100">
-            {homepageContent.compareNuvvyCare.rows.map((row, idx) => (
-              <div key={idx} className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4">
-                {/* What matters column */}
-                <div className="text-sm text-gray-900 leading-relaxed flex items-center">
-                  {row.label}
-                </div>
-
-                {/* Regular Gardener column */}
-                <div className="flex items-center gap-2">
-                  {row.regular.type === "check" && (
-                    <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
-                  )}
-                  {row.regular.type === "warning" && (
-                    <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
-                  )}
-                  {row.regular.type === "cross" && (
-                    <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
-                  )}
-                  <span className="text-sm text-gray-700 leading-relaxed">{row.regular.text}</span>
-                </div>
-
-                {/* Nuvvy Garden Care column */}
-                <div className="flex items-center gap-2">
-                  {row.nuvvy.type === "check" && (
-                    <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
-                  )}
-                  {row.nuvvy.type === "warning" && (
-                    <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
-                  )}
-                  {row.nuvvy.type === "cross" && (
-                    <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
-                  )}
-                  <span className="text-sm text-gray-700 leading-relaxed">{row.nuvvy.text}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 4. NUVVY CARE VISIT - 5 steps with numbers overlaid on images */}
-      <section className="py-8 bg-white">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900">
-            {homepageContent.nuvvyCareVisit.title}
+      {homepageFlags.showCompareSection && (
+        <section className="py-8 bg-gray-50">
+          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6 text-center">
+            {homepageContent.compareNuvvyCare.title}
           </h2>
-        </div>
-        <div className="space-y-5 text-left">
-          {homepageContent.nuvvyCareVisit.steps.map((step, idx) => {
-            const stepNumberFormatted = step.stepNumber.toString().padStart(2, "0");
-            return (
-              <div
-                key={idx}
-                className="flex items-start gap-4 p-5 bg-gray-50 rounded-xl border border-gray-100"
-              >
-                {/* Thumbnail image with overlaid step number */}
-                <div className="relative flex-shrink-0">
-                  <img
-                    src={step.imageUrl}
-                    alt={step.title}
-                    className="rounded-lg object-cover"
-                    style={{ width: "72px", height: "72px" }}
-                  />
-                  {/* Step number badge overlay */}
-                  <div className="absolute top-1 left-1 bg-black/80 backdrop-blur-sm rounded-full w-6 h-6 flex items-center justify-center">
-                    <span className="text-[10px] font-semibold text-white leading-none">{stepNumberFormatted}</span>
+          <div className="bg-white rounded-xl overflow-hidden shadow-sm text-left">
+            {/* Column Headers */}
+            <div className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="text-sm font-semibold text-gray-900 leading-snug">
+                What
+              </div>
+              <div className="text-sm font-semibold text-gray-700 leading-snug">
+                Traditional Gardener
+              </div>
+              <div className="text-sm font-semibold text-green-600 leading-snug">
+                Nuvvy Garden Care
+              </div>
+            </div>
+
+            {/* Comparison Rows */}
+            <div className="divide-y divide-gray-100">
+              {homepageContent.compareNuvvyCare.rows.map((row, idx) => (
+                <div key={idx} className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4">
+                  {/* What matters column */}
+                  <div className="text-sm text-gray-900 leading-relaxed flex items-center">
+                    {row.label}
+                  </div>
+
+                  {/* Regular Gardener column */}
+                  <div className="flex items-center gap-2">
+                    {row.regular.type === "check" && (
+                      <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
+                    )}
+                    {row.regular.type === "warning" && (
+                      <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
+                    )}
+                    {row.regular.type === "cross" && (
+                      <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
+                    )}
+                    <span className="text-sm text-gray-700 leading-relaxed">{row.regular.text}</span>
+                  </div>
+
+                  {/* Nuvvy Garden Care column */}
+                  <div className="flex items-center gap-2">
+                    {row.nuvvy.type === "check" && (
+                      <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
+                    )}
+                    {row.nuvvy.type === "warning" && (
+                      <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
+                    )}
+                    {row.nuvvy.type === "cross" && (
+                      <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
+                    )}
+                    <span className="text-sm text-gray-700 leading-relaxed">{row.nuvvy.text}</span>
                   </div>
                 </div>
-                
-                {/* Text content */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-semibold text-gray-900 mb-1.5">{step.title}</h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">{step.description}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
 
       {/* 5. PROOF & SOCIAL PROOF */}
       <section className="py-12 bg-gray-50">

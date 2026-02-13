@@ -69,7 +69,7 @@ export default function SnabbitHero() {
 
             {/* Subtext - Muted gray */}
             <p className="text-lg md:text-xl text-gray-600 max-w-md mx-auto">
-              Horticulturist-led care for healthy, green balconies and homes
+              Horticulturist-led care and plant selection for green balconies and Indoors
             </p>
           </div>
 
