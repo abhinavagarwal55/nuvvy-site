@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Check, X, AlertCircle, ArrowRight, LayoutGrid, UserCheck, MapPin, Flower2, RefreshCcw, Leaf, Droplet, IndianRupee, Shield } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -41,6 +41,8 @@ export default function HomepageRenderer({
   whatsappMessage,
 }: HomepageRendererProps) {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [hasScrolled, setHasScrolled] = useState(false);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   return (
     <main className="min-h-screen bg-white">
@@ -150,8 +152,7 @@ export default function HomepageRenderer({
 
       {/* 3. PROFESSIONAL GARDEN CARE */}
       <section className="mt-10 mb-10">
-        <div className="max-w-[640px] mx-auto px-4">
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm px-6 py-10 md:px-10 md:py-12">
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm px-6 py-10 md:px-10 md:py-12">
             <div className="space-y-10">
               {/* Headline */}
               <div className="text-center">
@@ -243,6 +244,173 @@ export default function HomepageRenderer({
                   })}
                 </div>
               </div>
+            </div>
+          </div>
+      </section>
+
+      {/* 4. PLANT ORDERING & SETUP */}
+      <section className="py-12 bg-white">
+        <div className="max-w-[640px] mx-auto px-6">
+          <div className="bg-[#F8FAF8] rounded-3xl shadow-sm px-6 py-12 md:px-12 md:py-16">
+            {/* Headline */}
+            <h2 className="text-2xl md:text-3xl font-semibold text-green-900 text-center mb-4">
+              Plant Ordering & Setup
+            </h2>
+
+            {/* Subheading */}
+            <p className="text-base md:text-lg text-gray-700 text-center max-w-md mx-auto">
+              Expert plant selection, soil preparation, and setup — completely handled for you.
+            </p>
+
+            {/* How It Works? */}
+            <h3 className="text-xl md:text-2xl font-semibold text-gray-900 text-center mt-12 mb-8">
+              How it works?
+            </h3>
+
+            {/* Steps - Image First Layout */}
+            <div className="space-y-10">
+              {/* Step 1: Horticulturist-Guided Plant Selection */}
+              <div className="relative">
+                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                  <img
+                    src="/images/plant_selection_step1.png"
+                    alt="Horticulturist-Guided Plant Selection"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                  Horticulturist-Guided Plant Selection
+                </h4>
+              </div>
+
+              {/* Step 2: Healthy Plants Sourced Locally */}
+              <div className="relative">
+                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                  <img
+                    src="/images/plant_sourcing_step2.png"
+                    alt="Healthy Plants Sourced Locally"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                  Healthy Plants Sourced Locally
+                </h4>
+              </div>
+
+              {/* Step 3: Professional Potting & Installation */}
+              <div className="relative">
+                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                  <img
+                    src="/images/Plant_install_step3.png"
+                    alt="Professional Potting & Installation"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                  Professional Potting & Installation
+                </h4>
+              </div>
+
+              {/* Step 4: Ready to Enjoy */}
+              <div className="relative">
+                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                  <img
+                    src="/images/Balcony_Enjoy.png"
+                    alt="Ready to Enjoy"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                  Ready to Enjoy
+                </h4>
+              </div>
+            </div>
+
+            {/* Explore Nuvvy Catalog Section */}
+            <div className="mt-12">
+              <div className="mb-5 text-center">
+                <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">
+                  Choose from 150+ Plants
+                </h2>
+              </div>
+
+              {/* Horizontal scroll carousel */}
+              <div 
+                ref={carouselRef}
+                className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6"
+                onScroll={(e) => {
+                  const target = e.currentTarget;
+                  if (target.scrollLeft > 60 && !hasScrolled) {
+                    setHasScrolled(true);
+                  }
+                }}
+              >
+                <div className="flex gap-3 min-w-max">
+                  {popularPlants.length > 0 ? (
+                    popularPlants.map((plant) => {
+                      const imageUrl = plant.image_storage_url || plant.image_url || plant.thumbnail_storage_url || plant.thumbnail_url || undefined;
+                      const catalogId = plant.airtable_id || plant.id;
+                      
+                      return (
+                        <Link key={plant.id} href={`/plantcatalog/${catalogId}`}>
+                          <div className="flex-shrink-0 w-48">
+                            <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+                              <div className="relative h-40 bg-gray-200">
+                                {imageUrl ? (
+                                  <img
+                                    src={imageUrl}
+                                    alt={plant.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gray-200" />
+                                )}
+                              </div>
+                              <div className="p-3">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-2 leading-tight">{plant.name}</h3>
+                                <div className="space-y-1">
+                                  {plant.category && (
+                                    <div className="flex items-center gap-2">
+                                      <Leaf className="w-3.5 h-3.5 text-green-600 flex-shrink-0" strokeWidth={2} />
+                                      <span className="text-xs text-gray-700">{plant.category}</span>
+                                    </div>
+                                  )}
+                                  {plant.watering_requirement && (
+                                    <div className="flex items-center gap-2">
+                                      <Droplet className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" strokeWidth={2} />
+                                      <span className="text-xs text-gray-700">{plant.watering_requirement}</span>
+                                    </div>
+                                  )}
+                                  {plant.price_band && (
+                                    <div className="flex items-center gap-2">
+                                      <IndianRupee className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" strokeWidth={2} />
+                                      <span className="text-xs text-gray-700">{plant.price_band}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })
+                  ) : (
+                    <div className="text-gray-500 text-sm">No plants available</div>
+                  )}
+                </div>
+              </div>
+
+              {hasScrolled && (
+                <div className={`mt-4 transition-all duration-300 ease-out ${hasScrolled ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+                  <Link
+                    href="/plantcatalog"
+                    className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
+                  >
+                    Explore full plant catalog
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -540,15 +708,21 @@ export default function HomepageRenderer({
       <section className="py-8 bg-gray-50">
         <div className="mb-5 text-center">
           <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-            {homepageContent.mostPopularPlants.title}
+            Choose from 150+ Plants
           </h2>
-          <p className="text-sm text-gray-600">
-            Curated plants that work well with Nuvvy care.
-          </p>
         </div>
 
         {/* Horizontal scroll carousel */}
-        <div className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6">
+        <div 
+          ref={carouselRef}
+          className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6"
+          onScroll={(e) => {
+            const target = e.currentTarget;
+            if (target.scrollLeft > 60 && !hasScrolled) {
+              setHasScrolled(true);
+            }
+          }}
+        >
           <div className="flex gap-3 min-w-max">
             {popularPlants.length > 0 ? (
               popularPlants.map((plant) => {
@@ -604,15 +778,17 @@ export default function HomepageRenderer({
           </div>
         </div>
 
-        <div className="mt-4">
-          <Link
-            href="/plantcatalog"
-            className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
-          >
-            Explore full plant catalog
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
+        {hasScrolled && (
+          <div className={`mt-4 transition-all duration-300 ease-out ${hasScrolled ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+            <Link
+              href="/plantcatalog"
+              className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
+            >
+              Explore full plant catalog
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* 9. FINAL CTA (CTA 3) */}
