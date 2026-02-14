@@ -252,17 +252,17 @@ export default function HomepageRenderer({
       <section className="py-12 bg-white">
         <div className="bg-[#F8FAF8] rounded-3xl shadow-sm px-6 py-12 md:px-12 md:py-16">
             {/* Headline */}
-            <h2 className="text-2xl md:text-3xl font-semibold text-green-900 text-center mb-4">
+            <h2 className="text-2xl md:text-3xl font-semibold text-green-900 tracking-tight text-center">
               Plant Ordering & Setup
             </h2>
 
             {/* Subheading */}
-            <p className="text-base md:text-lg text-gray-700 text-center max-w-md mx-auto">
+            <p className="mt-4 text-base md:text-lg text-gray-600 text-center">
               Expert plant selection, soil preparation, and setup — completely handled for you.
             </p>
 
             {/* How It Works? */}
-            <h3 className="text-xl md:text-2xl font-semibold text-gray-900 text-center mt-12 mb-8">
+            <h3 className="mt-10 text-xl md:text-2xl font-semibold text-gray-900 text-center">
               How it works?
             </h3>
 
@@ -277,7 +277,7 @@ export default function HomepageRenderer({
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                <h4 className="mt-4 text-lg font-semibold text-gray-900 text-center">
                   Horticulturist-Guided Plant Selection
                 </h4>
               </div>
@@ -291,7 +291,7 @@ export default function HomepageRenderer({
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                <h4 className="mt-4 text-lg font-semibold text-gray-900 text-center">
                   Healthy Plants Sourced Locally
                 </h4>
               </div>
@@ -305,7 +305,7 @@ export default function HomepageRenderer({
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                <h4 className="mt-4 text-lg font-semibold text-gray-900 text-center">
                   Professional Potting & Installation
                 </h4>
               </div>
@@ -319,7 +319,7 @@ export default function HomepageRenderer({
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                <h4 className="mt-4 text-lg font-semibold text-gray-900 text-center">
                   Ready to Enjoy
                 </h4>
               </div>
