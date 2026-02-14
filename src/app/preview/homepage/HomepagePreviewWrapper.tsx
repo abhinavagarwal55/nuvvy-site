@@ -326,8 +326,7 @@ export default function HomepagePreviewWrapper({
 
           {/* 4. PLANT ORDERING & SETUP */}
           <section className="py-12 bg-white">
-            <div className="max-w-[640px] mx-auto px-6">
-              <div className="bg-[#F8FAF8] rounded-3xl shadow-sm px-6 py-12 md:px-12 md:py-16">
+            <div className="bg-[#F8FAF8] rounded-3xl shadow-sm px-6 py-12 md:px-12 md:py-16">
                 {/* Headline */}
                 <h2 className="text-2xl md:text-3xl font-semibold text-green-900 text-center mb-4">
                   Plant Ordering & Setup
@@ -489,7 +488,6 @@ export default function HomepagePreviewWrapper({
                   )}
                 </div>
               </div>
-            </div>
           </section>
 
           {/* 3. COMPARE NUVVY CARE - Custom grid layout */}
