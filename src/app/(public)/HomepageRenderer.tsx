@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Leaf, Droplet, IndianRupee } from "lucide-react";
+import { X, Leaf, Droplet, IndianRupee } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import SnabbitHero from "@/components/heroes/SnabbitHero";
