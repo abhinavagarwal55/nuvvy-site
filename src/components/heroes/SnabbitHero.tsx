@@ -18,7 +18,7 @@ export default function SnabbitHero() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-8">
           <div className="flex items-center justify-between px-4 py-3">
             {/* Nuvvy Logo/Text */}
-            <div className="text-xl font-semibold text-gray-900">
+            <div className="text-xl font-semibold text-green-700">
               Nuvvy
             </div>
 
@@ -39,20 +39,20 @@ export default function SnabbitHero() {
 
           {/* Menu Dropdown */}
           {menuOpen && (
-            <div className="border-t border-gray-100 px-4 py-3 space-y-2">
-              <a href="#" className="block text-sm text-gray-700 hover:text-gray-900 py-2">
-                Compare Nuvvy Care
+            <nav className="flex flex-col px-6">
+              <a href="/#garden-care" className="py-4 text-sm text-gray-700 hover:text-gray-900" onClick={() => setMenuOpen(false)}>
+                Garden Care
               </a>
-              <a href="#" className="block text-sm text-gray-700 hover:text-gray-900 py-2">
+              <a href="/#plant-ordering" className="py-4 text-sm text-gray-700 hover:text-gray-900" onClick={() => setMenuOpen(false)}>
+                Plant Ordering & Setup
+              </a>
+              <a href="/#pricing" className="py-4 text-sm text-gray-700 hover:text-gray-900" onClick={() => setMenuOpen(false)}>
                 Pricing
               </a>
-              <a href="#" className="block text-sm text-gray-700 hover:text-gray-900 py-2">
-                Balcony Setup
-              </a>
-              <a href="#" className="block text-sm text-gray-700 hover:text-gray-900 py-2">
+              <a href="/#contact" className="py-4 text-sm text-gray-700 hover:text-gray-900" onClick={() => setMenuOpen(false)}>
                 Contact Us
               </a>
-            </div>
+            </nav>
           )}
         </div>
 

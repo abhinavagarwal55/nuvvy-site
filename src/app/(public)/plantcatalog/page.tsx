@@ -52,147 +52,167 @@ export default function PlantCatalogPage() {
 
   return (
     <main className="bg-cream min-h-screen">
-      {/* Header Section */}
-      <section className="py-12 bg-white border-b border-gray-200">
-        <div className="container mx-auto px-6 max-w-6xl">
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-green-dark mb-2">
-            Plant Catalog
-          </h1>
-          <p className="text-lg text-gray-600">
-            Curated for Bangalore balconies
-          </p>
+      <section className="py-20">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="bg-[#F9FAFB] rounded-3xl border border-gray-200 p-6 md:p-10">
+            {/* Breadcrumb */}
+            <div className="mb-4 text-sm text-gray-500">
+              <a href="/" className="hover:underline">Home</a>
+              <span className="mx-2">/</span>
+              <span className="text-gray-700">Plant Catalog</span>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-display font-bold text-green-dark mt-4 mb-8">
+              Plant Catalog
+            </h1>
+            <p className="text-lg text-gray-600 mb-6">
+              Curated for Bangalore balconies
+            </p>
+
+            {/* Search and Filters Section */}
+            <div className="py-4 mb-6">
+              {/* Search Input */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Search plants..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-green focus:border-transparent"
+                />
+              </div>
+
+              {/* Filter Chips */}
+              <div className="space-y-3">
+                {/* Category Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
+                  <div className="flex gap-2 overflow-x-auto whitespace-nowrap -mx-6 px-6 scrollbar-hide flex-nowrap" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                    <button
+                      onClick={() => setSelectedCategory("All")}
+                      className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        selectedCategory === "All"
+                          ? "bg-green text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      All
+                    </button>
+                    {categories.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          selectedCategory === cat
+                            ? "bg-green text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Air Purifier Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Air Purifier</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedAirPurifier("All")}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        selectedAirPurifier === "All"
+                          ? "bg-green text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setSelectedAirPurifier("Yes")}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        selectedAirPurifier === "Yes"
+                          ? "bg-green text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      Yes
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Plant Grid Section */}
+            <div className="pt-6">
+              {loading ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">Loading plants...</p>
+                </div>
+              ) : filteredPlants.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">No plants found matching your filters.</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Showing {filteredPlants.length} {filteredPlants.length === 1 ? "plant" : "plants"}
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {filteredPlants.map((plant) => (
+                      <Link
+                        key={plant.id}
+                        href={`/plantcatalog/${plant.id}`}
+                        className="group block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow border border-gray-200"
+                      >
+                        <div className="aspect-square relative bg-gray-100">
+                          <PlantImage
+                            src={plant.thumbnailUrl}
+                            alt={plant.name}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                          />
+                        </div>
+                        <div className="p-4 space-y-2">
+                          <h3 className="font-semibold text-green-dark text-lg">{plant.name}</h3>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="inline-block bg-mist text-green-dark px-2 py-1 rounded-full text-xs font-medium">
+                              {plant.category}
+                            </span>
+                            <span className="inline-block bg-yellow/30 text-green-dark px-2 py-1 rounded-full text-xs font-medium">
+                              {plant.light}
+                            </span>
+                            {Boolean(plant.airPurifier) && (
+                              <span className="inline-block bg-green-50 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
+                                Air Purifier
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Search and Filters Section */}
-      <section className="py-4 bg-white border-b border-gray-200 sticky top-[73px] z-40">
-        <div className="container mx-auto px-6 max-w-6xl">
-          {/* Search Input */}
-          <div className="mb-4">
-            <input
-              type="text"
-              placeholder="Search plants..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-green focus:border-transparent"
-            />
+      {/* Bottom CTA Section */}
+      <section className="py-20">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="bg-[#F9FAFB] rounded-3xl border border-gray-200 p-6 md:p-10 text-center">
+            <h2 className="text-2xl font-semibold text-gray-900">
+              Ready to get these plants set up?
+            </h2>
+            <a
+              href="/#garden-care"
+              className="inline-block mt-6 bg-green-500 text-white font-semibold py-4 px-8 rounded-full"
+            >
+              View Garden Care Plans
+            </a>
           </div>
-
-          {/* Filter Chips */}
-          <div className="space-y-3">
-            {/* Category Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
-              <div className="flex gap-2 overflow-x-auto whitespace-nowrap -mx-6 px-6 scrollbar-hide flex-nowrap" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                <button
-                  onClick={() => setSelectedCategory("All")}
-                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    selectedCategory === "All"
-                      ? "bg-green text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  All
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                      selectedCategory === cat
-                        ? "bg-green text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Air Purifier Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Air Purifier</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedAirPurifier("All")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    selectedAirPurifier === "All"
-                      ? "bg-green text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setSelectedAirPurifier("Yes")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    selectedAirPurifier === "Yes"
-                      ? "bg-green text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Yes
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Plant Grid Section */}
-      <section className="pt-6 pb-12 bg-cream">
-        <div className="container mx-auto px-6 max-w-6xl">
-          {loading ? (
-            <div className="text-center py-12">
-              <p className="text-gray-600">Loading plants...</p>
-            </div>
-          ) : filteredPlants.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-600">No plants found matching your filters.</p>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600 mb-4">
-                Showing {filteredPlants.length} {filteredPlants.length === 1 ? "plant" : "plants"}
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {filteredPlants.map((plant) => (
-                  <Link
-                    key={plant.id}
-                    href={`/plantcatalog/${plant.id}`}
-                    className="group block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow border border-gray-200"
-                  >
-                    <div className="aspect-square relative bg-gray-100">
-                      <PlantImage
-                        src={plant.thumbnailUrl}
-                        alt={plant.name}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                      />
-                    </div>
-                    <div className="p-4 space-y-2">
-                      <h3 className="font-semibold text-green-dark text-lg">{plant.name}</h3>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="inline-block bg-mist text-green-dark px-2 py-1 rounded-full text-xs font-medium">
-                          {plant.category}
-                        </span>
-                        <span className="inline-block bg-yellow/30 text-green-dark px-2 py-1 rounded-full text-xs font-medium">
-                          {plant.light}
-                        </span>
-                        {Boolean(plant.airPurifier) && (
-                          <span className="inline-block bg-green-50 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
-                            Air Purifier
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </>
-          )}
         </div>
       </section>
     </main>

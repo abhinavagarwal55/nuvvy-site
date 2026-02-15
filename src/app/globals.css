@@ -61,3 +61,8 @@ html {
     display: none; /* Chrome, Safari, Opera */
   }
 }
+
+/* Offset scroll for fixed header */
+section {
+  scroll-margin-top: 100px;
+}
