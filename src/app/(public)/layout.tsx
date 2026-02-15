@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Header from "../../components/Header";
-import Footer from "../../components/Footer";
+import LandingHeader from "@/components/LandingHeader";
 import { getSiteUrl, getAbsoluteImageUrl } from "@/lib/utils/metadata";
 
 // Get site URL for metadata
@@ -41,9 +40,10 @@ export default function PublicLayout({
 }) {
   return (
     <>
-      <Header />
-      {children}
-      <Footer />
+      <LandingHeader />
+      <main className="pt-6 md:pt-10">
+        {children}
+      </main>
     </>
   );
 }

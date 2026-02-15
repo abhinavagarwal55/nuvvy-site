@@ -39,7 +39,7 @@ async function checkAuth() {
   return { authorized: true };
 }
 
-// GET /api/internal/homepage - Fetch draft homepage content
+// GET /api/internal/homepage - Fetch featured plants
 export async function GET() {
   try {
     const authCheck = await checkAuth();
@@ -53,8 +53,7 @@ export async function GET() {
     const adminSupabase = createAdminSupabaseClient();
     const { data, error } = await adminSupabase
       .from("homepage_content")
-      .select("id, content, status, created_at")
-      .eq("status", "draft")
+      .select("id, content, created_at")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -66,14 +65,18 @@ export async function GET() {
       );
     }
 
-    if (!data) {
+    if (!data || !data.content) {
       return NextResponse.json(
-        { data: null, error: "No draft homepage content found" },
-        { status: 404 }
+        { data: { plantIds: [] }, error: null },
+        { status: 200 }
       );
     }
 
-    return NextResponse.json({ data, error: null }, { status: 200 });
+    // Extract only mostPopularPlants.plantIds
+    const content = data.content as any;
+    const plantIds = content?.mostPopularPlants?.plantIds || [];
+
+    return NextResponse.json({ data: { plantIds }, error: null }, { status: 200 });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
@@ -83,7 +86,7 @@ export async function GET() {
   }
 }
 
-// PUT /api/internal/homepage - Update draft homepage content
+// PUT /api/internal/homepage - Update featured plants
 export async function PUT(request: NextRequest) {
   try {
     const authCheck = await checkAuth();
@@ -95,45 +98,47 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { content } = body;
+    const { plantIds } = body;
 
-    if (!content) {
+    if (!Array.isArray(plantIds)) {
       return NextResponse.json(
-        { data: null, error: "Content is required" },
-        { status: 400 }
-      );
-    }
-
-    // Validate content against Zod schema
-    const parseResult = HomepageSchema.safeParse(content);
-    if (!parseResult.success) {
-      return NextResponse.json(
-        {
-          data: null,
-          error: `Validation failed: ${parseResult.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join("; ")}`,
-        },
+        { data: null, error: "plantIds must be an array" },
         { status: 400 }
       );
     }
 
     const adminSupabase = createAdminSupabaseClient();
 
-    // Check if draft exists
+    // Get existing content or create minimal structure
     const { data: existing } = await adminSupabase
       .from("homepage_content")
-      .select("id")
-      .eq("status", "draft")
+      .select("id, content")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
+    // Build minimal content object with only mostPopularPlants
+    const minimalContent = {
+      schemaVersion: 1,
+      mostPopularPlants: {
+        title: "Choose from 150+ Plants",
+        plantIds: plantIds,
+      },
+    };
+
     let result;
-    if (existing) {
-      // Update existing draft
+    if (existing && existing.content) {
+      // Update existing content, preserving other fields if they exist
+      const existingContent = existing.content as any;
+      const updatedContent = {
+        ...existingContent,
+        mostPopularPlants: minimalContent.mostPopularPlants,
+      };
+
       const { data, error } = await adminSupabase
         .from("homepage_content")
         .update({
-          content: parseResult.data,
+          content: updatedContent,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existing.id)
@@ -149,12 +154,11 @@ export async function PUT(request: NextRequest) {
 
       result = data;
     } else {
-      // Create new draft
+      // Create new content with minimal structure
       const { data, error } = await adminSupabase
         .from("homepage_content")
         .insert({
-          status: "draft",
-          content: parseResult.data,
+          content: minimalContent,
         })
         .select()
         .single();

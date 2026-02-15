@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { getHomepageContent } from "@/lib/homepage/getHomepageContent";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import { WHATSAPP_NUMBER, WHATSAPP_MESSAGES } from "@/config/whatsapp";
-import HomepageRenderer from "./HomepageRenderer";
+import HomepageRenderer from "../(public)/HomepageRenderer";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +12,41 @@ export const metadata: Metadata = {
     follow: false,
   },
 };
+
+async function getFeaturedPlantIds(): Promise<string[]> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    // Fetch the most recent homepage_content row (no status filter)
+    const { data, error } = await supabase
+      .from("homepage_content")
+      .select("content")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching homepage content:", error);
+      return [];
+    }
+
+    if (!data || !data.content) {
+      console.warn("No homepage content found");
+      return [];
+    }
+
+    // Extract mostPopularPlants.plantIds from the content
+    const content = data.content as any;
+    if (content?.mostPopularPlants?.plantIds && Array.isArray(content.mostPopularPlants.plantIds)) {
+      return content.mostPopularPlants.plantIds;
+    }
+
+    return [];
+  } catch (error) {
+    console.error("Error in getFeaturedPlantIds:", error);
+    return [];
+  }
+}
 
 async function getPlantsByIds(plantIds: string[]) {
   if (!plantIds || plantIds.length === 0) return [];
@@ -46,18 +80,15 @@ async function getPlantsByIds(plantIds: string[]) {
 
 export default async function PreviewHomepagePage() {
   try {
-    // Fetch draft content
-    const homepageContent = await getHomepageContent("draft");
+    // Fetch featured plant IDs from homepage_content table
+    const featuredPlantIds = await getFeaturedPlantIds();
 
     // Fetch popular plants
-    const popularPlants = await getPlantsByIds(homepageContent.mostPopularPlants.plantIds);
+    const popularPlants = await getPlantsByIds(featuredPlantIds);
 
     return (
       <HomepageRenderer
-        homepageContent={homepageContent}
         popularPlants={popularPlants}
-        whatsappNumber={WHATSAPP_NUMBER}
-        whatsappMessage={WHATSAPP_MESSAGES.generalChat}
       />
     );
   } catch (error) {
@@ -74,10 +105,10 @@ export default async function PreviewHomepagePage() {
           <p className="text-gray-600 mb-2">
             {error instanceof Error
               ? error.message
-              : "Unable to load draft homepage content."}
+              : "Unable to load featured plants."}
           </p>
           <p className="text-sm text-gray-500 mt-4">
-            Please ensure draft content exists in the database.
+            Please ensure featured plants are configured in the database.
           </p>
         </div>
       </main>

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 html, body {
-  @apply bg-butter text-ink antialiased;
+  @apply text-ink antialiased;
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
 }
 
@@ -65,4 +65,8 @@ html {
 /* Offset scroll for fixed header */
 section {
   scroll-margin-top: 100px;
+}
+
+body {
+  background-color: #FFFFFF;
 }

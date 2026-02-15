@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Check, X, AlertCircle, ArrowRight, LayoutGrid, UserCheck, MapPin, Flower2, RefreshCcw, Leaf, Droplet, IndianRupee, Shield } from "lucide-react";
+import { useState } from "react";
+import { Leaf, Droplet, IndianRupee } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import ClassicHero from "@/components/heroes/ClassicHero";
 import SnabbitHero from "@/components/heroes/SnabbitHero";
 import SoundFamiliar from "@/components/sections/SoundFamiliar";
 import SimplePricing from "@/components/sections/SimplePricing";
-import type { HomepageContent } from "@/lib/schemas/homepage.schema";
 import { WHATSAPP_MESSAGES, WHATSAPP_NUMBER, getWhatsAppLink } from "@/config/whatsapp";
-import { HOMEPAGE_CONFIG, homepageFlags } from "@/config/homepage";
 
 interface Plant {
   id: string;
@@ -27,29 +24,17 @@ interface Plant {
 }
 
 interface HomepageRendererProps {
-  homepageContent: HomepageContent;
-  popularPlants: Plant[];
-  whatsappNumber: string;
-  whatsappMessage: string;
+  popularPlants?: Plant[];
 }
 
 export default function HomepageRenderer({
-  homepageContent,
-  popularPlants,
-  whatsappNumber,
-  whatsappMessage,
+  popularPlants = [],
 }: HomepageRendererProps) {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [hasScrolled, setHasScrolled] = useState(false);
-  const carouselRef = useRef<HTMLDivElement>(null);
   return (
     <main className="min-h-screen bg-white">
-      {/* 1. HERO SECTION - Toggle between classic and snabbit variants */}
-      {HOMEPAGE_CONFIG.heroVariant === "classic" ? (
-        <ClassicHero heroes={homepageContent.heroSection.heroes} />
-      ) : (
-        <SnabbitHero />
-      )}
+      {/* 1. HERO SECTION */}
+      <SnabbitHero />
 
       {/* Sound Familiar Section */}
       <SoundFamiliar usePublicImage={false} />
@@ -227,31 +212,28 @@ export default function HomepageRenderer({
                   </h3>
                 </div>
                 <div className="space-y-10">
-                  {homepageContent.nuvvyCareVisit.steps.map((step, idx) => {
-                    const stepTitles = [
-                      "Free Horticulturist Consultation",
-                      "Online Appointment Confirmation & Heads-Up",
-                      "Plant Health Check",
-                      "Expert Preventive Care & Treatment",
-                      "Post-Visit Update & Next Steps"
-                    ];
-                    return (
-                      <div key={idx} className="relative">
-                        {/* Large image */}
-                        <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
-                          <img
-                            src={idx === 0 ? "/images/female_horticulturist_landscape.png" : idx === 4 ? "/images/post_completion.png" : step.imageUrl}
-                            alt={stepTitles[idx]}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        {/* Step title below image */}
-                        <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
-                          {stepTitles[idx]}
-                        </h4>
+                  {[
+                    { title: "Free Horticulturist Consultation", image: "/images/female_horticulturist_landscape.png" },
+                    { title: "Online Appointment Confirmation & Heads-Up", image: "/images/Appointment.png" },
+                    { title: "Plant Health Check", image: "/images/leaf cleaning.png" },
+                    { title: "Expert Preventive Care & Treatment", image: "/images/care and treatment.png" },
+                    { title: "Post-Visit Update & Next Steps", image: "/images/post_completion.png" },
+                  ].map((step, idx) => (
+                    <div key={idx} className="relative">
+                      {/* Large image */}
+                      <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                        <img
+                          src={step.image}
+                          alt={step.title}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                    );
-                  })}
+                      {/* Step title below image */}
+                      <h4 className="text-lg md:text-xl font-semibold text-gray-900 mt-6 text-center">
+                        {step.title}
+                      </h4>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -345,14 +327,7 @@ export default function HomepageRenderer({
 
               {/* Horizontal scroll carousel */}
               <div 
-                ref={carouselRef}
                 className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6"
-                onScroll={(e) => {
-                  const target = e.currentTarget;
-                  if (target.scrollLeft > 60 && !hasScrolled) {
-                    setHasScrolled(true);
-                  }
-                }}
               >
                 <div className="flex gap-3 min-w-max">
                   {popularPlants.length > 0 ? (
@@ -409,83 +384,19 @@ export default function HomepageRenderer({
                 </div>
               </div>
 
-              {hasScrolled && (
-                <div className={`mt-4 transition-all duration-300 ease-out ${hasScrolled ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
-                  <Link
-                    href="/plantcatalog"
-                    className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
-                  >
-                    Explore full plant catalog
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              )}
+              {/* CTA Button - Below carousel */}
+              <div className="mt-4">
+                <Link
+                  href="/plantcatalog"
+                  className="block w-full text-center bg-gray-100 hover:bg-gray-200 transition rounded-xl py-4 font-medium"
+                >
+                  Explore full plant catalog →
+                </Link>
+              </div>
             </div>
           </div>
       </section>
 
-      {/* 3. COMPARE NUVVY CARE - Custom grid layout */}
-      {homepageFlags.showCompareSection && (
-        <section className="py-8 bg-gray-50">
-          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-6 text-center">
-            {homepageContent.compareNuvvyCare.title}
-          </h2>
-          <div className="bg-white rounded-xl overflow-hidden shadow-sm text-left">
-            {/* Column Headers */}
-            <div className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4 border-b border-gray-200 bg-gray-50">
-              <div className="text-sm font-semibold text-gray-900 leading-snug">
-                What
-              </div>
-              <div className="text-sm font-semibold text-gray-700 leading-snug">
-                Traditional Gardener
-              </div>
-              <div className="text-sm font-semibold text-green-600 leading-snug">
-                Nuvvy Garden Care
-              </div>
-            </div>
-
-            {/* Comparison Rows */}
-            <div className="divide-y divide-gray-100">
-              {homepageContent.compareNuvvyCare.rows.map((row, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_1fr_1.2fr] gap-4 px-4 py-4">
-                  {/* What matters column */}
-                  <div className="text-sm text-gray-900 leading-relaxed flex items-center">
-                    {row.label}
-                  </div>
-
-                  {/* Regular Gardener column */}
-                  <div className="flex items-center gap-2">
-                    {row.regular.type === "check" && (
-                      <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
-                    )}
-                    {row.regular.type === "warning" && (
-                      <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
-                    )}
-                    {row.regular.type === "cross" && (
-                      <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
-                    )}
-                    <span className="text-sm text-gray-700 leading-relaxed">{row.regular.text}</span>
-                  </div>
-
-                  {/* Nuvvy Garden Care column */}
-                  <div className="flex items-center gap-2">
-                    {row.nuvvy.type === "check" && (
-                      <Check className="w-5 h-5 flex-shrink-0 text-emerald-600" strokeWidth={2.5} />
-                    )}
-                    {row.nuvvy.type === "warning" && (
-                      <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-500" strokeWidth={2.5} />
-                    )}
-                    {row.nuvvy.type === "cross" && (
-                      <X className="w-5 h-5 flex-shrink-0 text-red-500" strokeWidth={2.5} />
-                    )}
-                    <span className="text-sm text-gray-700 leading-relaxed">{row.nuvvy.text}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
 
 
       {/* 5. PROOF & SOCIAL PROOF */}
