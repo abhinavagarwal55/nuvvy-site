@@ -1,73 +1,87 @@
 "use client";
 
-import { Check } from "lucide-react";
-import { PRICING_TITLE, PRICING_SUBTITLE, GARDEN_CARE_PRICING, PRICING_INCLUSIONS } from "@/config/pricing";
+import { PRICING_TITLE } from "@/config/pricing";
 import { getWhatsAppLink, WHATSAPP_MESSAGES } from "@/config/whatsapp";
 
 export default function SimplePricing() {
   return (
     <section className="py-8 bg-white">
-      <div className="max-w-[640px] mx-auto px-6">
-        <div className="text-center mb-6">
-          <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-            {PRICING_TITLE}
-          </h2>
-          <p className="text-sm text-gray-600">
-            {PRICING_SUBTITLE}
-          </p>
-        </div>
-
-        {/* Pricing Container */}
-        <div className="bg-stone-50 rounded-xl p-4 md:p-5 mb-6 text-left">
-          {/* Pricing Rows */}
-          <div className="space-y-0">
-            {GARDEN_CARE_PRICING.map((tier, idx) => (
-              <div
-                key={idx}
-                className={idx < GARDEN_CARE_PRICING.length - 1 ? "pb-3 border-b border-gray-200" : "pt-3 pb-0"}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="text-base font-semibold text-gray-900 mb-1.5">{tier.label}</h3>
-                  </div>
-                  {tier.monthlyPrice && tier.perVisitPrice ? (
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-xl font-semibold text-gray-900">
-                        ₹{tier.monthlyPrice.toLocaleString("en-IN")} / month
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        ≈ ₹{tier.perVisitPrice.toLocaleString("en-IN")} per visit
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-sm text-gray-600">{tier.cadence}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+      {/* Pricing Container */}
+      <div className="bg-[#F9FAFB] rounded-3xl border border-gray-200 p-6 md:p-10 text-left mt-6">
+          {/* Section Title */}
+          <div className="text-center mb-10">
+            <h2 className="text-3xl md:text-4xl font-semibold text-gray-900">
+              {PRICING_TITLE}
+            </h2>
           </div>
 
-          {/* Included in Care */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900 mb-3">
-              Included in your care:
+          {/* Garden Care Pricing */}
+          <div>
+            <h3 className="text-2xl font-semibold text-gray-900">
+              Garden Care
             </h3>
-            <div className="space-y-3">
-              {PRICING_INCLUSIONS.map((inclusion, idx) => (
-                <div key={idx} className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                    <Check className="w-3 h-3 text-emerald-600" stroke="currentColor" strokeWidth={2.5} />
-                  </div>
-                  <p className="text-sm text-gray-700">{inclusion}</p>
-                </div>
-              ))}
+            <p className="text-xl font-semibold text-gray-900 mt-2">
+              Plans starting at ₹799 / month
+            </p>
+            <p className="text-base text-gray-500 mb-4">
+              One visit every 2 weeks. Taxes included. Pricing varies by number of plants.
+            </p>
+
+            {/* Included in Care */}
+            <ul className="space-y-3 mt-4">
+              <li className="flex items-start gap-3 text-base text-gray-700">
+                <span className="text-green-600">✓</span>
+                Fertilizers & preventive pest control included
+              </li>
+              <li className="flex items-start gap-3 text-base text-gray-700">
+                <span className="text-green-600">✓</span>
+                Access to horticulturist guidance when needed
+              </li>
+              <li className="flex items-start gap-3 text-base text-gray-700">
+                <span className="text-green-600">✓</span>
+                Help selecting the right plants for your balcony
+              </li>
+            </ul>
+          </div>
+
+          {/* Divider */}
+          <hr className="my-8 border-gray-300" />
+
+          {/* Plant Ordering & Setup */}
+          <div>
+            <h3 className="text-2xl font-semibold text-gray-900">
+              Plant Ordering & Setup
+            </h3>
+
+            {/* Primary line (catalog pricing) */}
+            <p className="text-lg font-medium text-gray-900 mt-3">
+              Prices vary by plant.
+            </p>
+            <p className="text-base text-gray-600">
+              See the{" "}
+              <a href="/plants" className="text-green-600 font-medium underline">
+                Nuvvy Plant Catalog
+              </a>
+              {" "}for pricing.
+            </p>
+
+            {/* Consultation price + subscriber benefit */}
+            <p className="text-lg text-gray-900 mt-5">
+              ₹99 Horticulturist consultation{" "}
+              <span className="text-gray-600 font-normal">
+                (Free for Garden Care subscribers)
+              </span>
+            </p>
+
+            {/* Tick benefit line */}
+            <div className="flex items-start gap-3 text-base text-gray-700 mt-4">
+              <span className="text-green-600">✓</span>
+              Expert plant selection, sourcing, potting, and setup
             </div>
           </div>
 
           {/* CTA 2 - Pricing Section */}
-          <div className="mt-6">
+          <div className="mt-10">
             <a
               href={getWhatsAppLink(WHATSAPP_MESSAGES.pricingInquiry)}
               target="_blank"
@@ -78,7 +92,6 @@ export default function SimplePricing() {
             </a>
           </div>
         </div>
-      </div>
     </section>
   );
 }

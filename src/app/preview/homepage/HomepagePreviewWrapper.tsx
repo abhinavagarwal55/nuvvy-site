@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { Check, X, AlertCircle, ArrowRight, LayoutGrid, UserCheck, MapPin, Flower2, RefreshCcw, Leaf, Droplet, IndianRupee, Shield } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import HeroCarousel from "@/components/HeroCarousel";
 import ClassicHero from "@/components/heroes/ClassicHero";
 import SnabbitHero from "@/components/heroes/SnabbitHero";
 import SoundFamiliar from "@/components/sections/SoundFamiliar";
@@ -133,7 +132,7 @@ export default function HomepagePreviewWrapper({
           <SoundFamiliar />
 
           {/* Centralized width container */}
-          <div className={viewMode === "mobile" ? "px-4" : "max-w-[640px] mx-auto px-6"}>
+          <div className={viewMode === "mobile" ? "px-4" : "max-w-6xl mx-auto px-6"}>
 
           {/* 2. MEET NUVVY - Preview Only */}
           <section className="bg-white pt-6 pb-12">
@@ -288,7 +287,7 @@ export default function HomepagePreviewWrapper({
                   {/* How It Works Section */}
                   <div className="space-y-10">
                     <div className="text-center">
-                      <h3 className="text-3xl md:text-4xl font-semibold text-gray-900">
+                      <h3 className="text-xl md:text-2xl font-semibold text-gray-900">
                         How it works?
                       </h3>
                     </div>
@@ -328,7 +327,7 @@ export default function HomepagePreviewWrapper({
           <section className="py-12 bg-white">
             <div className="bg-[#F8FAF8] rounded-3xl shadow-sm px-6 py-12 md:px-12 md:py-16">
                 {/* Headline */}
-                <h2 className="text-2xl md:text-3xl font-semibold text-green-900 tracking-tight text-center">
+                <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold text-green-900 leading-tight text-center">
                   Plant Ordering & Setup
                 </h2>
 
@@ -338,7 +337,7 @@ export default function HomepagePreviewWrapper({
                 </p>
 
                 {/* How It Works? */}
-                <h3 className="mt-10 text-xl md:text-2xl font-semibold text-gray-900 text-center">
+                <h3 className="mt-10 text-xl md:text-2xl font-semibold text-gray-900 text-center mb-8">
                   How it works?
                 </h3>
 
@@ -555,80 +554,83 @@ export default function HomepagePreviewWrapper({
 
 
           {/* 5. PROOF & SOCIAL PROOF - Preview Only */}
-          <section className="py-12 bg-gray-50">
-            <div className="space-y-10">
-              {/* Headlines */}
-              <div className="text-center">
-                <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
-                  Loved by customers across Whitefield, Bangalore
-                </h2>
-                <p className="text-lg text-gray-600">
-                  Real balconies. Real plants. Cared for by the Nuvvy team.
-                </p>
-              </div>
+          <section className="pt-20 pb-8">
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-sm px-6 py-10 md:px-10 md:py-12">
+                <div className="space-y-10">
+                  {/* Headlines */}
+                  <div className="text-center">
+                    <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
+                      Loved by customers across Whitefield, Bangalore
+                    </h2>
+                    <p className="text-lg text-gray-600">
+                      Real balconies. Real plants. Cared for by the Nuvvy team.
+                    </p>
+                  </div>
 
-              {/* Transformation Gallery */}
-              <div className="columns-2 md:columns-3 gap-3 md:gap-4">
-                {[
-                  "/images/before-after/image-1.png",
-                  "/images/before-after/image-2.jpeg",
-                  "/images/before-after/image-3.jpeg",
-                  "/images/before-after/image-4.jpeg",
-                  "/images/before-after/image-5.png",
-                  "/images/before-after/image-6.jpeg",
-                ].map((imagePath, idx) => {
-                  const imageUrl = publicImage(imagePath);
-                  return (
-                  <div
-                    key={idx}
-                    className="break-inside-avoid mb-4 md:mb-6"
-                  >
-                    <div
-                      className="relative w-full rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
-                      onClick={() => setLightboxImage(imageUrl)}
-                    >
-                      <img
-                        src={imageUrl}
-                        alt={`Transformation ${idx + 1}`}
-                        className="w-full h-auto"
-                        loading="lazy"
-                      />
+                  {/* Transformation Gallery */}
+                  <div className="columns-2 md:columns-3 gap-3 md:gap-4">
+                    {[
+                      "/images/before-after/image-1.png",
+                      "/images/before-after/image-2.jpeg",
+                      "/images/before-after/image-3.jpeg",
+                      "/images/before-after/image-4.jpeg",
+                      "/images/before-after/image-6.jpeg",
+                      "/images/before-after/Before_after_7.jpeg",
+                      "/images/before-after/Before_after_8.jpeg",
+                    ].map((imagePath, idx) => {
+                      const imageUrl = publicImage(imagePath);
+                      return (
+                      <div
+                        key={idx}
+                        className="break-inside-avoid mb-4 md:mb-6"
+                      >
+                        <div
+                          className="relative w-full rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                          onClick={() => setLightboxImage(imageUrl)}
+                        >
+                          <img
+                            src={imageUrl}
+                            alt={`Transformation ${idx + 1}`}
+                            className="w-full h-auto"
+                            loading="lazy"
+                          />
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Society Social Proof Strip */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Balconies we care for in Whitefield
+                    </h3>
+                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                      {[
+                        { name: "Windmills of Your Mind", image: "/images/societies/windmills of your mind.jpg" },
+                        { name: "Prestige White Meadows", image: "/images/societies/prestige whitemeadows.jpeg" },
+                        { name: "Prestige Shantiniketan", image: "/images/societies/prestige shantiniketan.jpg" },
+                      ].map((society, idx) => (
+                        <div key={idx} className="flex-shrink-0 w-32 md:w-40">
+                          <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 mb-2">
+                            <Image
+                              src={publicImage(society.image)}
+                              alt={society.name}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 768px) 128px, 160px"
+                              unoptimized
+                            />
+                          </div>
+                          <p className="text-sm text-gray-700 text-center leading-tight">
+                            {society.name}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  );
-                })}
-              </div>
-
-              {/* Society Social Proof Strip */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-gray-500">
-                  Balconies we care for in Whitefield
-                </h3>
-                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                  {[
-                    { name: "Windmills of Your Mind", image: "/images/societies/windmills of your mind.jpg" },
-                    { name: "Prestige White Meadows", image: "/images/societies/prestige whitemeadows.jpeg" },
-                    { name: "Prestige Shantiniketan", image: "/images/societies/prestige shantiniketan.jpg" },
-                  ].map((society, idx) => (
-                    <div key={idx} className="flex-shrink-0 w-32 md:w-40">
-                      <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 mb-2">
-                        <Image
-                          src={publicImage(society.image)}
-                          alt={society.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 128px, 160px"
-                          unoptimized
-                        />
-                      </div>
-                      <p className="text-sm text-gray-700 text-center leading-tight">
-                        {society.name}
-                      </p>
-                    </div>
-                  ))}
                 </div>
               </div>
-            </div>
 
             {/* Lightbox */}
             {lightboxImage && (
@@ -662,223 +664,6 @@ export default function HomepagePreviewWrapper({
 
           {/* 6. PRICING */}
           <SimplePricing />
-
-          {/* 7. EXPERT-LED PLANT SELECTION HERO ROTATOR (full-width) */}
-          <HeroCarousel heroes={homepageContent.expertLedPlantSelection.heroes} />
-
-          {/* HOW NUVVY SETS UP YOUR BALCONY */}
-          <section className="py-8 bg-white">
-            <div className="mb-6 text-center">
-              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-                How Nuvvy sets up your balcony
-              </h2>
-              <p className="text-sm text-gray-600">
-                End-to-end, horticulturist-led plant selection and setup.
-              </p>
-            </div>
-
-            {/* Steps */}
-            <div className="space-y-0 text-left">
-              {/* Step 01 */}
-              <div className="pb-4 border-b border-gray-200">
-                <div className="flex items-start gap-3">
-                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">01</span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <h3 className="text-base font-semibold text-gray-900">Explore the catalog</h3>
-                      <LayoutGrid className="w-4 h-4 text-blue-500 flex-shrink-0" strokeWidth={2} />
-                    </div>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      Choose from 150+ curated indoor and balcony plants for Indian homes.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 02 */}
-              <div className="py-4 border-b border-gray-200">
-                <div className="flex items-start gap-3">
-                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">02</span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <h3 className="text-base font-semibold text-gray-900">Horticulturist shortlisting</h3>
-                      <UserCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" strokeWidth={2} />
-                    </div>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      Plants selected based on your balcony's light, heat, wind, and space.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 03 */}
-              <div className="py-4 border-b border-gray-200">
-                <div className="flex items-start gap-3">
-                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">03</span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <h3 className="text-base font-semibold text-gray-900">Trusted local sourcing</h3>
-                      <MapPin className="w-4 h-4 text-amber-500 flex-shrink-0" strokeWidth={2} />
-                    </div>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      Procured from trusted Bangalore nurseries at competitive pricing.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 04 */}
-              <div className="py-4 border-b border-gray-200">
-                <div className="flex items-start gap-3">
-                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">04</span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <h3 className="text-base font-semibold text-gray-900">Proper potting & setup</h3>
-                      <Flower2 className="w-4 h-4 text-green-600 flex-shrink-0" strokeWidth={2} />
-                    </div>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      Each plant is potted with the right soil mix and container.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 05 */}
-              <div className="pt-4">
-                <div className="flex items-start gap-3">
-                  <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-1">05</span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <h3 className="text-base font-semibold text-gray-900">Placement + ongoing care</h3>
-                      <RefreshCcw className="w-4 h-4 text-teal-500 flex-shrink-0" strokeWidth={2} />
-                    </div>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      Placed beautifully — and then cared for by Nuvvy's team.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Trust connector */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <p className="text-sm text-gray-700 leading-relaxed">
-                Unlike marketplaces, we don't disappear after delivery. The same team that selects your plants also cares for them.
-              </p>
-            </div>
-
-            {/* Optional CTA */}
-            <div className="mt-5">
-              <a
-                href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("I'd like help choosing plants for my balcony")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
-              >
-                Get help choosing plants for your balcony
-                <ArrowRight className="w-4 h-4" />
-              </a>
-            </div>
-          </section>
-
-          {/* 8. EXPLORE NUVVY CATALOG */}
-          <section className="py-8 bg-gray-50">
-            <div className="mb-5 text-center">
-              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-2">
-                Choose from 150+ Plants
-              </h2>
-            </div>
-
-            {/* Horizontal scroll carousel */}
-            <div 
-              ref={carouselRef}
-              className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6"
-              onScroll={(e) => {
-                const target = e.currentTarget;
-                if (target.scrollLeft > 60 && !hasScrolled) {
-                  setHasScrolled(true);
-                }
-              }}
-            >
-              <div className="flex gap-3 min-w-max">
-                  {popularPlants.length > 0 ? (
-                    popularPlants.map((plant) => {
-                      const imageUrl = plant.image_storage_url || plant.image_url || plant.thumbnail_storage_url || plant.thumbnail_url || undefined;
-                      const catalogId = plant.airtable_id || plant.id;
-                      
-                      // Build attributes array
-                      const attributes = [];
-                      if (plant.category) {
-                        attributes.push(plant.category);
-                      }
-                      if (plant.watering_requirement) {
-                        attributes.push(plant.watering_requirement);
-                      }
-                      if (plant.price_band) {
-                        attributes.push(plant.price_band);
-                      }
-                      
-                      return (
-                        <Link key={plant.id} href={`/plantcatalog/${catalogId}`}>
-                          <div className="flex-shrink-0 w-48">
-                            <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-                              <div className="relative h-40 bg-gray-200">
-                                {imageUrl ? (
-                                  <img
-                                    src={imageUrl}
-                                    alt={plant.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-gray-200" />
-                                )}
-                              </div>
-                              <div className="p-3">
-                                <h3 className="text-sm font-semibold text-gray-900 mb-2 leading-tight">{plant.name}</h3>
-                                <div className="space-y-1">
-                                  {plant.category && (
-                                    <div className="flex items-center gap-2">
-                                      <Leaf className="w-3.5 h-3.5 text-green-600 flex-shrink-0" strokeWidth={2} />
-                                      <span className="text-xs text-gray-700">{plant.category}</span>
-                                    </div>
-                                  )}
-                                  {plant.watering_requirement && (
-                                    <div className="flex items-center gap-2">
-                                      <Droplet className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" strokeWidth={2} />
-                                      <span className="text-xs text-gray-700">{plant.watering_requirement}</span>
-                                    </div>
-                                  )}
-                                  {plant.price_band && (
-                                    <div className="flex items-center gap-2">
-                                      <IndianRupee className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" strokeWidth={2} />
-                                      <span className="text-xs text-gray-700">{plant.price_band}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })
-                  ) : (
-                    <div className="text-gray-500 text-sm">No plants available</div>
-                  )}
-            </div>
-          </div>
-
-          {hasScrolled && (
-            <div className={`mt-4 transition-all duration-300 ease-out ${hasScrolled ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
-              <Link
-                href="/plantcatalog"
-                className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gray-200 border border-gray-300 text-gray-900 font-semibold hover:bg-gray-300 transition-colors shadow-sm"
-              >
-                Explore full plant catalog
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          )}
-        </section>
 
           {/* 9. FINAL CTA (CTA 3) */}
           <section className="py-12 bg-gradient-to-br from-green-50 to-gray-50">
