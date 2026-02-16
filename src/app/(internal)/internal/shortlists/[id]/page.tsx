@@ -266,12 +266,20 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
     const newItemsData = new Map(itemsData);
 
     itemsData.forEach((item, itemId) => {
-      const qty = parseInt(item.quantity, 10);
-      if (isNaN(qty) || qty < 1) {
-        const updated = { ...item, quantityError: "Quantity is required (min: 1)" };
-        newItemsData.set(itemId, updated);
-        isValid = false;
+      const rawQty = item.quantity?.trim() || "";
+      if (rawQty !== "") {
+        // Only validate if quantity is entered
+        const qty = parseInt(rawQty, 10);
+        if (isNaN(qty) || qty < 1) {
+          const updated = { ...item, quantityError: "Quantity must be >= 1 if entered" };
+          newItemsData.set(itemId, updated);
+          isValid = false;
+        } else {
+          const updated = { ...item, quantityError: undefined };
+          newItemsData.set(itemId, updated);
+        }
       } else {
+        // Empty quantity is allowed (NULL = recommended but not selected)
         const updated = { ...item, quantityError: undefined };
         newItemsData.set(itemId, updated);
       }
@@ -311,12 +319,15 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
     setIsSaving(true);
 
     try {
-      const items = Array.from(itemsData.values()).map((item) => ({
-        id: item.id,
-        plant_id: item.plant_id,
-        quantity: parseInt(item.quantity, 10),
-        notes: item.notes.trim() || null,
-      }));
+      const items = Array.from(itemsData.values()).map((item) => {
+        const parsedQty = parseInt(item.quantity, 10);
+        return {
+          id: item.id,
+          plant_id: item.plant_id,
+          quantity: isNaN(parsedQty) ? null : parsedQty,
+          notes: item.notes.trim() || null,
+        };
+      });
 
       const response = await fetch(`/api/internal/shortlists/${shortlistId}`, {
         method: "PUT",
@@ -673,11 +684,14 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
     // Save draft first
     setIsSaving(true);
     try {
-      const items = Array.from(itemsData.values()).map((item) => ({
-        id: item.id,
-        quantity: parseInt(item.quantity, 10),
-        notes: item.notes.trim() || null,
-      }));
+      const items = Array.from(itemsData.values()).map((item) => {
+        const parsedQty = parseInt(item.quantity, 10);
+        return {
+          id: item.id,
+          quantity: isNaN(parsedQty) ? null : parsedQty,
+          notes: item.notes.trim() || null,
+        };
+      });
 
       const saveResponse = await fetch(`/api/internal/shortlists/${shortlistId}`, {
         method: "PUT",
@@ -1188,6 +1202,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
                           type="number"
                           min="1"
                           value={formData.quantity}
+                          placeholder=""
                           readOnly={isViewingSubmittedVersion || isToBeProcured || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
                           disabled={isViewingSubmittedVersion || isToBeProcured || (viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0))}
                           onChange={(e) =>
@@ -1288,12 +1303,13 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
                 {/* Quantity */}
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Quantity <span className="text-red-500">*</span>
+                    Quantity (leave empty for recommended only)
                   </label>
                   <input
                     type="number"
                     min="1"
                     value={formData.quantity}
+                    placeholder=""
                     readOnly={viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0)}
                     disabled={viewingVersion !== null && viewingVersion !== (data?.shortlist.current_version_number || 0)}
                     onChange={(e) =>

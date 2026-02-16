@@ -97,16 +97,25 @@ export async function POST(
 
     // Copy draft items to version items
     // Required fields: shortlist_version_id, plant_id, approved, midpoint_price
-    const versionItems = draftItems.map((item: any) => ({
-      shortlist_version_id: version.id,
-      plant_id: item.plant_id,
-      quantity: item.quantity || null,
-      note: item.note || null,
-      why_picked_for_balcony: item.why_picked_for_balcony || null,
-      horticulturist_note: null,
-      approved: true,
-      midpoint_price: 0, // TODO: Calculate from actual price data when available
-    }));
+    // Handle quantity: NULL = recommended but not selected, >= 1 = selected
+    // Convert 0, undefined, or null to null
+    // Database constraint: if approved=true, quantity must NOT be NULL
+    // So: quantity NULL → approved=false, quantity >= 1 → approved=true
+    const versionItems = draftItems
+      .filter((item: any) => item.plant_id) // Ensure plant_id exists
+      .map((item: any) => {
+        const quantity = item.quantity != null && item.quantity > 0 ? item.quantity : null;
+        return {
+          shortlist_version_id: version.id,
+          plant_id: item.plant_id,
+          quantity: quantity,
+          note: item.note || null,
+          why_picked_for_balcony: item.why_picked_for_balcony || null,
+          horticulturist_note: null,
+          approved: quantity !== null, // Only approve if quantity is set (>= 1)
+          midpoint_price: 0, // TODO: Calculate from actual price data when available
+        };
+      });
 
     const { error: versionItemsError } = await supabase
       .from("shortlist_version_items")
@@ -114,10 +123,11 @@ export async function POST(
 
     if (versionItemsError) {
       console.error("Error creating version items:", versionItemsError);
+      console.error("Version items that failed:", JSON.stringify(versionItems, null, 2));
       // Rollback: delete the version
       await supabase.from("shortlist_versions").delete().eq("id", version.id);
       return NextResponse.json(
-        { data: null, error: "Failed to create version items" },
+        { data: null, error: `Failed to create version items: ${versionItemsError.message || versionItemsError.details || "Unknown error"}` },
         { status: 500 }
       );
     }

@@ -34,6 +34,8 @@ export async function POST(
     }
 
     // Validate quantities
+    // NULL quantity is allowed (recommended but not selected)
+    // Only items with quantity >= 1 are selected for procurement
     for (const item of items) {
       if (!item.plant_id) {
         return NextResponse.json(
@@ -41,9 +43,10 @@ export async function POST(
           { status: 400 }
         );
       }
-      if (item.quantity !== undefined && item.quantity < 1) {
+      // If quantity is provided (not null/undefined), it must be >= 1
+      if (item.quantity !== undefined && item.quantity !== null && item.quantity < 1) {
         return NextResponse.json(
-          { error: "Quantity must be >= 1" },
+          { error: "Quantity must be >= 1 if provided" },
           { status: 400 }
         );
       }
@@ -147,16 +150,21 @@ export async function POST(
     // Step 4: Insert shortlist_version_items
     // Insert ONLY the items sent in the request - these are the customer's changes
     // Each row references the NEW version_id (never reuse previous rows)
-    const versionItems = items.map((item: any) => ({
-      shortlist_version_id: newVersion.id,
-      plant_id: item.plant_id,
-      quantity: item.quantity || null,
-      note: item.notes || null,
-      why_picked_for_balcony: null, // Customer submissions don't include this
-      horticulturist_note: null,
-      approved: true, // Customer-submitted items are considered approved
-      midpoint_price: 0, // Placeholder - would need to fetch from plants table in production
-    }));
+    // Database constraint: if approved=true, quantity must NOT be NULL
+    // So: quantity NULL → approved=false, quantity >= 1 → approved=true
+    const versionItems = items.map((item: any) => {
+      const quantity = item.quantity != null && item.quantity > 0 ? item.quantity : null;
+      return {
+        shortlist_version_id: newVersion.id,
+        plant_id: item.plant_id,
+        quantity: quantity,
+        note: item.notes || null,
+        why_picked_for_balcony: null, // Customer submissions don't include this
+        horticulturist_note: null,
+        approved: quantity !== null, // Only approve if quantity is set (>= 1)
+        midpoint_price: 0, // Placeholder - would need to fetch from plants table in production
+      };
+    });
 
     const { error: itemsError } = await supabase
       .from("shortlist_version_items")

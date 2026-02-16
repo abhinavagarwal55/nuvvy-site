@@ -70,7 +70,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ShortlistData | null>(null);
-  const [items, setItems] = useState<Map<string, { quantity: number; note: string }>>(new Map());
+  const [items, setItems] = useState<Map<string, { quantity: number | null; note: string }>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [expandedPlants, setExpandedPlants] = useState<Set<string>>(new Set());
@@ -97,10 +97,17 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         setData(result.body);
 
         // Initialize local state from version items
-        const itemsMap = new Map<string, { quantity: number; note: string }>();
+        // Preserve NULL quantities (recommended but not selected)
+        const itemsMap = new Map<string, { quantity: number | null; note: string }>();
         result.body.items.forEach((item: VersionItem) => {
+          // Explicitly handle null/undefined: null = recommended but not selected
+          // Also handle 0 as null (invalid quantity)
+          let qty: number | null = null;
+          if (item.quantity !== undefined && item.quantity !== null && item.quantity > 0) {
+            qty = item.quantity;
+          }
           itemsMap.set(item.id, {
-            quantity: item.quantity || 1,
+            quantity: qty,
             note: item.note || "",
           });
         });
@@ -153,7 +160,8 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
       const itemState = items.get(item.id);
       if (!itemState) return;
 
-      const qty = Number(itemState.quantity || 0);
+      // Only include items with quantity >= 1 (NULL is treated as 0)
+      const qty = itemState.quantity ?? 0;
       if (qty <= 0) return;
 
       const priceBand = parsePriceBand(item.plant?.price_band);
@@ -168,7 +176,8 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   }, [data, items]);
 
   // Calculate item cost (for individual item display)
-  const calculateItemCost = (item: VersionItem, quantity: number): { min: number; max: number } | null => {
+  const calculateItemCost = (item: VersionItem, quantity: number | null): { min: number; max: number } | null => {
+    if (quantity === null || quantity <= 0) return null;
     const priceBand = parsePriceBand(item.plant?.price_band);
     if (!priceBand) return null;
     return {
@@ -183,32 +192,46 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   };
 
   // Update item quantity
-  const updateQuantity = (itemId: string, quantity: number) => {
+  const updateQuantity = (itemId: string, quantity: number | null) => {
     if (!isEditable) return;
-    if (quantity < 1) return;
+    if (quantity !== null && quantity < 1) return;
 
     setItems((prev) => {
       const newMap = new Map(prev);
-      const current = newMap.get(itemId) || { quantity: 1, note: "" };
+      const current = newMap.get(itemId) || { quantity: null, note: "" };
       newMap.set(itemId, { ...current, quantity });
       return newMap;
     });
+  };
+
+  // Add plant (set quantity from null to 1)
+  const addPlant = (itemId: string) => {
+    if (!isEditable) return;
+    updateQuantity(itemId, 1);
   };
 
   // Increment quantity
   const incrementQuantity = (itemId: string) => {
     if (!isEditable) return;
     const current = items.get(itemId);
-    const currentQty = current?.quantity || 1;
-    updateQuantity(itemId, currentQty + 1);
+    const currentQty = current?.quantity;
+    if (currentQty === null) {
+      // If null, set to 1 (add plant)
+      updateQuantity(itemId, 1);
+    } else {
+      updateQuantity(itemId, currentQty + 1);
+    }
   };
 
   // Decrement quantity
   const decrementQuantity = (itemId: string) => {
     if (!isEditable) return;
     const current = items.get(itemId);
-    const currentQty = current?.quantity || 1;
-    if (currentQty > 1) {
+    const currentQty = current?.quantity;
+    if (currentQty === null || currentQty <= 1) {
+      // If 1 or less, set to null (remove from selection)
+      updateQuantity(itemId, null);
+    } else {
       updateQuantity(itemId, currentQty - 1);
     }
   };
@@ -219,7 +242,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
 
     setItems((prev) => {
       const newMap = new Map(prev);
-      const current = newMap.get(itemId) || { quantity: 1, note: "" };
+      const current = newMap.get(itemId) || { quantity: null, note: "" };
       newMap.set(itemId, { ...current, note });
       return newMap;
     });
@@ -263,22 +286,26 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
 
     try {
       // Build items array from current state
+      // Only include items with quantity >= 1 (selected items)
+      // Items with NULL quantity are "recommended but not selected" and should not be submitted
       const itemsToSubmit = Array.from(items.entries())
-        .filter(([itemId]) => {
-          // Only include items that still exist in the original data
-          return data.items.some((item) => item.id === itemId);
+        .filter(([itemId, state]) => {
+          // Only include items that still exist in the original data AND have quantity >= 1
+          const existsInOriginal = data.items.some((item) => item.id === itemId);
+          const hasQuantity = state.quantity !== null && state.quantity !== undefined && state.quantity >= 1;
+          return existsInOriginal && hasQuantity;
         })
         .map(([itemId, state]) => {
           const originalItem = data.items.find((item) => item.id === itemId);
           return {
             plant_id: originalItem!.plant_id,
-            quantity: state.quantity,
+            quantity: state.quantity!,
             notes: state.note || null,
           };
         });
 
       if (itemsToSubmit.length === 0) {
-        alert("Please keep at least one plant in your shortlist");
+        alert("Please select at least one plant (quantity >= 1) to proceed");
         setIsSubmitting(false);
         return;
       }
@@ -357,7 +384,10 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
 
   const customerName = data.customer_name;
   const hasValidEstimate = estimate.min > 0 || estimate.max > 0;
-  const hasItems = data && data.items && data.items.length > 0 && Array.from(items.values()).some(item => item.quantity > 0);
+  const hasItems = data && data.items && data.items.length > 0 && Array.from(items.values()).some(item => item.quantity !== null && item.quantity > 0);
+  
+  // Check if at least one plant has quantity >= 1 (selected for procurement)
+  const hasSelectedPlants = Array.from(items.values()).some(item => item.quantity !== null && item.quantity !== undefined && item.quantity >= 1);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -396,21 +426,31 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         )}
 
         {/* Top Estimated Total */}
-        {hasItems && hasValidEstimate && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-              <span className="text-base font-semibold text-gray-900">Estimated total</span>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(estimate.midpoint)}
-                </span>
-                <span className="text-xs text-gray-500">
-                  Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
-                </span>
+        <div className="min-h-[90px] mb-6">
+          <div
+            className={`transition-all duration-300 ease-out ${
+              hasItems && hasValidEstimate
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 -translate-y-2 pointer-events-none"
+            }`}
+          >
+            {hasItems && hasValidEstimate && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                  <span className="text-base font-semibold text-gray-900">Estimated total</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-2xl font-bold text-gray-900">
+                      {formatCurrency(estimate.midpoint)}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Read-only banner for submitted shortlists */}
         {isSubmitted && (
@@ -425,12 +465,13 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         {/* Plant Items */}
         <div className="space-y-4 mb-6">
           {data.items
-            .filter((item) => items.has(item.id)) // Only show items that haven't been removed
             .map((item) => {
               const itemState = items.get(item.id);
-              if (!itemState) return null;
+              // Use explicit null check: quantity = null means recommended but not selected
+              // If itemState doesn't exist, default to null (recommended but not selected)
+              const quantity = itemState?.quantity ?? (item.quantity ?? null);
 
-              const itemCost = calculateItemCost(item, itemState.quantity);
+              const itemCost = calculateItemCost(item, quantity);
               const thumbnailUrl = getThumbnailUrl(item.plant);
 
               return (
@@ -506,71 +547,100 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                       )}
 
                       {/* Quantity Control */}
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Quantity
-                        </label>
-                        <div className="flex items-center gap-3">
-                          {/* Minus Button */}
+                      {(quantity === null || quantity === undefined || quantity <= 0) ? (
+                        /* Show "Add this plant" button when quantity is NULL/undefined/0 (recommended but not selected) */
+                        <div className="mt-4">
+                          {/* Debug info - remove after testing */}
+                          {process.env.NODE_ENV === 'development' && (
+                            <div className="text-xs text-gray-400 mb-2">
+                              Debug: quantity={String(quantity)}, isEditable={String(isEditable)}, isSubmitted={String(isSubmitted)}, condition={String(isEditable && !isSubmitted)}
+                            </div>
+                          )}
+                          {/* Always show button when quantity is null/undefined/0, but disable if not editable */}
                           <button
                             type="button"
-                            onClick={() => decrementQuantity(item.id)}
-                            disabled={!isEditable || itemState.quantity <= 1 || isSubmitted}
-                            className={`flex-shrink-0 w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-semibold transition-colors ${
-                              !isEditable || itemState.quantity <= 1 || isSubmitted
-                                ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed"
-                                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100"
+                            onClick={() => addPlant(item.id)}
+                            disabled={!isEditable || isSubmitted}
+                            className={`inline-block px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                              isEditable && !isSubmitted
+                                ? "bg-[#FFD814] hover:bg-[#FCD200] text-gray-900 border border-[#D5D9D1]"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
-                            aria-label="Decrease quantity"
                           >
-                            −
+                            Add this plant
                           </button>
-                          
-                          {/* Quantity Display */}
-                          <div className="flex-1 min-w-[60px] text-center">
-                            <span className={`text-lg font-semibold ${
-                              !isEditable ? "text-gray-500" : "text-gray-900"
-                            }`}>
-                              {itemState.quantity}
-                            </span>
+                          {/* Unit price always visible */}
+                          {item.plant?.price_band && (
+                            <div className="mt-2 text-sm text-gray-600">
+                              <span className="font-medium">Unit price: </span>
+                              <span>{item.plant.price_band}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Show quantity selector when quantity >= 1 (selected) */
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Quantity
+                          </label>
+                          <div className="flex items-center gap-3">
+                            {/* Minus Button */}
+                            <button
+                              type="button"
+                              onClick={() => decrementQuantity(item.id)}
+                              disabled={!isEditable || isSubmitted}
+                              className={`flex-shrink-0 w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-semibold transition-colors ${
+                                !isEditable || isSubmitted
+                                  ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed"
+                                  : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100"
+                              }`}
+                              aria-label="Decrease quantity"
+                            >
+                              −
+                            </button>
+                            
+                            {/* Quantity Display */}
+                            <div className="flex-1 min-w-[60px] text-center">
+                              <span className={`text-lg font-semibold ${
+                                !isEditable ? "text-gray-500" : "text-gray-900"
+                              }`}>
+                                {quantity}
+                              </span>
+                            </div>
+                            
+                            {/* Plus Button */}
+                            <button
+                              type="button"
+                              onClick={() => incrementQuantity(item.id)}
+                              disabled={!isEditable || isSubmitted}
+                              className={`flex-shrink-0 w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-semibold transition-colors ${
+                                !isEditable || isSubmitted
+                                  ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed"
+                                  : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100"
+                              }`}
+                              aria-label="Increase quantity"
+                            >
+                              +
+                            </button>
                           </div>
                           
-                          {/* Plus Button */}
-                          <button
-                            type="button"
-                            onClick={() => incrementQuantity(item.id)}
-                            disabled={!isEditable || isSubmitted}
-                            className={`flex-shrink-0 w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-semibold transition-colors ${
-                              !isEditable || isSubmitted
-                                ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed"
-                                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100"
-                            }`}
-                            aria-label="Increase quantity"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Item Cost */}
-                      {itemCost && (
-                        <div className="mt-3 text-sm text-gray-600">
-                          <span className="font-medium">Estimated cost: </span>
-                          <span>
-                            {formatCurrency(itemCost.min)} – {formatCurrency(itemCost.max)}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Remove Button */}
-                      {isEditable && (
-                        <div className="mt-4">
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="text-sm text-red-600 hover:text-red-800"
-                          >
-                            Remove plant
-                          </button>
+                          {/* Unit price always visible */}
+                          {item.plant?.price_band && (
+                            <div className="mt-3 text-sm text-gray-600">
+                              <span className="font-medium">Unit price: </span>
+                              <span>{item.plant.price_band}</span>
+                            </div>
+                          )}
+                          
+                          {/* Item Cost - only show when quantity >= 1 */}
+                          {itemCost && (
+                            <div className="mt-3 text-sm text-gray-600">
+                              <span className="font-medium">Estimated cost: </span>
+                              <span>
+                                {formatCurrency(itemCost.min)} – {formatCurrency(itemCost.max)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -581,21 +651,31 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         </div>
 
         {/* Bottom Estimated Total */}
-        {hasItems && hasValidEstimate && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-              <span className="text-base font-semibold text-gray-900">Estimated total</span>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(estimate.midpoint)}
-                </span>
-                <span className="text-xs text-gray-500">
-                  Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
-                </span>
+        <div className="min-h-[90px] mb-6">
+          <div
+            className={`transition-all duration-300 ease-out ${
+              hasItems && hasValidEstimate
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 -translate-y-2 pointer-events-none"
+            }`}
+          >
+            {hasItems && hasValidEstimate && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                  <span className="text-base font-semibold text-gray-900">Estimated total</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-2xl font-bold text-gray-900">
+                      {formatCurrency(estimate.midpoint)}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Primary CTA */}
         {isEditable && (
@@ -608,14 +688,21 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             </div>
             <button
               onClick={handleFinalize}
-              disabled={isSubmitting || items.size === 0}
+              disabled={isSubmitting || !hasSelectedPlants}
               className="w-full px-6 py-4 text-base font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isSubmitting ? "Submitting..." : "Confirm shortlist"}
             </button>
-            <p className="text-xs text-gray-500 text-center mt-3">
-              You won't be charged yet. Our team will confirm availability and next steps.
-            </p>
+            {!hasSelectedPlants && (
+              <p className="text-sm text-amber-600 text-center mt-3">
+                Please add at least one plant (set quantity) before confirming.
+              </p>
+            )}
+            {hasSelectedPlants && (
+              <p className="text-xs text-gray-500 text-center mt-3">
+                You won't be charged yet. Our team will confirm availability and next steps.
+              </p>
+            )}
           </div>
         )}
       </div>
