@@ -215,11 +215,14 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     if (!isEditable) return;
     const current = items.get(itemId);
     const currentQty = current?.quantity;
-    if (currentQty === null) {
-      // If null, set to 1 (add plant)
+    // Handle null, undefined, or invalid quantities
+    if (currentQty == null || currentQty <= 0) {
+      // If null, undefined, or <= 0, set to 1 (add plant)
       updateQuantity(itemId, 1);
     } else {
-      updateQuantity(itemId, currentQty + 1);
+      // TypeScript now knows currentQty is a number >= 1
+      const qty: number = currentQty;
+      updateQuantity(itemId, qty + 1);
     }
   };
 
@@ -228,11 +231,14 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     if (!isEditable) return;
     const current = items.get(itemId);
     const currentQty = current?.quantity;
-    if (currentQty === null || currentQty <= 1) {
-      // If 1 or less, set to null (remove from selection)
+    // Handle null, undefined, or quantities <= 1
+    if (currentQty == null || currentQty <= 1) {
+      // If null, undefined, or <= 1, set to null (remove from selection)
       updateQuantity(itemId, null);
     } else {
-      updateQuantity(itemId, currentQty - 1);
+      // TypeScript now knows currentQty is a number > 1
+      const qty: number = currentQty;
+      updateQuantity(itemId, qty - 1);
     }
   };
 

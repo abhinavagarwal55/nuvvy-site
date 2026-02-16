@@ -594,3 +594,127 @@ export async function PATCH(
     );
   }
 }
+
+// DELETE /api/internal/shortlists/[id]
+// Only allows deletion of DRAFT shortlists
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { data: null, error: "Shortlist ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabaseAdmin();
+
+    // Verify shortlist exists and check status
+    const { data: shortlist, error: shortlistError } = await supabase
+      .from("shortlists")
+      .select("id, status")
+      .eq("id", id)
+      .single();
+
+    if (shortlistError || !shortlist) {
+      return NextResponse.json(
+        { data: null, error: "Shortlist not found" },
+        { status: 404 }
+      );
+    }
+
+    // Only allow deletion of DRAFT shortlists
+    if (shortlist.status !== "DRAFT") {
+      return NextResponse.json(
+        { data: null, error: `Cannot delete shortlist with status "${shortlist.status}". Only DRAFT shortlists can be deleted.` },
+        { status: 400 }
+      );
+    }
+
+    // Delete related data first (due to foreign key constraints)
+    // Delete draft items
+    const { error: draftItemsError } = await supabase
+      .from("shortlist_draft_items")
+      .delete()
+      .eq("shortlist_id", id);
+
+    if (draftItemsError) {
+      console.error("Error deleting draft items:", draftItemsError);
+      return NextResponse.json(
+        { data: null, error: "Failed to delete shortlist items" },
+        { status: 500 }
+      );
+    }
+
+    // Delete public links
+    const { error: linksError } = await supabase
+      .from("shortlist_public_links")
+      .delete()
+      .eq("shortlist_id", id);
+
+    if (linksError) {
+      console.error("Error deleting public links:", linksError);
+      // Non-critical - continue with deletion
+    }
+
+    // Delete version items (cascade should handle this, but being explicit)
+    const { data: versions } = await supabase
+      .from("shortlist_versions")
+      .select("id")
+      .eq("shortlist_id", id);
+
+    if (versions && versions.length > 0) {
+      const versionIds = versions.map(v => v.id);
+      const { error: versionItemsError } = await supabase
+        .from("shortlist_version_items")
+        .delete()
+        .in("shortlist_version_id", versionIds);
+
+      if (versionItemsError) {
+        console.error("Error deleting version items:", versionItemsError);
+        // Non-critical - continue with deletion
+      }
+
+      // Delete versions
+      const { error: versionsError } = await supabase
+        .from("shortlist_versions")
+        .delete()
+        .eq("shortlist_id", id);
+
+      if (versionsError) {
+        console.error("Error deleting versions:", versionsError);
+        // Non-critical - continue with deletion
+      }
+    }
+
+    // Finally, delete the shortlist itself
+    const { error: deleteError } = await supabase
+      .from("shortlists")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      console.error("Error deleting shortlist:", deleteError);
+      return NextResponse.json(
+        { data: null, error: deleteError.message || "Failed to delete shortlist" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      data: { success: true },
+      error: null,
+    });
+  } catch (err) {
+    console.error("Error in DELETE /api/internal/shortlists/[id] - full error:", err);
+    const errorMessage = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json(
+      { data: null, error: errorMessage },
+      { status: 500 }
+    );
+  }
+}
