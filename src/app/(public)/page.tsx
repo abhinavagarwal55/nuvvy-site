@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import HomepageRenderer from "./HomepageRenderer";
-import { getSiteUrl, getAbsoluteImageUrl } from "@/lib/utils/metadata";
+import { getSiteUrl } from "@/lib/utils/metadata";
 
 export const dynamic = "force-dynamic";
 
 // Get site URL for metadata
 const siteUrl = getSiteUrl();
-const whatsappImageUrl = getAbsoluteImageUrl("/images/whatsapp_main_image.png");
 
 export const metadata: Metadata = {
   title: "Nuvvy | Horticulturist-led garden care for your balcony",
@@ -19,7 +18,7 @@ export const metadata: Metadata = {
     siteName: "Nuvvy",
     images: [
       {
-        url: whatsappImageUrl,
+        url: "/images/whatsapp_main_image.png", // Relative path - metadataBase will resolve it
         width: 1200,
         height: 630,
         alt: "Nuvvy - Horticulturist-led garden care",
@@ -32,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Horticulturist-led garden care for your balcony",
     description: "Professional plant care, expert selection, and ongoing maintenance — without the effort.",
-    images: [whatsappImageUrl],
+    images: ["/images/whatsapp_main_image.png"], // Relative path - metadataBase will resolve it
   },
 };
 
