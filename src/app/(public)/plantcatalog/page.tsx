@@ -162,32 +162,27 @@ export default function PlantCatalogPage() {
                       <Link
                         key={plant.id}
                         href={`/plantcatalog/${plant.id}`}
-                        className="group block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow border border-gray-200"
+                        className="group block rounded-xl border border-gray-100 bg-white transition-all duration-200 hover:shadow-lg hover:-translate-y-1 overflow-hidden"
                       >
                         <div className="aspect-square relative bg-gray-100">
                           <PlantImage
                             src={plant.thumbnailUrl}
                             alt={plant.name}
                             fill
-                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                             sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                           />
                         </div>
-                        <div className="p-4 space-y-2">
+                        <div className="p-4">
                           <h3 className="font-semibold text-green-dark text-lg">{plant.name}</h3>
-                          <div className="flex flex-wrap gap-2">
-                            <span className="inline-block bg-mist text-green-dark px-2 py-1 rounded-full text-xs font-medium">
-                              {plant.category}
-                            </span>
-                            <span className="inline-block bg-yellow/30 text-green-dark px-2 py-1 rounded-full text-xs font-medium">
-                              {plant.light}
-                            </span>
-                            {Boolean(plant.airPurifier) && (
-                              <span className="inline-block bg-green-50 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
-                                Air Purifier
-                              </span>
-                            )}
-                          </div>
+                          {plant.price_band && (
+                            <p className="text-base font-semibold text-green-800 mt-1">
+                              {plant.price_band}
+                            </p>
+                          )}
+                          <p className="text-sm text-gray-600 mt-1">
+                            {plant.category} • {plant.light}
+                          </p>
                         </div>
                       </Link>
                     ))}

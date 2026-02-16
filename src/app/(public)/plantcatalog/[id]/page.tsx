@@ -110,6 +110,13 @@ export default function PlantDetailPage() {
             )}
           </div>
 
+          {/* Price Display */}
+          {plant.price_band && (
+            <div className="mt-2 text-lg font-semibold text-green-800 mb-6">
+              {plant.price_band}
+            </div>
+          )}
+
           {/* Horticulturist Notes - Prominent */}
           {plant.horticulturistNotes && (
             <div className="mb-8">

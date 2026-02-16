@@ -34,6 +34,7 @@ export interface PlantListItem {
   thumbnailUrl?: string;
   imageUrl?: string;
   airPurifier?: boolean; // Boolean: true if air purifying, false otherwise
+  price_band?: string | null; // Price band for display
   // Toxicity kept for backward compatibility but not rendered in UI
   toxicity?: ToxicityLevel;
 }

@@ -27,6 +27,7 @@ interface SupabasePlantRow {
   soil_mix?: string | null;
   fertilization_requirement?: string | null;
   can_be_procured?: boolean | null;
+  price_band?: string | null;
 }
 
 // Helper to normalize image URL (validate and return valid HTTP URL or undefined)
@@ -47,7 +48,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
 
     const { data, error } = await supabase
       .from("plants")
-      .select("airtable_id, name, category, light, air_purifier, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url, toxicity")
+      .select("airtable_id, name, category, light, air_purifier, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url, toxicity, price_band")
       .eq("can_be_procured", true) // Only show procurable plants on public website
       .order("name", { ascending: true });
 
@@ -90,6 +91,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
         thumbnailUrl,
         imageUrl,
         airPurifier: row.air_purifier ?? undefined, // Boolean: true if air purifying
+        price_band: row.price_band ?? undefined,
         toxicity: mapToxicityFromDB(row.toxicity),
       };
     });
@@ -110,7 +112,7 @@ export async function getPlantFromSupabaseByAirtableId(
 
     const { data, error } = await supabase
       .from("plants")
-      .select("airtable_id, name, category, light, air_purifier, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url, toxicity, can_be_procured")
+      .select("airtable_id, name, category, light, air_purifier, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url, toxicity, can_be_procured, price_band")
       .eq("airtable_id", airtableId)
       .single();
 
@@ -157,6 +159,7 @@ export async function getPlantFromSupabaseByAirtableId(
       thumbnailUrl,
       imageUrl,
       airPurifier: row.air_purifier ?? undefined, // Boolean: true if air purifying
+      price_band: row.price_band ?? undefined,
       toxicity: mapToxicityFromDB(row.toxicity),
     };
   } catch (error) {
@@ -224,6 +227,7 @@ export async function getPlantDetailFromSupabaseByAirtableId(
       thumbnailUrl,
       imageUrl,
       airPurifier: row.air_purifier ?? undefined, // Boolean for detail page
+      price_band: row.price_band ?? undefined,
       toxicity: mapToxicityFromDB(row.toxicity),
       scientificName: row.scientific_name || undefined,
       horticulturistNotes: row.horticulturist_notes || undefined,
