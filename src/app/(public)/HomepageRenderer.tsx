@@ -114,7 +114,7 @@ export default function HomepageRenderer({
                     Plant Ordering & Setup
                   </h3>
                   <p className="text-base md:text-lg text-gray-700 leading-relaxed">
-                    Expert-led plant selection, soil preparation, and installation — fully handled for you.
+                    We transform your balcony — beautifully and effortlessly.
                   </p>
                 </div>
               </div>
@@ -250,7 +250,7 @@ export default function HomepageRenderer({
 
             {/* Subheading */}
             <p className="mt-4 text-base md:text-lg text-gray-600 text-center">
-              Expert plant selection, soil preparation, and setup — completely handled for you.
+              Whether you're starting fresh or upgrading your green space, we design, source, and set everything up — beautifully and effortlessly.
             </p>
 
             {/* How It Works? */}
@@ -388,7 +388,7 @@ export default function HomepageRenderer({
               <div className="mt-4">
                 <Link
                   href="/plantcatalog"
-                  className="block w-full text-center bg-gray-100 hover:bg-gray-200 transition rounded-xl py-4 font-medium"
+                  className="inline-block w-full text-center bg-[#FFD814] border border-[#D5D9D1] text-gray-900 hover:bg-[#FCD200] hover:border-[#C4C8C0] transition-colors duration-200 rounded-lg py-2.5 px-4 text-sm font-medium"
                 >
                   Explore full plant catalog →
                 </Link>
