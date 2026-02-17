@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     siteName: "Nuvvy",
     images: [
       {
-        url: "/images/whatsapp_main_image.png", // Relative path - metadataBase will resolve it
+        url: "/images/whatsapp_preview_compressed_final.png", // Relative path - metadataBase will resolve it
         width: 1200,
         height: 630,
         alt: "Nuvvy - Horticulturist-led garden care",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Horticulturist-led garden care for your balcony",
     description: "Professional plant care, expert selection, and ongoing maintenance — without the effort.",
-    images: ["/images/whatsapp_main_image.png"], // Relative path - metadataBase will resolve it
+    images: ["/images/whatsapp_preview_compressed_final.png"], // Relative path - metadataBase will resolve it
   },
 };
 

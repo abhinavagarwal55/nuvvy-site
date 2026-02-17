@@ -194,7 +194,13 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   // Update item quantity
   const updateQuantity = (itemId: string, quantity: number | null) => {
     if (!isEditable) return;
-    if (quantity !== null && quantity < 1) return;
+    
+    // Allow null (removes from selection)
+    // Allow numbers >= 1 (selected)
+    // Block numbers < 1 (invalid)
+    if (quantity !== null && (isNaN(quantity) || quantity < 1)) {
+      return;
+    }
 
     setItems((prev) => {
       const newMap = new Map(prev);
@@ -229,17 +235,31 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   // Decrement quantity
   const decrementQuantity = (itemId: string) => {
     if (!isEditable) return;
-    const current = items.get(itemId);
-    const currentQty = current?.quantity;
-    // Handle null, undefined, or quantities <= 1
-    if (currentQty == null || currentQty <= 1) {
-      // If null, undefined, or <= 1, set to null (remove from selection)
-      updateQuantity(itemId, null);
-    } else {
-      // TypeScript now knows currentQty is a number > 1
-      const qty: number = currentQty;
-      updateQuantity(itemId, qty - 1);
-    }
+    
+    setItems((prev) => {
+      const newMap = new Map(prev);
+      const current = newMap.get(itemId) || { quantity: null, note: "" };
+      const currentQty = current.quantity;
+      
+      // If quantity is 1, reduce to null (remove from selection)
+      if (currentQty === 1) {
+        newMap.set(itemId, { ...current, quantity: null });
+        return newMap;
+      }
+      
+      // If quantity is null, undefined, or 0, already at minimum
+      if (currentQty == null || currentQty <= 0) {
+        return newMap;
+      }
+      
+      // If quantity > 1, decrement by 1
+      if (typeof currentQty === 'number' && currentQty > 1) {
+        newMap.set(itemId, { ...current, quantity: currentQty - 1 });
+        return newMap;
+      }
+      
+      return newMap;
+    });
   };
 
   // Update item note
