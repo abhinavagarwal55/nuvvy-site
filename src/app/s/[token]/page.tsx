@@ -494,8 +494,11 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             .map((item) => {
               const itemState = items.get(item.id);
               // Use explicit null check: quantity = null means recommended but not selected
-              // If itemState doesn't exist, default to null (recommended but not selected)
-              const quantity = itemState?.quantity ?? (item.quantity ?? null);
+              // If itemState exists, use its quantity (even if null) - this respects user changes
+              // Only fall back to item.quantity if itemState doesn't exist in the Map
+              const quantity = itemState !== undefined 
+                ? itemState.quantity 
+                : (item.quantity ?? null);
 
               const itemCost = calculateItemCost(item, quantity);
               const thumbnailUrl = getThumbnailUrl(item.plant);
