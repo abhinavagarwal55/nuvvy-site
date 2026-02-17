@@ -221,7 +221,7 @@ export default function HomepageRenderer({
                   ].map((step, idx) => (
                     <div key={idx} className="relative">
                       {/* Large image */}
-                      <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                      <div className="relative w-full max-w-5xl mx-auto aspect-[16/9] rounded-2xl overflow-hidden bg-gray-100">
                         <img
                           src={step.image}
                           alt={step.title}
@@ -262,7 +262,7 @@ export default function HomepageRenderer({
             <div className="space-y-10">
               {/* Step 1: Horticulturist-Guided Plant Selection */}
               <div className="relative">
-                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                <div className="relative w-full max-w-5xl mx-auto aspect-[16/9] rounded-2xl overflow-hidden bg-gray-100">
                   <img
                     src="/images/plant_selection_step1.png"
                     alt="Horticulturist-Guided Plant Selection"
@@ -276,7 +276,7 @@ export default function HomepageRenderer({
 
               {/* Step 2: Healthy Plants Sourced Locally */}
               <div className="relative">
-                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                <div className="relative w-full max-w-5xl mx-auto aspect-[16/9] rounded-2xl overflow-hidden bg-gray-100">
                   <img
                     src="/images/plant_sourcing_step2.png"
                     alt="Healthy Plants Sourced Locally"
@@ -290,7 +290,7 @@ export default function HomepageRenderer({
 
               {/* Step 3: Professional Potting & Installation */}
               <div className="relative">
-                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                <div className="relative w-full max-w-5xl mx-auto aspect-[16/9] rounded-2xl overflow-hidden bg-gray-100">
                   <img
                     src="/images/Plant_install_step3.png"
                     alt="Professional Potting & Installation"
@@ -304,7 +304,7 @@ export default function HomepageRenderer({
 
               {/* Step 4: Ready to Enjoy */}
               <div className="relative">
-                <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100">
+                <div className="relative w-full max-w-5xl mx-auto aspect-[16/9] rounded-2xl overflow-hidden bg-gray-100">
                   <img
                     src="/images/Balcony_Enjoy.png"
                     alt="Ready to Enjoy"
