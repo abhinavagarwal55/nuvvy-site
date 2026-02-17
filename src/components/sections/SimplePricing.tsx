@@ -30,15 +30,15 @@ export default function SimplePricing() {
             {/* Included in Care */}
             <ul className="space-y-3 mt-4">
               <li className="flex items-start gap-3 text-base text-gray-700">
-                <span className="text-green-600">✓</span>
+                <span className="text-[#16a34a] font-bold text-lg leading-none">✓</span>
                 Fertilizers & preventive pest control included
               </li>
               <li className="flex items-start gap-3 text-base text-gray-700">
-                <span className="text-green-600">✓</span>
+                <span className="text-[#16a34a] font-bold text-lg leading-none">✓</span>
                 Access to horticulturist guidance when needed
               </li>
               <li className="flex items-start gap-3 text-base text-gray-700">
-                <span className="text-green-600">✓</span>
+                <span className="text-[#16a34a] font-bold text-lg leading-none">✓</span>
                 Help selecting the right plants for your balcony
               </li>
             </ul>
@@ -59,7 +59,7 @@ export default function SimplePricing() {
             </p>
             <p className="text-base text-gray-600">
               See the{" "}
-              <a href="/plants" className="text-green-600 font-medium underline">
+              <a href="/plantcatalog" className="text-green-600 font-medium underline">
                 Nuvvy Plant Catalog
               </a>
               {" "}for pricing.
@@ -75,7 +75,7 @@ export default function SimplePricing() {
 
             {/* Tick benefit line */}
             <div className="flex items-start gap-3 text-base text-gray-700 mt-4">
-              <span className="text-green-600">✓</span>
+              <span className="text-[#16a34a] font-bold text-lg leading-none">✓</span>
               Expert plant selection, sourcing, potting, and setup
             </div>
           </div>
