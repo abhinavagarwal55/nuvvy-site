@@ -35,7 +35,7 @@ export default function Header() {
         <Link href="/" className="absolute left-1/2 -translate-x-1/2 md:static md:transform-none">
           <Image
             src="/images/inspo/nuvvy_logo_transparent_small.png"
-            alt="Nuvvy logo - Elevate Your Green Space"
+            alt="Nuvvy logo - Elevate Your Home Garden"
             width={200}
             height={60}
             className="h-12 md:h-14 w-auto"

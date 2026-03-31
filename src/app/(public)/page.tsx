@@ -9,29 +9,29 @@ export const dynamic = "force-dynamic";
 const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
-  title: "Nuvvy | Horticulturist-led garden care for your balcony",
-  description: "Professional plant care, expert selection, and ongoing maintenance — without the effort.",
+  title: "Balcony Garden Care Subscription in Bangalore | Nuvvy",
+  description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹799. Professional maintenance, indoor & balcony gardens, fertilizer and pest control included.",
   openGraph: {
-    title: "Horticulturist-led garden care for your balcony",
-    description: "Professional plant care, expert selection, and ongoing maintenance — without the effort.",
+    title: "Balcony Garden Care Subscription in Bangalore | Nuvvy",
+    description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹799. Professional maintenance, indoor & balcony gardens, fertilizer and pest control included.",
     url: siteUrl,
     siteName: "Nuvvy",
     images: [
       {
-        url: "/images/whatsapp_preview_compressed_final.png", // Relative path - metadataBase will resolve it
+        url: "/images/whatsapp_preview_compressed_final.png",
         width: 1200,
         height: 630,
-        alt: "Nuvvy - Horticulturist-led garden care",
+        alt: "Nuvvy - Professional balcony garden care in Bangalore",
       },
     ],
-    locale: "en_US",
+    locale: "en_IN",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Horticulturist-led garden care for your balcony",
-    description: "Professional plant care, expert selection, and ongoing maintenance — without the effort.",
-    images: ["/images/whatsapp_preview_compressed_final.png"], // Relative path - metadataBase will resolve it
+    title: "Balcony Garden Care Subscription in Bangalore | Nuvvy",
+    description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹799.",
+    images: ["/images/whatsapp_preview_compressed_final.png"],
   },
 };
 

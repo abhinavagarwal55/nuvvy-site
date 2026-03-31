@@ -17,6 +17,43 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
 };
 
+const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+const telephone = whatsappNumber ? `+${whatsappNumber}` : "+91XXXXXXXXXX";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LocalBusiness",
+      "name": "Nuvvy",
+      "description": "Horticulturist-led balcony and indoor garden care subscription service in Bangalore",
+      "url": "https://nuvvy.in",
+      "telephone": telephone,
+      "areaServed": ["Whitefield", "Bangalore"],
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Whitefield",
+        "addressRegion": "Bangalore",
+        "addressCountry": "IN",
+      },
+      "priceRange": "₹799 - ₹1099/month",
+    },
+    {
+      "@type": "Service",
+      "name": "Balcony Garden Care Subscription",
+      "provider": { "@type": "LocalBusiness", "name": "Nuvvy" },
+      "areaServed": "Bangalore",
+      "description": "Monthly subscription for expert horticulturist-led garden care including fertilizer and pest control",
+      "offers": {
+        "@type": "Offer",
+        "price": "799",
+        "priceCurrency": "INR",
+        "priceSpecification": { "@type": "UnitPriceSpecification", "billingDuration": "P1M" },
+      },
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -24,6 +61,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className={`${inter.variable} antialiased`}>
         {children}
         <Analytics />

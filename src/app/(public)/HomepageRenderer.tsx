@@ -27,6 +27,27 @@ interface HomepageRendererProps {
   popularPlants?: Plant[];
 }
 
+const TRANSFORMATION_IMAGES = [
+  { src: "/images/before-after/image-1.png", alt: "Balcony garden transformation in Whitefield Bangalore - Nuvvy care" },
+  { src: "/images/before-after/image-2.jpeg", alt: "Green balcony maintained by Nuvvy horticulturists in Bangalore" },
+  { src: "/images/before-after/image-3.jpeg", alt: "Balcony plants thriving after Nuvvy garden care service" },
+  { src: "/images/before-after/image-4.jpeg", alt: "Before and after balcony makeover by Nuvvy in Whitefield" },
+  { src: "/images/before-after/image-6.jpeg", alt: "Healthy balcony garden in Bangalore society maintained by Nuvvy" },
+  { src: "/images/before-after/Before_after_7.jpeg", alt: "Lush balcony transformation - Nuvvy plant care Bangalore" },
+  { src: "/images/before-after/Before_after_8.jpeg", alt: "Indoor and balcony plants cared for by Nuvvy in Whitefield" },
+];
+
+const TESTIMONIALS = [
+  {
+    quote: "We live in Windmills of Your Mind in Whitefield and have a fairly large green balcony. Since ours is north-facing, we were constantly struggling with pest issues and plants dying... Would definitely recommend Nuvvy to anyone in Whitefield looking for a hassle-free way to maintain a healthy, green balcony.",
+    attribution: "Customer, Windmills of Your Mind, Whitefield",
+  },
+  {
+    quote: "So grateful Harshita started Nuvvy and so happy that Nuvvy takes care of my garden. The team's calm energy translates my garden into a tranquil green space.",
+    attribution: "Customer, Windmills of Your Mind",
+  },
+];
+
 export default function HomepageRenderer({
   popularPlants = [],
 }: HomepageRendererProps) {
@@ -36,13 +57,125 @@ export default function HomepageRenderer({
       {/* 1. HERO SECTION */}
       <SnabbitHero />
 
-      {/* Sound Familiar Section */}
+      {/* 2. SOUND FAMILIAR */}
       <SoundFamiliar usePublicImage={false} />
 
       {/* Centralized width container */}
       <div className="max-w-6xl mx-auto px-6">
 
-      {/* 2. MEET NUVVY */}
+      {/* 3. BEFORE/AFTER GALLERY */}
+      <section className="pt-20 pb-8">
+        <div className="bg-white rounded-3xl border border-gray-200 shadow-sm px-6 py-10 md:px-10 md:py-12">
+            <div className="space-y-10">
+              {/* Headlines */}
+              <div className="text-center">
+                <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
+                  Loved by customers across Whitefield, Bangalore
+                </h2>
+                <p className="text-lg text-gray-600">
+                  Real balconies. Real plants. Cared for by the Nuvvy team.
+                </p>
+              </div>
+
+              {/* Transformation Gallery */}
+              <div className="columns-2 md:columns-3 gap-3 md:gap-4">
+                {TRANSFORMATION_IMAGES.map((image, idx) => (
+                  <div
+                    key={idx}
+                    className="break-inside-avoid mb-4 md:mb-6"
+                  >
+                    <div
+                      className="relative w-full rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                      onClick={() => setLightboxImage(image.src)}
+                    >
+                      <img
+                        src={image.src}
+                        alt={image.alt}
+                        className="w-full h-auto"
+                        loading="lazy"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Society Social Proof Strip */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-gray-500">
+                  Balconies we care for in Whitefield
+                </h3>
+                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  {[
+                    { name: "Windmills of Your Mind", image: "/images/societies/windmills of your mind.jpg" },
+                    { name: "Prestige White Meadows", image: "/images/societies/prestige whitemeadows.jpeg" },
+                    { name: "Prestige Shantiniketan", image: "/images/societies/prestige shantiniketan.jpg" },
+                  ].map((society, idx) => (
+                    <div key={idx} className="flex-shrink-0 w-32 md:w-40">
+                      <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 mb-2">
+                        <Image
+                          src={society.image}
+                          alt={society.name}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 128px, 160px"
+                          unoptimized
+                        />
+                      </div>
+                      <p className="text-sm text-gray-700 text-center leading-tight">
+                        {society.name}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+        {/* Lightbox */}
+        {lightboxImage && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightboxImage(null)}
+          >
+            <div
+              className="relative max-w-7xl max-h-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={lightboxImage}
+                alt="Full size view"
+                width={1200}
+                height={800}
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                unoptimized
+              />
+              <button
+                onClick={() => setLightboxImage(null)}
+                className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 4. TESTIMONIALS */}
+      <section className="py-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {TESTIMONIALS.map((t, idx) => (
+            <div key={idx} className="bg-[#F8FAF8] rounded-2xl px-7 py-8 flex flex-col gap-4 shadow-sm">
+              <p className="text-gray-800 text-base leading-relaxed">
+                &ldquo;{t.quote}&rdquo;
+              </p>
+              <p className="text-sm text-gray-500 font-medium">— {t.attribution}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 5. MEET NUVVY */}
       <section className="bg-white pt-6 pb-12">
         <div className="bg-[#F8FAF8] rounded-3xl px-6 py-12 md:px-12 md:py-16 shadow-sm">
           <div className="space-y-10">
@@ -145,7 +278,7 @@ export default function HomepageRenderer({
         </div>
       </section>
 
-      {/* 3. PROFESSIONAL GARDEN CARE */}
+      {/* 6. PROFESSIONAL GARDEN CARE */}
       <section id="garden-care" className="mt-10 mb-10">
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm px-6 py-10 md:px-10 md:py-12">
             <div className="space-y-10">
@@ -240,7 +373,7 @@ export default function HomepageRenderer({
           </div>
       </section>
 
-      {/* 4. PLANT ORDERING & SETUP */}
+      {/* 7. PLANT ORDERING & SETUP */}
       <section id="plant-ordering" className="py-12 bg-white">
         <div className="bg-[#F8FAF8] rounded-3xl shadow-sm px-6 py-12 md:px-12 md:py-16">
             {/* Headline */}
@@ -326,7 +459,7 @@ export default function HomepageRenderer({
               </div>
 
               {/* Horizontal scroll carousel */}
-              <div 
+              <div
                 className="overflow-x-auto pb-4 -mx-4 lg:-mx-6 px-4 lg:px-6"
               >
                 <div className="flex gap-3 min-w-max">
@@ -334,7 +467,7 @@ export default function HomepageRenderer({
                     popularPlants.map((plant) => {
                       const imageUrl = plant.image_storage_url || plant.image_url || plant.thumbnail_storage_url || plant.thumbnail_url || undefined;
                       const catalogId = plant.airtable_id || plant.id;
-                      
+
                       return (
                         <Link key={plant.id} href={`/plantcatalog/${catalogId}`}>
                           <div className="flex-shrink-0 w-48">
@@ -397,118 +530,10 @@ export default function HomepageRenderer({
           </div>
       </section>
 
-
-
-      {/* 5. PROOF & SOCIAL PROOF */}
-      <section className="pt-20 pb-8">
-        <div className="bg-white rounded-3xl border border-gray-200 shadow-sm px-6 py-10 md:px-10 md:py-12">
-            <div className="space-y-10">
-              {/* Headlines */}
-              <div className="text-center">
-                <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
-                  Loved by customers across Whitefield, Bangalore
-                </h2>
-                <p className="text-lg text-gray-600">
-                  Real balconies. Real plants. Cared for by the Nuvvy team.
-                </p>
-              </div>
-
-              {/* Transformation Gallery */}
-              <div className="columns-2 md:columns-3 gap-3 md:gap-4">
-                {[
-                  "/images/before-after/image-1.png",
-                  "/images/before-after/image-2.jpeg",
-                  "/images/before-after/image-3.jpeg",
-                  "/images/before-after/image-4.jpeg",
-                  "/images/before-after/image-6.jpeg",
-                  "/images/before-after/Before_after_7.jpeg",
-                  "/images/before-after/Before_after_8.jpeg",
-                ].map((imagePath, idx) => (
-                  <div
-                    key={idx}
-                    className="break-inside-avoid mb-4 md:mb-6"
-                  >
-                    <div
-                      className="relative w-full rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
-                      onClick={() => setLightboxImage(imagePath)}
-                    >
-                      <img
-                        src={imagePath}
-                        alt={`Transformation ${idx + 1}`}
-                        className="w-full h-auto"
-                        loading="lazy"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Society Social Proof Strip */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-gray-500">
-                  Balconies we care for in Whitefield
-                </h3>
-                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                  {[
-                    { name: "Windmills of Your Mind", image: "/images/societies/windmills of your mind.jpg" },
-                    { name: "Prestige White Meadows", image: "/images/societies/prestige whitemeadows.jpeg" },
-                    { name: "Prestige Shantiniketan", image: "/images/societies/prestige shantiniketan.jpg" },
-                  ].map((society, idx) => (
-                    <div key={idx} className="flex-shrink-0 w-32 md:w-40">
-                      <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 mb-2">
-                        <Image
-                          src={society.image}
-                          alt={society.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 128px, 160px"
-                          unoptimized
-                        />
-                      </div>
-                      <p className="text-sm text-gray-700 text-center leading-tight">
-                        {society.name}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-        {/* Lightbox */}
-        {lightboxImage && (
-          <div
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setLightboxImage(null)}
-          >
-            <div 
-              className="relative max-w-7xl max-h-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Image
-                src={lightboxImage}
-                alt="Full size view"
-                width={1200}
-                height={800}
-                className="max-w-full max-h-[90vh] object-contain rounded-lg"
-                unoptimized
-              />
-              <button
-                onClick={() => setLightboxImage(null)}
-                className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 rounded-full p-2 transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* 6. PRICING */}
+      {/* 8. PRICING */}
       <SimplePricing />
 
-      {/* 9. FINAL CTA (CTA 3) */}
+      {/* 9. FINAL CTA */}
       <section id="contact" className="py-12 bg-gradient-to-br from-green-50 to-gray-50">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">
@@ -538,7 +563,7 @@ export default function HomepageRenderer({
           </a>
           <a
             href={`tel:+${WHATSAPP_NUMBER}`}
-            className="block mx-auto bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-6 py-3 rounded-full text-center transition-colors shadow-lg flex items-center justify-center gap-2 mt-4 max-w-md"
+            className="block mx-auto border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold px-6 py-3 rounded-full text-center transition-colors flex items-center justify-center gap-2 mt-4 max-w-md"
           >
             <svg
               className="w-5 h-5"
