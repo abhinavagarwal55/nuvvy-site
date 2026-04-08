@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { compressImageServer } from "@/lib/utils/compress-image-server";
 
+export const maxDuration = 30; // Allow up to 30s for HEIC conversion + upload
+
 const MAX_UPLOAD = 10 * 1024 * 1024; // 10MB hard limit for raw upload
 
 // POST /api/ops/gardener/services/[id]/photos — upload photo

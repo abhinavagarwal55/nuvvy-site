@@ -236,8 +236,12 @@ function OnboardingWizardInner() {
       const photosJson = await photosRes.json();
       setPhotos(photosJson.data ?? []);
     } else {
-      const json = await res.json();
-      setError(json.error ?? "Photo upload failed");
+      try {
+        const json = await res.json();
+        setError(json.error ?? "Photo upload failed");
+      } catch {
+        setError("Photo upload failed — please try again or use a different image");
+      }
     }
     e.target.value = "";
     setUploadingPhoto(false);
@@ -751,7 +755,7 @@ function Step3ObservationsAndCare({
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
+    
                   onChange={onPhotoUpload}
                   className="hidden"
                   id="onboarding-photo-input"

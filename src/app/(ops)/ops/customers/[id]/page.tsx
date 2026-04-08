@@ -744,7 +744,7 @@ function InlineEditForm({
             <input
               type="file"
               accept="image/*"
-              capture="environment"
+
               onChange={handlePhotoUpload}
               disabled={uploadingPhoto}
               id="edit-photo-input"
