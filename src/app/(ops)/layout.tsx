@@ -50,11 +50,12 @@ export default async function OpsLayout({
     >
       {role && <BottomNav role={role} />}
       <div
-        className={`relative min-h-screen pb-16 ${
+        className={`relative min-h-screen ${
           role === "gardener"
             ? "max-w-[480px] mx-auto"
             : "md:ml-56"
         }`}
+        style={{ paddingBottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}
       >
         {children}
       </div>

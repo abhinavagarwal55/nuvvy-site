@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Analytics from "@/lib/analytics";
@@ -12,6 +12,10 @@ const inter = Inter({
 
 // Set metadataBase for proper Open Graph image URL resolution
 const siteUrl = getSiteUrl();
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

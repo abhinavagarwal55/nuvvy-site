@@ -179,7 +179,7 @@ function MobileNav({
         />
       )}
       {moreOpen && (
-        <div className="fixed bottom-16 left-0 right-0 bg-offwhite border-t border-stone rounded-t-2xl z-50 px-4 py-4 space-y-1 max-h-[70vh] overflow-y-auto">
+        <div className="fixed left-0 right-0 bg-offwhite border-t border-stone rounded-t-2xl z-50 px-4 py-4 space-y-1 max-h-[70vh] overflow-y-auto" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
           {[...primaryNav.slice(3), ...secondaryNav].map((item) => (
             <Link
               key={item.href}
@@ -225,7 +225,8 @@ function MobileNav({
       )}
 
       <nav
-        className={`fixed bottom-0 left-0 right-0 h-16 bg-offwhite border-t border-stone flex items-center justify-around z-40 ${className}`}
+        className={`fixed bottom-0 left-0 right-0 bg-offwhite border-t border-stone flex items-center justify-around z-40 ${className}`}
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", height: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}
       >
         {items.map((item) => {
           const isMore = item.href === "/ops/more";
@@ -238,7 +239,7 @@ function MobileNav({
               key="more"
               onClick={() => setMoreOpen((o) => !o)}
               className={`flex flex-col items-center gap-0.5 min-w-[44px] min-h-[44px] justify-center px-3 transition-colors ${
-                isActive ? "text-forest" : "text-stone"
+                isActive ? "text-forest" : "text-charcoal/50"
               }`}
             >
               {item.icon}
@@ -249,7 +250,7 @@ function MobileNav({
               key={item.href}
               href={item.href}
               className={`flex flex-col items-center gap-0.5 min-w-[44px] min-h-[44px] justify-center px-3 transition-colors ${
-                isActive ? "text-forest" : "text-stone"
+                isActive ? "text-forest" : "text-charcoal/50"
               }`}
             >
               {item.icon}
