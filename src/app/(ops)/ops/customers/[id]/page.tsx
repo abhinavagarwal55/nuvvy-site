@@ -991,6 +991,39 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
 
   return (
     <div className="space-y-5">
+      {/* Garden Photos */}
+      <Card title="Garden Photos">
+        {photos.length > 0 ? (
+          <>
+          <div className="flex gap-2 overflow-x-auto">
+            {photos.map((p, i) => (
+              <div
+                key={p.id}
+                className="w-20 h-20 bg-cream rounded-xl border border-stone/40 flex-shrink-0 overflow-hidden cursor-pointer hover:border-forest/60 transition-colors"
+                onClick={() => p.url && setLightboxIndex(i)}
+              >
+                {p.url ? (
+                  <img src={p.url} alt="Garden photo" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[10px] text-sage text-center px-1 break-all flex items-center justify-center w-full h-full">{p.storage_path.split("/").pop()}</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-sage mt-2">{photos.length} photo{photos.length !== 1 ? "s" : ""}</p>
+          {lightboxIndex !== null && (
+            <PhotoLightbox
+              photos={photos.filter((p) => p.url).map((p) => ({ url: p.url! }))}
+              initialIndex={lightboxIndex}
+              onClose={() => setLightboxIndex(null)}
+            />
+          )}
+        </>
+        ) : (
+          <p className="text-sm text-stone">No photos uploaded yet — click Edit to add.</p>
+        )}
+      </Card>
+
       {/* Customer Details */}
       <Card title="Customer Details">
         <Row label="Name" value={customer.name} />
@@ -1057,35 +1090,6 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
           </div>
         )}
       </Card>
-
-      {/* Onboarding Photos */}
-      {photos.length > 0 && (
-        <Card title="Onboarding Photos">
-          <div className="flex gap-2 overflow-x-auto">
-            {photos.map((p, i) => (
-              <div
-                key={p.id}
-                className="w-20 h-20 bg-cream rounded-xl border border-stone/40 flex-shrink-0 overflow-hidden cursor-pointer hover:border-forest/60 transition-colors"
-                onClick={() => p.url && setLightboxIndex(i)}
-              >
-                {p.url ? (
-                  <img src={p.url} alt="Garden photo" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-[10px] text-sage text-center px-1 break-all flex items-center justify-center w-full h-full">{p.storage_path.split("/").pop()}</span>
-                )}
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-sage mt-2">{photos.length} photo{photos.length !== 1 ? "s" : ""}</p>
-          {lightboxIndex !== null && (
-            <PhotoLightbox
-              photos={photos.filter((p) => p.url).map((p) => ({ url: p.url! }))}
-              initialIndex={lightboxIndex}
-              onClose={() => setLightboxIndex(null)}
-            />
-          )}
-        </Card>
-      )}
 
       {/* Care Schedules */}
       <Card title="Care Schedules">
