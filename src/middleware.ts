@@ -76,8 +76,13 @@ export async function middleware(request: NextRequest) {
   // Production: subdomain-based routing
   // Check if request is for internal subdomain
   if (hostname.startsWith("internal.") || hostname === "internal.nuvvy.in") {
-    // Rewrite to internal app routes
-    // Rewrite root and all paths to /internal/* routes
+    // /ops/* and /api/ops/* routes pass through directly (no rewrite needed)
+    if (url.pathname.startsWith("/ops") || url.pathname.startsWith("/api/ops")) {
+      response.headers.set("x-pathname", url.pathname);
+      return response;
+    }
+
+    // Rewrite all other paths to /internal/* routes
     if (url.pathname === "/") {
       url.pathname = "/internal";
     } else if (!url.pathname.startsWith("/internal")) {
@@ -88,8 +93,8 @@ export async function middleware(request: NextRequest) {
     return rewriteResponse;
   }
   
-  // Production: block access to /internal routes from public domain
-  if (url.pathname.startsWith("/internal")) {
+  // Production: block access to /internal and /ops routes from public domain
+  if (url.pathname.startsWith("/internal") || url.pathname.startsWith("/ops")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
   
