@@ -493,6 +493,7 @@ function InlineEditForm({
           name: name || undefined,
           phone_number: phoneNumber || undefined,
           email: email || null,
+          address: address || null,
           society_id: finalSocietyId,
           plant_count_range: plantCountRange || null,
           light_condition: lightCondition || null,
