@@ -549,7 +549,7 @@ export default function ServiceExecutionPage() {
 
       {/* Bottom action bar */}
       {isInProgress && (
-        <div className="fixed bottom-0 left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20">
+        <div className="fixed left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="max-w-[480px] mx-auto space-y-2">
             <button
               onClick={handleComplete}

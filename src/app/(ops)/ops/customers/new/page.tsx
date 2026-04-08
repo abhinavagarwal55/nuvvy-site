@@ -319,7 +319,7 @@ function OnboardingWizardInner() {
     draft.society_name;
 
   return (
-    <div className="min-h-screen bg-cream pb-24">
+    <div className="min-h-screen bg-cream pb-40">
       {/* Header */}
       <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4 sticky top-0 z-10">
         <div className="flex items-center gap-3 mb-3">
@@ -408,7 +408,7 @@ function OnboardingWizardInner() {
 
       {/* Bottom nav */}
       {step < STEPS.length - 1 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20">
+        <div className="fixed left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="max-w-[480px] mx-auto space-y-2">
             <div className="flex gap-3">
               {step > 0 && (
@@ -452,7 +452,7 @@ function OnboardingWizardInner() {
 
       {/* Done button on last step */}
       {step === STEPS.length - 1 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20">
+        <div className="fixed left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="max-w-[480px] mx-auto">
             <button
               onClick={() => router.push("/ops/customers")}
