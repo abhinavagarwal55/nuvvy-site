@@ -276,9 +276,17 @@ export default function ShortlistsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Shortlists</h1>
-        <p className="text-sm text-gray-600 mt-1">Manage plant shortlists for customers</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Shortlists</h1>
+          <p className="text-sm text-gray-600 mt-1">Manage plant shortlists for customers</p>
+        </div>
+        <button
+          onClick={() => router.push("/internal/customers")}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+        >
+          + New Shortlist for Customer
+        </button>
       </div>
 
       {/* Publish Success Banner */}
@@ -291,7 +299,13 @@ export default function ShortlistsPage() {
       {/* Empty state */}
       {shortlists.length === 0 && (
         <div className="bg-white p-8 rounded-lg border border-gray-200 text-center">
-          <p className="text-gray-500">No shortlists yet. Create one from a customer profile.</p>
+          <p className="text-gray-500 mb-4">No shortlists yet.</p>
+          <button
+            onClick={() => router.push("/internal/shortlists/new")}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          >
+            + Create Shortlist
+          </button>
         </div>
       )}
 

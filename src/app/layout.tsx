@@ -36,7 +36,7 @@ const jsonLd = {
         "addressRegion": "Bangalore",
         "addressCountry": "IN",
       },
-      "priceRange": "₹799 - ₹1099/month",
+      "priceRange": "₹999 - ₹1099/month",
     },
     {
       "@type": "Service",
@@ -46,7 +46,7 @@ const jsonLd = {
       "description": "Monthly subscription for expert horticulturist-led garden care including fertilizer and pest control",
       "offers": {
         "@type": "Offer",
-        "price": "799",
+        "price": "999",
         "priceCurrency": "INR",
         "priceSpecification": { "@type": "UnitPriceSpecification", "billingDuration": "P1M" },
       },

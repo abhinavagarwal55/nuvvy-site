@@ -2,6 +2,51 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
+// ─── Ops role system (admin / horticulturist / gardener) ─────────────────────
+
+export type OpsRole = "admin" | "horticulturist" | "gardener";
+
+/**
+ * Look up the OpsRole for a given userId from the profiles table.
+ * Returns null if the user has no profile or an unrecognised role.
+ */
+export async function getOpsRole(userId: string): Promise<OpsRole | null> {
+  const adminSupabase = createAdminSupabaseClient();
+  const { data } = await adminSupabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+  if (
+    data?.role &&
+    (["admin", "horticulturist", "gardener"] as string[]).includes(data.role)
+  ) {
+    return data.role as OpsRole;
+  }
+  return null;
+}
+
+/**
+ * requireOpsAccess — for Server Components in /ops/* routes.
+ * Redirects to /ops/login if unauthenticated or not in allowedRoles.
+ */
+export async function requireOpsAccess(
+  allowedRoles: OpsRole[]
+): Promise<{ userId: string; role: OpsRole }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/ops/login");
+
+  const role = await getOpsRole(user.id);
+  if (!role || !allowedRoles.includes(role)) {
+    redirect("/ops/login?error=not_authorized");
+  }
+
+  return { userId: user.id, role };
+}
+
 interface InternalAccess {
   role: "admin" | "editor" | "viewer";
   email: string;

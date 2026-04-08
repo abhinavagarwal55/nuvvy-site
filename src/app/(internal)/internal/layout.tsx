@@ -29,9 +29,17 @@ export default async function InternalLayout({
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Top Bar */}
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <Link href="/internal" className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-            Nuvvy Internal
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/internal" className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+              Nuvvy Internal
+            </Link>
+            <Link
+              href="/ops/home"
+              className="text-sm px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              ← Ops Portal
+            </Link>
+          </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-600">{user.email}</span>
@@ -57,9 +65,17 @@ export default async function InternalLayout({
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Top Bar */}
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <Link href="/internal" className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-            Nuvvy Internal
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/internal" className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+              Nuvvy Internal
+            </Link>
+            <Link
+              href="/ops/home"
+              className="text-sm px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              ← Ops Portal
+            </Link>
+          </div>
           <div className="flex items-center gap-4">
             <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full font-medium">
               AUTH BYPASSED (DEV)

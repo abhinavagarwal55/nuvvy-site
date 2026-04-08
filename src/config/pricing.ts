@@ -16,8 +16,8 @@ export interface PricingTier {
 export const GARDEN_CARE_PRICING: PricingTier[] = [
   {
     label: "0–20 pots",
-    monthlyPrice: 799,
-    perVisitPrice: 400, // 799 / 2 = 399.5, rounded to 400
+    monthlyPrice: 999,
+    perVisitPrice: 500, // 999 / 2 = 499.5, rounded to 500
   },
   {
     label: "20–40 pots",

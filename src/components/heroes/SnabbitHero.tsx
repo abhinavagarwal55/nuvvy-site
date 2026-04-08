@@ -23,7 +23,7 @@ export default function SnabbitHero() {
 
             {/* Subtext - differentiators + price anchor */}
             <p className="text-lg md:text-xl text-gray-600 max-w-md mx-auto">
-              Horticulturist-led care. Fertilizer and pest control included. Starting at ₹799/month.
+              Horticulturist-led care. Fertilizer and pest control included. Starting at ₹999/month.
             </p>
 
             {/* Hero CTA */}

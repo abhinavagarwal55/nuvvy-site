@@ -1,5 +1,52 @@
 import { getSupabaseAdmin } from "./server";
 
+/**
+ * Generate a signed URL for a file in Supabase Storage.
+ * All photos/voice notes in the ops platform use relative paths in the DB.
+ * This function converts those paths to time-limited signed URLs.
+ *
+ * @param bucket - Storage bucket name (e.g. 'nuvvy-ops')
+ * @param path - Relative path stored in DB (e.g. 'visit-photos/uuid.jpg')
+ * @param expiresIn - Seconds until URL expires (default: 1 hour)
+ */
+export async function getSignedUrl(
+  bucket: string,
+  path: string,
+  expiresIn = 3600
+): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresIn);
+
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
+
+/**
+ * Batch-generate signed URLs for multiple paths in the same bucket.
+ */
+export async function getSignedUrls(
+  bucket: string,
+  paths: string[],
+  expiresIn = 3600
+): Promise<Record<string, string>> {
+  if (paths.length === 0) return {};
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrls(paths, expiresIn);
+
+  if (error || !data) return {};
+  const map: Record<string, string> = {};
+  for (const item of data) {
+    if (item.signedUrl && item.path) {
+      map[item.path] = item.signedUrl;
+    }
+  }
+  return map;
+}
+
 interface UploadExternalImageOptions {
   bucket: string;
   path: string;

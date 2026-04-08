@@ -16,6 +16,18 @@ export async function middleware(request: NextRequest) {
   // Check if dev bypass is enabled
   const bypassAuth = isDevBypassAuthMiddleware(hostname);
   
+  // Protect /api/ops/* routes — same domain restriction as /api/internal/*
+  // Auth is handled in each route handler; middleware only enforces domain
+  if (url.pathname.startsWith("/api/ops")) {
+    if (!isDevelopment && !hostname.startsWith("internal.") && hostname !== "internal.nuvvy.in") {
+      return new NextResponse(null, { status: 404 });
+    }
+    // No auth check in middleware for ops routes — route handlers use requireOpsAuth()
+    const response = NextResponse.next();
+    response.headers.set("x-pathname", url.pathname);
+    return response;
+  }
+
   // Protect /api/internal/* routes
   if (url.pathname.startsWith("/api/internal")) {
     // Block from public domain - return 404

@@ -15,16 +15,24 @@ const config: Config = {
         yellow: "#FEEA3B", // bright yellow primary
         green:  "#1A6432", // natural dark green
         "green-dark": "#0F3E2E", // deep green for text
-        cream:  "#FAFAF6", // off-white background
-        
-        // Legacy tokens for compatibility
+
+        // Legacy tokens for compatibility — public marketing site
         leaf:  "#22A559", // primary CTA
         fern:  "#0EA5A3", // secondary accent
         butter:"#F6F2E9", // page background
         ink:   "#1F2937", // main text
         mist:  "#EEF6F1", // soft surfaces/hover
         cane:  "#D4B996", // warm accent
-        forest:"#0F3E2E", // deep premium green
+
+        // Nuvvy Brand Kit v1.0 (April 2026) — ops + portal pages only
+        forest:   "#2D5A3D", // primary buttons, nav active, visit badges
+        garden:   "#4A7C5F", // hover states, secondary buttons
+        sage:     "#8BAF8A", // secondary text on dark, completed states
+        terra:    "#B5654A", // warnings, overdue, eyebrow labels
+        cream:    "#F0E8D8", // page backgrounds, card surfaces
+        stone:    "#D8CCBA", // dividers, input borders, table separators
+        charcoal: "#1E2822", // all body text
+        offwhite: "#FDFAF6", // lightest surface (header background etc)
 
         // Helpful semantic names for components
         brand:  { DEFAULT: "#22A559", fg: "#FFFFFF", subtle: "#EEF6F1" },

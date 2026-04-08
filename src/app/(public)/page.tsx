@@ -10,10 +10,10 @@ const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: "Balcony Garden Care Subscription in Bangalore | Nuvvy",
-  description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹799. Professional maintenance, indoor & balcony gardens, fertilizer and pest control included.",
+  description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹999. Professional maintenance, indoor & balcony gardens, fertilizer and pest control included.",
   openGraph: {
     title: "Balcony Garden Care Subscription in Bangalore | Nuvvy",
-    description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹799. Professional maintenance, indoor & balcony gardens, fertilizer and pest control included.",
+    description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹999. Professional maintenance, indoor & balcony gardens, fertilizer and pest control included.",
     url: siteUrl,
     siteName: "Nuvvy",
     images: [
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Balcony Garden Care Subscription in Bangalore | Nuvvy",
-    description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹799.",
+    description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹999.",
     images: ["/images/whatsapp_preview_compressed_final.png"],
   },
 };

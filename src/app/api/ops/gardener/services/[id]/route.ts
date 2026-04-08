@@ -1,0 +1,126 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { requireOpsAuth } from "@/lib/auth/ops-auth";
+
+// GET /api/ops/gardener/services/[id] — full service detail for execution screen
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let auth;
+  try {
+    auth = await requireOpsAuth(request);
+  } catch (res) {
+    return res as Response;
+  }
+
+  const { id } = await params;
+  const supabase = getSupabaseAdmin();
+  const today = new Date().toISOString().split("T")[0];
+
+  // Fetch service
+  const { data: service, error } = await supabase
+    .from("service_visits")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !service) {
+    return NextResponse.json({ error: "Service not found" }, { status: 404 });
+  }
+
+  // Access check for gardeners
+  if (auth.role === "gardener" && service.assigned_gardener_id !== auth.gardener_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Fetch related data in parallel
+  const [
+    { data: customer },
+    { data: checklistItems },
+    { data: specialTasks },
+    { data: photos },
+    { data: voiceNotes },
+    { data: careSchedules },
+  ] = await Promise.all([
+    supabase.from("customers").select("id, name, phone_number").eq("id", service.customer_id).single(),
+    supabase
+      .from("visit_checklist_items")
+      .select("id, label, is_required, order_index, is_completed, completion_status, notes")
+      .eq("visit_id", id)
+      .order("order_index"),
+    supabase
+      .from("service_special_tasks")
+      .select("id, description, is_completed")
+      .eq("for_service_id", id),
+    supabase
+      .from("visit_photos")
+      .select("id, storage_path, tag, caption")
+      .eq("visit_id", id),
+    supabase
+      .from("service_voice_notes")
+      .select("id, storage_path")
+      .eq("service_id", id),
+    supabase
+      .from("customer_care_schedules")
+      .select("id, care_action_type_id, next_due_date, last_done_date, cycle_anchor_date")
+      .eq("customer_id", service.customer_id),
+  ]);
+
+  // Filter care actions that are due (next_due_date ≤ today)
+  const dueCareActions = (careSchedules ?? []).filter(
+    (cs) => cs.next_due_date && cs.next_due_date <= today
+  );
+
+  // Get care action type names
+  let careTypeNames: Record<string, { name: string; freq: number }> = {};
+  if (dueCareActions.length > 0) {
+    const typeIds = dueCareActions.map((ca) => ca.care_action_type_id);
+    const { data: types } = await supabase
+      .from("care_action_types")
+      .select("id, name, default_frequency_days")
+      .in("id", typeIds);
+    careTypeNames = Object.fromEntries(
+      (types ?? []).map((t) => [t.id, { name: t.name, freq: t.default_frequency_days }])
+    );
+  }
+
+  // Check which care actions have already been marked done for this service
+  const { data: existingCareActions } = await supabase
+    .from("service_care_actions")
+    .select("care_action_type_id, marked_done")
+    .eq("service_id", id);
+
+  const doneActionTypes = new Set(
+    (existingCareActions ?? [])
+      .filter((a) => a.marked_done)
+      .map((a) => a.care_action_type_id)
+  );
+
+  return NextResponse.json({
+    data: {
+      ...service,
+      customer: customer ?? null,
+      checklist_items: checklistItems ?? [],
+      special_tasks: specialTasks ?? [],
+      photo_count: (photos ?? []).length,
+      photos: await Promise.all(
+        (photos ?? []).map(async (p) => {
+          const { data: urlData } = await supabase.storage
+            .from("nuvvy-ops")
+            .createSignedUrl(p.storage_path, 3600);
+          return { ...p, signed_url: urlData?.signedUrl ?? null };
+        })
+      ),
+      voice_note_count: (voiceNotes ?? []).length,
+      care_actions_due: dueCareActions.map((ca) => ({
+        care_schedule_id: ca.id,
+        care_action_type_id: ca.care_action_type_id,
+        care_action_name: careTypeNames[ca.care_action_type_id]?.name ?? "Unknown",
+        frequency_days: careTypeNames[ca.care_action_type_id]?.freq ?? 0,
+        next_due_date: ca.next_due_date,
+        is_done: doneActionTypes.has(ca.care_action_type_id),
+      })),
+    },
+  });
+}

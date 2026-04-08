@@ -21,7 +21,7 @@ export default function SimplePricing() {
               Garden Care
             </h3>
             <p className="text-xl font-semibold text-gray-900 mt-2">
-              Plans starting at ₹799 / month
+              Plans starting at ₹999 / month
             </p>
             <p className="text-base text-gray-500 mb-4">
               One visit every 2 weeks. Taxes included. Pricing varies by number of plants.
