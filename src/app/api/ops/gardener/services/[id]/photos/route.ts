@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
-import { compressImageServer } from "@/lib/utils/compress-image-server";
 
 export const maxDuration = 30; // Allow up to 30s for HEIC conversion + upload
 
@@ -61,6 +60,7 @@ export async function POST(
   }
 
   const rawBuffer = Buffer.from(await file.arrayBuffer());
+  const { compressImageServer } = await import("@/lib/utils/compress-image-server");
   const { buffer, contentType } = await compressImageServer(rawBuffer);
 
   const uuid = crypto.randomUUID();
