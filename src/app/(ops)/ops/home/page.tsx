@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import {
   Users,
   Calendar,
@@ -40,36 +41,81 @@ const CARE_LABELS: Record<string, string> = {
   neem_oil: "Neem Oil",
 };
 
-export default function HomePage() {
-  const [role, setRole] = useState<string | null>(null);
-  const [adminData, setAdminData] = useState<AdminDashboard | null>(null);
-  const [hortiData, setHortiData] = useState<HortiDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-  useEffect(() => {
-    fetch("/api/ops/people/me/role")
-      .then((r) => r.json())
-      .then(async (d) => {
-        const userRole = d.data?.role ?? d.role;
-        setRole(userRole);
-        if (userRole === "admin") {
-          const res = await fetch("/api/ops/dashboard/admin");
-          const json = await res.json();
-          setAdminData(json.data);
-        } else {
-          const res = await fetch("/api/ops/dashboard/horticulturist");
-          const json = await res.json();
-          setHortiData(json.data);
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+export default function HomePage() {
+  const { data: roleData, isLoading: roleLoading } = useSWR(
+    "/api/ops/people/me/role",
+    fetcher
+  );
+
+  const role = roleData?.data?.role ?? roleData?.role ?? null;
+
+  const { data: adminJson, isLoading: adminLoading } = useSWR(
+    role === "admin" ? "/api/ops/dashboard/admin" : null,
+    fetcher
+  );
+
+  const { data: hortiJson, isLoading: hortiLoading } = useSWR(
+    role && role !== "admin" ? "/api/ops/dashboard/horticulturist" : null,
+    fetcher
+  );
+
+  const adminData: AdminDashboard | null = adminJson?.data ?? null;
+  const hortiData: HortiDashboard | null = hortiJson?.data ?? null;
+
+  const loading =
+    roleLoading ||
+    (role === "admin" && adminLoading) ||
+    (role != null && role !== "admin" && hortiLoading);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <p className="text-sm text-sage">Loading…</p>
+      <div className="min-h-screen bg-cream pb-24">
+        <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4">
+          <div className="h-7 w-48 bg-stone/30 rounded-lg animate-pulse" />
+          <div className="h-4 w-32 bg-stone/20 rounded mt-2 animate-pulse" />
+        </div>
+        <div className="px-4 pt-4 space-y-4 max-w-[640px] mx-auto">
+          {/* Action required skeleton */}
+          <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
+            <div className="h-3 w-28 bg-stone/20 rounded animate-pulse mb-3" />
+            <div className="grid grid-cols-2 gap-3">
+              <SkeletonStatCard />
+              <SkeletonStatCard />
+            </div>
+          </div>
+          {/* Services skeleton */}
+          <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
+            <div className="h-3 w-32 bg-stone/20 rounded animate-pulse mb-3" />
+            <div className="grid grid-cols-3 gap-3">
+              <SkeletonStatCard />
+              <SkeletonStatCard />
+              <SkeletonStatCard />
+            </div>
+          </div>
+          {/* Payment skeleton */}
+          <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
+            <div className="h-3 w-40 bg-stone/20 rounded animate-pulse mb-3" />
+            <div className="h-6 w-24 bg-stone/20 rounded animate-pulse mb-3" />
+            <div className="space-y-3">
+              <div className="h-10 bg-stone/10 rounded animate-pulse" />
+              <div className="h-10 bg-stone/10 rounded animate-pulse" />
+            </div>
+          </div>
+          {/* Quick links skeleton */}
+          <div className="grid grid-cols-4 gap-2">
+            {[...Array(4)].map((_, i) => (
+              <div
+                key={i}
+                className="bg-offwhite rounded-xl border border-stone/60 p-3 text-center"
+              >
+                <div className="h-5 w-5 bg-stone/20 rounded mx-auto mb-1 animate-pulse" />
+                <div className="h-2 w-10 bg-stone/20 rounded mx-auto animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -97,6 +143,16 @@ export default function HomePage() {
         {role === "admin" && adminData && <AdminView data={adminData} />}
         {role !== "admin" && hortiData && <HortiView data={hortiData} />}
       </div>
+    </div>
+  );
+}
+
+function SkeletonStatCard() {
+  return (
+    <div className="bg-offwhite rounded-xl border border-stone/60 p-3">
+      <div className="h-5 w-5 bg-stone/20 rounded animate-pulse mb-1" />
+      <div className="h-5 w-10 bg-stone/20 rounded animate-pulse mb-1" />
+      <div className="h-2 w-14 bg-stone/20 rounded animate-pulse" />
     </div>
   );
 }

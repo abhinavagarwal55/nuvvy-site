@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Plus, Search, ChevronRight, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 
 type Customer = {
   id: string;
@@ -32,9 +33,29 @@ const PLANT_RANGE_LABEL: Record<string, string> = {
 const inputCls =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest placeholder:text-stone";
 
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+function SkeletonCard() {
+  return (
+    <div className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 animate-pulse">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-4 w-32 bg-stone/30 rounded" />
+            <div className="h-4 w-14 bg-stone/20 rounded-full" />
+          </div>
+          <div className="flex gap-3">
+            <div className="h-3 w-24 bg-stone/20 rounded" />
+            <div className="h-3 w-20 bg-stone/20 rounded" />
+          </div>
+        </div>
+        <div className="h-4 w-4 bg-stone/20 rounded" />
+      </div>
+    </div>
+  );
+}
+
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
@@ -45,21 +66,16 @@ export default function CustomersPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const swrKey = useMemo(() => {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (searchDebounced) params.set("q", searchDebounced);
     const qs = params.toString();
-    const res = await fetch(`/api/ops/customers${qs ? `?${qs}` : ""}`);
-    const json = await res.json();
-    setCustomers(json.data ?? []);
-    setLoading(false);
+    return `/api/ops/customers${qs ? `?${qs}` : ""}`;
   }, [statusFilter, searchDebounced]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, isLoading } = useSWR(swrKey, fetcher);
+  const customers: Customer[] = data?.data ?? [];
 
   const drafts = customers.filter((c) => c.status === "DRAFT");
   const nonDrafts = customers.filter((c) => c.status !== "DRAFT");
@@ -117,8 +133,13 @@ export default function CustomersPage() {
       </div>
 
       <div className="px-4 pt-4 space-y-6">
-        {loading ? (
-          <p className="text-sm text-sage text-center py-10">Loading…</p>
+        {isLoading ? (
+          <div className="space-y-2">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
         ) : customers.length === 0 ? (
           <p className="text-sm text-stone text-center py-10">
             No customers found.

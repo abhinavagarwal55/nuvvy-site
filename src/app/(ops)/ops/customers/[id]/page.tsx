@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import useSWR from "swr";
 import {
   ArrowLeft,
   Phone,
@@ -104,19 +105,56 @@ const PLANT_LABEL: Record<string, string> = {
   "40_plus": "40+ pots",
 };
 
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+// ─── Skeleton Components ──────────────────────────────────────────────────────
+
+function SkeletonCard({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="bg-offwhite rounded-2xl border border-stone/60 p-5 animate-pulse">
+      <div className="h-3 w-24 bg-stone/30 rounded mb-4" />
+      <div className="space-y-2">
+        {Array.from({ length: lines }).map((_, i) => (
+          <div key={i} className="flex justify-between">
+            <div className="h-3.5 w-20 bg-stone/20 rounded" />
+            <div className="h-3.5 w-32 bg-stone/20 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SkeletonHeader() {
+  return (
+    <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4 animate-pulse">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-5 h-5 bg-stone/20 rounded" />
+        <div className="flex-1">
+          <div className="h-6 w-40 bg-stone/30 rounded" />
+        </div>
+        <div className="h-8 w-20 bg-stone/20 rounded-xl" />
+      </div>
+      <div className="flex gap-3 mb-3">
+        <div className="h-3 w-28 bg-stone/20 rounded" />
+        <div className="h-3 w-24 bg-stone/20 rounded" />
+      </div>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-7 w-20 bg-stone/20 rounded-full" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Customer360Page() {
   const params = useParams();
   const router = useRouter();
   const customerId = params.id as string;
   const searchParams = useSearchParams();
 
-  const [customer, setCustomer] = useState<CustomerDetail | null>(null);
-  const [services, setServices] = useState<Service[]>([]);
-  const [requests, setRequests] = useState<CustRequest[]>([]);
-  const [bills, setBills] = useState<CustBill[]>([]);
-  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"overview" | "services" | "requests" | "billing">("overview");
-  const [isAdmin, setIsAdmin] = useState(false);
   const [showDeactivate, setShowDeactivate] = useState(false);
   const [deactivateReason, setDeactivateReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -126,43 +164,42 @@ export default function Customer360Page() {
   useEffect(() => {
     setShowEdit(searchParams.get("edit") === "true");
   }, [searchParams]);
-  const [societies, setSocieties] = useState<{ id: string; name: string }[]>([]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [custRes, svcRes, reqRes, billRes] = await Promise.all([
-      fetch(`/api/ops/customers/${customerId}`).then((r) => r.json()),
-      fetch(`/api/ops/schedule/services?customer_id=${customerId}`).then((r) =>
-        r.json().catch(() => ({ data: [] }))
-      ),
-      fetch(`/api/ops/requests?customer_id=${customerId}`).then((r) =>
-        r.json().catch(() => ({ data: [] }))
-      ),
-      fetch(`/api/ops/billing?customer_id=${customerId}`).then((r) =>
-        r.json().catch(() => ({ data: [] }))
-      ),
-    ]);
-    setCustomer(custRes.data ?? null);
-    setServices(svcRes.data ?? []);
-    setRequests(reqRes.data ?? []);
-    setBills(billRes.data ?? []);
-    setLoading(false);
-  }, [customerId]);
+  // SWR fetches
+  const { data: custData, isLoading: custLoading, mutate: mutateCust } = useSWR(
+    `/api/ops/customers/${customerId}`,
+    fetcher
+  );
+  const { data: svcData, isLoading: svcLoading, mutate: mutateSvc } = useSWR(
+    `/api/ops/schedule/services?customer_id=${customerId}`,
+    fetcher
+  );
+  const { data: reqData, isLoading: reqLoading, mutate: mutateReq } = useSWR(
+    `/api/ops/requests?customer_id=${customerId}`,
+    fetcher
+  );
+  const { data: billData, isLoading: billLoading, mutate: mutateBill } = useSWR(
+    `/api/ops/billing?customer_id=${customerId}`,
+    fetcher
+  );
+  const { data: roleData } = useSWR("/api/ops/people/me/role", fetcher);
+  const { data: societiesData } = useSWR("/api/ops/societies", fetcher);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const customer: CustomerDetail | null = custData?.data ?? null;
+  const services: Service[] = svcData?.data ?? [];
+  const requests: CustRequest[] = reqData?.data ?? [];
+  const bills: CustBill[] = billData?.data ?? [];
+  const isAdmin = roleData?.data?.role === "admin";
+  const societies: { id: string; name: string }[] = societiesData?.data ?? [];
 
-  useEffect(() => {
-    fetch("/api/ops/people/me/role")
-      .then((r) => r.json())
-      .then((d) => setIsAdmin(d.data?.role === "admin"))
-      .catch(() => {});
-    fetch("/api/ops/societies")
-      .then((r) => r.json())
-      .then((d) => setSocieties(d.data ?? []))
-      .catch(() => {});
-  }, []);
+  const loading = custLoading || svcLoading || reqLoading || billLoading;
+
+  function revalidateAll() {
+    mutateCust();
+    mutateSvc();
+    mutateReq();
+    mutateBill();
+  }
 
   async function handleDeactivate() {
     if (!deactivateReason.trim()) return;
@@ -175,7 +212,7 @@ export default function Customer360Page() {
     setShowDeactivate(false);
     setDeactivateReason("");
     setActionLoading(false);
-    load();
+    revalidateAll();
   }
 
   async function handleReactivate() {
@@ -184,13 +221,19 @@ export default function Customer360Page() {
       method: "POST",
     });
     setActionLoading(false);
-    load();
+    revalidateAll();
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <p className="text-sm text-sage">Loading…</p>
+      <div className="min-h-screen bg-cream pb-24">
+        <SkeletonHeader />
+        <div className="px-4 pt-4 space-y-4">
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+        </div>
       </div>
     );
   }
@@ -291,7 +334,7 @@ export default function Customer360Page() {
             customerId={customerId}
             societies={societies}
             onClose={() => setShowEdit(false)}
-            onSaved={() => { setShowEdit(false); load(); }}
+            onSaved={() => { setShowEdit(false); revalidateAll(); }}
           />
         )}
         {tab === "services" && (
@@ -423,9 +466,6 @@ function InlineEditForm({
   const [saved, setSaved] = useState(false);
 
   // Plan & slot change
-  const [plans, setPlans] = useState<PlanOption[]>([]);
-  const [gardeners, setGardeners] = useState<GardenerOption[]>([]);
-  const [activeSlot, setActiveSlot] = useState<SlotInfo | null>(null);
   const [showChangePlan, setShowChangePlan] = useState(false);
   const [showChangeSlot, setShowChangeSlot] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState(customer.subscription?.plan?.id ?? "");
@@ -437,36 +477,42 @@ function InlineEditForm({
   const [changingSlot, setChangingSlot] = useState(false);
 
   // Photos
-  const [photos, setPhotos] = useState<{ id: string; storage_path: string; url?: string | null }[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
   // Care schedules
-  const [careActionTypes, setCareActionTypes] = useState<{ id: string; name: string; default_frequency_days: number }[]>([]);
   const [newCareAnchors, setNewCareAnchors] = useState<Record<string, string>>({});
   const [savingCare, setSavingCare] = useState(false);
 
-  // Load plans, gardeners, active slot, photos, and care action types
+  // SWR fetches — shared keys with OverviewTab for cache sharing
+  const { data: plansData } = useSWR("/api/ops/plans?active=true", fetcher);
+  const { data: gardenersData } = useSWR("/api/ops/gardeners", fetcher);
+  const { data: careTypesData } = useSWR("/api/ops/care-action-types", fetcher);
+  const { data: photosData, mutate: mutatePhotos } = useSWR(
+    `/api/ops/customers/${customerId}/photos`,
+    fetcher
+  );
+  const { data: slotsData } = useSWR(
+    `/api/ops/schedule/slots?customer_id=${customerId}`,
+    fetcher
+  );
+
+  const plans: PlanOption[] = plansData?.data ?? [];
+  const gardeners: GardenerOption[] = gardenersData?.data ?? [];
+  const careActionTypes: { id: string; name: string; default_frequency_days: number }[] = careTypesData?.data ?? [];
+  const photos: { id: string; storage_path: string; url?: string | null }[] = photosData?.data ?? [];
+  const activeSlot: SlotInfo | null = (slotsData?.data ?? []).find((s: SlotInfo) => s.is_active) ?? null;
+
+  // Sync slot form state when activeSlot loads
   useEffect(() => {
-    fetch("/api/ops/plans?active=true").then((r) => r.json()).then((d) => setPlans(d.data ?? [])).catch(() => {});
-    fetch("/api/ops/gardeners").then((r) => r.json()).then((d) => setGardeners(d.data ?? [])).catch(() => {});
-    fetch("/api/ops/care-action-types").then((r) => r.json()).then((d) => setCareActionTypes(d.data ?? [])).catch(() => {});
-    fetch(`/api/ops/customers/${customerId}/photos`).then((r) => r.json()).then((d) => setPhotos(d.data ?? [])).catch(() => {});
-    fetch(`/api/ops/schedule/slots?customer_id=${customerId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const slot = (d.data ?? []).find((s: SlotInfo) => s.is_active);
-        if (slot) {
-          setActiveSlot(slot);
-          setSlotDay(slot.day_of_week);
-          setSlotTimeStart(slot.time_window_start);
-          setSlotTimeEnd(slot.time_window_end);
-          setSlotGardenerId(slot.gardener_id);
-        }
-      })
-      .catch(() => {});
-  }, [customerId]);
+    if (activeSlot) {
+      setSlotDay(activeSlot.day_of_week);
+      setSlotTimeStart(activeSlot.time_window_start);
+      setSlotTimeEnd(activeSlot.time_window_end);
+      setSlotGardenerId(activeSlot.gardener_id);
+    }
+  }, [activeSlot]);
 
   async function handleSave() {
     setError(null);
@@ -581,10 +627,7 @@ function InlineEditForm({
       body: formData,
     });
     if (res.ok) {
-      // Reload photos list
-      const photosRes = await fetch(`/api/ops/customers/${customerId}/photos`);
-      const photosJson = await photosRes.json();
-      setPhotos(photosJson.data ?? []);
+      mutatePhotos();
     } else {
       try {
         const json = await res.json();
@@ -603,7 +646,7 @@ function InlineEditForm({
       method: "DELETE",
     });
     if (res.ok) {
-      setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      mutatePhotos();
     } else {
       try {
         const json = await res.json();
@@ -960,41 +1003,35 @@ function InlineEditForm({
 type SlotInfoView = { id: string; day_of_week: number; time_window_start: string; time_window_end: string; gardener_id: string; is_active: boolean };
 
 function OverviewTab({ customer, customerId }: { customer: CustomerDetail; customerId: string }) {
-  const [photos, setPhotos] = useState<{ id: string; storage_path: string; url?: string | null }[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [slot, setSlot] = useState<SlotInfoView | null>(null);
-  const [gardenerName, setGardenerName] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch(`/api/ops/customers/${customerId}/photos`)
-      .then((r) => r.json())
-      .then((d) => setPhotos(d.data ?? []))
-      .catch(() => {});
-    // Fetch active slot
-    fetch(`/api/ops/schedule/slots?customer_id=${customerId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const active = (d.data ?? []).find((s: SlotInfoView) => s.is_active);
-        if (active) {
-          setSlot(active);
-          // Fetch gardener name
-          fetch("/api/ops/gardeners")
-            .then((r) => r.json())
-            .then((gd) => {
-              const g = (gd.data ?? []).find((g: { id: string; name: string }) => g.id === active.gardener_id);
-              setGardenerName(g?.name ?? null);
-            })
-            .catch(() => {});
-        }
-      })
-      .catch(() => {});
-  }, [customerId]);
+  // SWR fetches — shared keys with InlineEditForm for cache sharing
+  const { data: photosData, isLoading: photosLoading } = useSWR(
+    `/api/ops/customers/${customerId}/photos`,
+    fetcher
+  );
+  const { data: slotsData, isLoading: slotsLoading } = useSWR(
+    `/api/ops/schedule/slots?customer_id=${customerId}`,
+    fetcher
+  );
+  const { data: gardenersData } = useSWR("/api/ops/gardeners", fetcher);
+
+  const photos: { id: string; storage_path: string; url?: string | null }[] = photosData?.data ?? [];
+  const gardeners: { id: string; name: string }[] = gardenersData?.data ?? [];
+  const slot: SlotInfoView | null = (slotsData?.data ?? []).find((s: SlotInfoView) => s.is_active) ?? null;
+  const gardenerName = slot ? (gardeners.find((g) => g.id === slot.gardener_id)?.name ?? null) : null;
 
   return (
     <div className="space-y-5">
       {/* Garden Photos */}
       <Card title="Garden Photos">
-        {photos.length > 0 ? (
+        {photosLoading ? (
+          <div className="flex gap-2 animate-pulse">
+            {[1, 2].map((i) => (
+              <div key={i} className="w-20 h-20 bg-stone/20 rounded-xl flex-shrink-0" />
+            ))}
+          </div>
+        ) : photos.length > 0 ? (
           <>
           <div className="flex gap-2 overflow-x-auto">
             {photos.map((p, i) => (
@@ -1049,7 +1086,16 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
 
       {/* Primary Slot */}
       <Card title="Primary Slot">
-        {slot ? (
+        {slotsLoading ? (
+          <div className="space-y-2 animate-pulse">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex justify-between">
+                <div className="h-3.5 w-16 bg-stone/20 rounded" />
+                <div className="h-3.5 w-28 bg-stone/20 rounded" />
+              </div>
+            ))}
+          </div>
+        ) : slot ? (
           <>
             <Row label="Day" value={DAY_LABELS[slot.day_of_week] ?? "—"} />
             <Row label="Time" value={`${slot.time_window_start} – ${slot.time_window_end}`} />
