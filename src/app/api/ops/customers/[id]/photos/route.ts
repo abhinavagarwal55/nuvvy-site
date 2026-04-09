@@ -91,16 +91,28 @@ export async function POST(
   }
 
   const rawBuffer = Buffer.from(await file.arrayBuffer());
-  const { compressImageServer } = await import("@/lib/utils/compress-image-server");
-  const { buffer, contentType } = await compressImageServer(rawBuffer);
+
+  // Try server-side compression, but fall back to raw upload if it fails
+  // (sharp/heic-convert may not be available on all runtimes)
+  let uploadBuffer: Buffer = rawBuffer;
+  let uploadContentType = file.type || "image/jpeg";
+  try {
+    const { compressImageServer } = await import("@/lib/utils/compress-image-server");
+    const result = await compressImageServer(rawBuffer);
+    uploadBuffer = Buffer.from(result.buffer);
+    uploadContentType = result.contentType;
+  } catch {
+    // Compression failed — upload the raw file (client should have compressed it)
+  }
 
   const uuid = crypto.randomUUID();
-  const storagePath = `customers/${id}/onboarding/${uuid}.jpg`;
+  const ext = uploadContentType === "image/jpeg" ? "jpg" : file.name.split(".").pop() || "jpg";
+  const storagePath = `customers/${id}/onboarding/${uuid}.${ext}`;
 
   const { error: uploadErr } = await supabase.storage
     .from("nuvvy-ops")
-    .upload(storagePath, buffer, {
-      contentType,
+    .upload(storagePath, uploadBuffer, {
+      contentType: uploadContentType,
       upsert: false,
     });
 
