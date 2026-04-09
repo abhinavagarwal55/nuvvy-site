@@ -102,10 +102,21 @@ export async function POST(
     }
   }
 
+  // Non-gardener roles can specify a custom completion time
+  let completedAt = new Date().toISOString();
+  try {
+    const body = await request.json();
+    if (body.completed_at && auth.role !== "gardener") {
+      completedAt = body.completed_at;
+    }
+  } catch {
+    // No body — use current time
+  }
+
   // Mark service completed
   const { data, error } = await supabase
     .from("service_visits")
-    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .update({ status: "completed", completed_at: completedAt })
     .eq("id", id)
     .select()
     .single();

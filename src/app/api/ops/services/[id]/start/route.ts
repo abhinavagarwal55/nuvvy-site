@@ -67,9 +67,20 @@ export async function POST(
     }
   }
 
+  // Non-gardener roles can specify a custom start time (for logging later)
+  let startedAt = new Date().toISOString();
+  try {
+    const body = await request.json();
+    if (body.started_at && auth.role !== "gardener") {
+      startedAt = body.started_at;
+    }
+  } catch {
+    // No body or invalid JSON — use current time
+  }
+
   const { data, error } = await supabase
     .from("service_visits")
-    .update({ status: "in_progress", started_at: new Date().toISOString() })
+    .update({ status: "in_progress", started_at: startedAt })
     .eq("id", id)
     .select()
     .single();
