@@ -4,6 +4,8 @@ import { requireOpsAccess } from "@/lib/internal/authz";
 import BottomNav from "./BottomNav";
 import type { OpsRole } from "@/lib/internal/authz";
 
+export const dynamic = "force-dynamic";
+
 const cormorant = Cormorant_Garamond({
   weight: ["400", "500"],
   style: ["normal", "italic"],
