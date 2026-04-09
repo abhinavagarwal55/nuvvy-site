@@ -6,7 +6,7 @@ import { requireOpsAuth } from "@/lib/auth/ops-auth";
 const CreateRequestSchema = z.object({
   customer_id: z.string().uuid(),
   service_id: z.string().uuid().optional(),
-  type: z.enum(["problem", "service_request", "other"]),
+  type: z.enum(["problem", "service_request", "other", "client_request"]),
   description: z.string().min(1, "Description is required"),
 });
 

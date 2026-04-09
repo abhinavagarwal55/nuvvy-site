@@ -6,8 +6,8 @@ import { logAuditEvent } from "@/lib/services/audit";
 
 const RescheduleSchema = z.object({
   new_date: z.string(), // YYYY-MM-DD
-  new_time_start: z.string().optional(), // HH:MM
-  new_time_end: z.string().optional(),
+  new_start_time: z.string().optional(), // HH:MM
+  new_end_time: z.string().optional(),
   reason: z.string().min(1, "Reason is required"),
 });
 
@@ -57,15 +57,25 @@ export async function POST(
     );
   }
 
+  // Capture old values for audit trail
+  const oldDate = service.scheduled_date;
+  const { data: fullService } = await supabase
+    .from("service_visits")
+    .select("time_window_start, time_window_end")
+    .eq("id", id)
+    .single();
+  const oldStartTime = fullService?.time_window_start ?? null;
+  const oldEndTime = fullService?.time_window_end ?? null;
+
   // Update just this service — slot is unchanged
   const updates: Record<string, string> = {
     scheduled_date: parsed.data.new_date,
   };
-  if (parsed.data.new_time_start) {
-    updates.time_window_start = parsed.data.new_time_start;
+  if (parsed.data.new_start_time) {
+    updates.time_window_start = parsed.data.new_start_time;
   }
-  if (parsed.data.new_time_end) {
-    updates.time_window_end = parsed.data.new_time_end;
+  if (parsed.data.new_end_time) {
+    updates.time_window_end = parsed.data.new_end_time;
   }
 
   const { data, error } = await supabase
@@ -88,7 +98,15 @@ export async function POST(
     action: "schedule.rescheduled",
     targetTable: "service_visits",
     targetId: id,
-    metadata: { new_date: parsed.data.new_date, reason: parsed.data.reason },
+    metadata: {
+      old_date: oldDate,
+      old_start_time: oldStartTime,
+      old_end_time: oldEndTime,
+      new_date: parsed.data.new_date,
+      new_start_time: parsed.data.new_start_time ?? null,
+      new_end_time: parsed.data.new_end_time ?? null,
+      reason: parsed.data.reason,
+    },
     ip,
     userAgent,
   });

@@ -36,13 +36,36 @@ const INPUT_CLS =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest placeholder:text-stone";
 
 const STATUS_DOT: Record<string, string> = {
-  scheduled: "bg-forest/40",
+  scheduled: "bg-forest/70",
   in_progress: "bg-forest",
   completed: "bg-sage",
   not_completed: "bg-terra",
   missed: "bg-terra",
   cancelled: "bg-stone",
 };
+
+/** Generate 30-min time slots from 07:00 to 19:00 for select dropdowns */
+const TIME_SLOTS: { value: string; label: string }[] = (() => {
+  const slots: { value: string; label: string }[] = [];
+  for (let h = 7; h <= 19; h++) {
+    for (const m of [0, 30]) {
+      if (h === 19 && m === 30) break; // stop at 19:00
+      const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      const ampm = h >= 12 ? "PM" : "AM";
+      const label = `${hour12}:${String(m).padStart(2, "0")} ${ampm}`;
+      slots.push({ value: val, label });
+    }
+  }
+  return slots;
+})();
+
+/** Add 1 hour to a HH:MM string */
+function addOneHour(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const newH = Math.min(h + 1, 19);
+  return `${String(newH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 
 /* ---------- Helpers ---------- */
 
@@ -96,10 +119,41 @@ function getServiceStatusColor(svc: Service, now: Date): string {
           return "bg-amber-50 border-l-amber-500"; // running late
         }
       }
-      return "bg-cream/50 border-l-forest/40"; // future / default
+      return "bg-forest/5 border-l-forest/60"; // future / default
     }
     default:
       return "bg-cream/50 border-l-stone";
+  }
+}
+
+/** Returns a user-friendly status label + color class for the pill badge */
+function getStatusLabel(svc: Service, now: Date): { text: string; cls: string } {
+  switch (svc.status) {
+    case "completed":
+      return { text: "Complete", cls: "text-forest bg-[#EAF2EC]" };
+    case "in_progress":
+      return { text: "In Progress", cls: "text-forest bg-forest/10" };
+    case "not_completed":
+      return { text: "Not Completed", cls: "text-terra bg-terra/10" };
+    case "cancelled":
+      return { text: "Cancelled", cls: "text-stone bg-stone/20" };
+    case "scheduled": {
+      if (svc.time_window_end && svc.scheduled_date) {
+        const windowEnd = toDateTime(svc.scheduled_date, svc.time_window_end);
+        if (now > windowEnd) {
+          return { text: "Past Due", cls: "text-terra bg-terra/10" };
+        }
+      }
+      if (svc.time_window_start && svc.scheduled_date) {
+        const windowStart = toDateTime(svc.scheduled_date, svc.time_window_start);
+        if (now > windowStart) {
+          return { text: "Running Late", cls: "text-amber-700 bg-amber-50" };
+        }
+      }
+      return { text: "Not Started", cls: "text-charcoal/60 bg-cream" };
+    }
+    default:
+      return { text: svc.status, cls: "text-stone bg-stone/10" };
   }
 }
 
@@ -111,13 +165,10 @@ function sortByTime(a: Service, b: Service): number {
   return a.time_window_start.localeCompare(b.time_window_start);
 }
 
-/** Returns the correct link href for a service based on its status */
+/** Returns the correct link href for a service based on its status.
+ *  Schedule page is admin/horti only — always link to the service detail view. */
 function getServiceHref(svc: Service): string | null {
   if (svc.status === "cancelled") return null;
-  if (svc.status === "scheduled" || svc.status === "in_progress") {
-    return `/ops/gardener/services/${svc.id}`;
-  }
-  // completed, not_completed
   return `/ops/services/${svc.id}`;
 }
 
@@ -323,7 +374,7 @@ export default function SchedulePage() {
   async function handleCreate() {
     setCreateSubmitting(true);
     try {
-      await fetch("/api/ops/services/create", {
+      const res = await fetch("/api/ops/services/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -334,6 +385,11 @@ export default function SchedulePage() {
           time_window_end: createForm.end_time || null,
         }),
       });
+      if (!res.ok) {
+        const json = await res.json();
+        alert(json.error ?? "Failed to create service");
+        return;
+      }
       mutate();
       setCreateOpen(false);
       setCreateForm({ customer_id: "", gardener_id: "", date: "", start_time: "", end_time: "" });
@@ -346,7 +402,7 @@ export default function SchedulePage() {
     if (!rescheduleTarget) return;
     setRescheduleSubmitting(true);
     try {
-      await fetch(`/api/ops/schedule/services/${rescheduleTarget.id}/reschedule`, {
+      const res = await fetch(`/api/ops/schedule/services/${rescheduleTarget.id}/reschedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -356,6 +412,11 @@ export default function SchedulePage() {
           reason: rescheduleForm.reason,
         }),
       });
+      if (!res.ok) {
+        const json = await res.json();
+        alert(json.error ?? "Failed to reschedule");
+        return;
+      }
       mutate();
       setRescheduleTarget(null);
       setRescheduleForm({ new_date: "", new_start_time: "", new_end_time: "", reason: "" });
@@ -368,11 +429,16 @@ export default function SchedulePage() {
     if (!cancelTarget) return;
     setCancelSubmitting(true);
     try {
-      await fetch(`/api/ops/services/${cancelTarget.id}/cancel`, {
+      const res = await fetch(`/api/ops/services/${cancelTarget.id}/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: cancelReason }),
       });
+      if (!res.ok) {
+        const json = await res.json();
+        alert(json.error ?? "Failed to cancel");
+        return;
+      }
       mutate();
       setCancelTarget(null);
       setCancelReason("");
@@ -401,19 +467,25 @@ export default function SchedulePage() {
   function renderDesktopPill(svc: Service) {
     const colorCls = getServiceStatusColor(svc, now);
     const href = getServiceHref(svc);
+    const label = getStatusLabel(svc, now);
 
     const inner = (
       <>
         <div className="flex items-center justify-between gap-1">
-          <p className="font-medium text-charcoal truncate text-[11px]">
+          <p className="font-medium text-charcoal truncate text-sm">
             {svc.customer_name}
           </p>
           <PillDropdown svc={svc} onReschedule={openReschedule} onCancel={openCancel} />
         </div>
-        <p className="text-sage truncate text-[10px]">
-          {svc.time_window_start ?? ""}{" "}
-          {svc.gardener_name ? `· ${svc.gardener_name}` : ""}
-        </p>
+        <div className="flex items-center justify-between gap-1 mt-0.5">
+          <p className="text-charcoal/60 truncate text-xs">
+            {svc.time_window_start ?? ""}{" "}
+            {svc.gardener_name ? `· ${svc.gardener_name}` : ""}
+          </p>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${label.cls}`}>
+            {label.text}
+          </span>
+        </div>
       </>
     );
 
@@ -422,7 +494,7 @@ export default function SchedulePage() {
         <Link
           key={svc.id}
           href={href}
-          className={`block rounded-lg border-l-2 px-2 py-1.5 ${colorCls} hover:shadow-sm transition-shadow`}
+          className={`block rounded-lg border-l-[3px] px-2.5 py-2 ${colorCls} hover:shadow-sm transition-shadow`}
         >
           {inner}
         </Link>
@@ -432,7 +504,7 @@ export default function SchedulePage() {
     return (
       <div
         key={svc.id}
-        className={`rounded-lg border-l-2 px-2 py-1.5 ${colorCls} cursor-default`}
+        className={`rounded-lg border-l-[3px] px-2.5 py-2 ${colorCls} cursor-default`}
       >
         {inner}
       </div>
@@ -672,21 +744,36 @@ export default function SchedulePage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-sage mb-1">Start time</label>
-              <input
-                type="time"
+              <select
                 className={INPUT_CLS}
                 value={createForm.start_time}
-                onChange={(e) => setCreateForm((f) => ({ ...f, start_time: e.target.value }))}
-              />
+                onChange={(e) => {
+                  const start = e.target.value;
+                  setCreateForm((f) => ({
+                    ...f,
+                    start_time: start,
+                    end_time: start ? addOneHour(start) : f.end_time,
+                  }));
+                }}
+              >
+                <option value="">Select</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-sage mb-1">End time</label>
-              <input
-                type="time"
+              <select
                 className={INPUT_CLS}
                 value={createForm.end_time}
                 onChange={(e) => setCreateForm((f) => ({ ...f, end_time: e.target.value }))}
-              />
+              >
+                <option value="">Select</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             </div>
           </div>
           <button
@@ -725,25 +812,38 @@ export default function SchedulePage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-sage mb-1">Start time</label>
-              <input
-                type="time"
+              <select
                 className={INPUT_CLS}
                 value={rescheduleForm.new_start_time}
-                onChange={(e) =>
-                  setRescheduleForm((f) => ({ ...f, new_start_time: e.target.value }))
-                }
-              />
+                onChange={(e) => {
+                  const start = e.target.value;
+                  setRescheduleForm((f) => ({
+                    ...f,
+                    new_start_time: start,
+                    new_end_time: start ? addOneHour(start) : f.new_end_time,
+                  }));
+                }}
+              >
+                <option value="">Select</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-sage mb-1">End time</label>
-              <input
-                type="time"
+              <select
                 className={INPUT_CLS}
                 value={rescheduleForm.new_end_time}
                 onChange={(e) =>
                   setRescheduleForm((f) => ({ ...f, new_end_time: e.target.value }))
                 }
-              />
+              >
+                <option value="">Select</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div>

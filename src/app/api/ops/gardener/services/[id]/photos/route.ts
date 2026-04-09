@@ -52,6 +52,21 @@ export async function POST(
     return NextResponse.json({ error: "No photo file provided" }, { status: 400 });
   }
 
+  // Enforce max 5 general (wide-shot) photos per service
+  if (tag === "general") {
+    const { count } = await supabase
+      .from("visit_photos")
+      .select("id", { count: "exact", head: true })
+      .eq("visit_id", id)
+      .eq("tag", "general");
+    if ((count ?? 0) >= 5) {
+      return NextResponse.json(
+        { error: "Maximum 5 wide-shot photos allowed" },
+        { status: 400 }
+      );
+    }
+  }
+
   if (file.size > MAX_UPLOAD) {
     return NextResponse.json(
       { error: "Photo must be under 10MB" },

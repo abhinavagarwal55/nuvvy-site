@@ -49,12 +49,22 @@ export default function BillingPage() {
   }, [load]);
 
   async function handleMarkPaid(billId: string) {
-    await fetch(`/api/ops/billing/${billId}/mark-paid`, { method: "POST" });
+    const res = await fetch(`/api/ops/billing/${billId}/mark-paid`, { method: "POST" });
+    if (!res.ok) {
+      const json = await res.json();
+      alert(json.error ?? "Failed to mark as paid");
+      return;
+    }
     load();
   }
 
   async function handleRemind(bill: Bill) {
-    await fetch(`/api/ops/billing/${bill.id}/remind`, { method: "POST" });
+    const res = await fetch(`/api/ops/billing/${bill.id}/remind`, { method: "POST" });
+    if (!res.ok) {
+      const json = await res.json();
+      alert(json.error ?? "Failed to send reminder");
+      return;
+    }
 
     // Copy reminder text
     const msg = `Hi ${bill.customer_name}, this is a gentle reminder about your Nuvvy garden care payment of ₹${bill.amount_inr} for the period ${bill.billing_period_start} to ${bill.billing_period_end}. Due date: ${bill.due_date}. Please let us know once done! — Team Nuvvy`;

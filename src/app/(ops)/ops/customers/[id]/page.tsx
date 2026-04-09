@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import {
@@ -1215,9 +1216,10 @@ function ServicesTab({ services }: { services: Service[] }) {
       {services.map((svc) => {
         const cls = SERVICE_STATUS_CLS[svc.status] ?? "bg-stone/30 text-charcoal";
         return (
-          <div
+          <Link
             key={svc.id}
-            className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 flex items-center justify-between"
+            href={`/ops/services/${svc.id}`}
+            className="block bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 flex items-center justify-between hover:border-forest/40 transition-colors"
           >
             <div>
               <p className="text-sm font-medium text-charcoal flex items-center gap-2">
@@ -1235,7 +1237,7 @@ function ServicesTab({ services }: { services: Service[] }) {
             >
               {svc.status.replace("_", " ")}
             </span>
-          </div>
+          </Link>
         );
       })}
     </div>

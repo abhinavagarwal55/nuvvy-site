@@ -6,10 +6,10 @@ import { logAuditEvent } from "@/lib/services/audit";
 
 const CreateServiceSchema = z.object({
   customer_id: z.string().uuid(),
-  gardener_id: z.string().uuid(),
+  assigned_gardener_id: z.string().uuid().nullable().optional(),
   scheduled_date: z.string(), // YYYY-MM-DD
-  time_window_start: z.string(), // HH:MM
-  time_window_end: z.string(),
+  time_window_start: z.string().nullable().optional(), // HH:MM
+  time_window_end: z.string().nullable().optional(),
   is_one_off: z.boolean().optional().default(true),
 });
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     .from("service_visits")
     .insert({
       customer_id: d.customer_id,
-      assigned_gardener_id: d.gardener_id,
+      assigned_gardener_id: d.assigned_gardener_id ?? null,
       subscription_id: subscription?.id ?? null,
       slot_id: slot?.id ?? null,
       scheduled_date: d.scheduled_date,

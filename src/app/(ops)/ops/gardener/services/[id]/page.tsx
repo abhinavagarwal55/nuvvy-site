@@ -8,14 +8,20 @@ import {
   Camera,
   Mic,
   Check,
-  X,
-  Minus,
   AlertTriangle,
   Loader2,
   Trash2,
+  ChevronRight,
+  CircleAlert,
+  CheckCircle2,
 } from "lucide-react";
 import { compressImage } from "@/lib/utils/compress-image";
 import PhotoLightbox from "../../../../components/PhotoLightbox";
+import {
+  useServiceDraft,
+  clearDraft,
+  type IssueType,
+} from "./use-service-draft";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +48,14 @@ type SpecialTask = {
   is_completed: boolean;
 };
 
+type Photo = {
+  id: string;
+  storage_path: string;
+  tag: string;
+  caption: string | null;
+  signed_url: string | null;
+};
+
 type ServiceDetail = {
   id: string;
   customer_id: string;
@@ -50,21 +64,28 @@ type ServiceDetail = {
   time_window_start: string | null;
   time_window_end: string | null;
   started_at: string | null;
+  not_completed_reason: string | null;
   customer: { id: string; name: string; phone_number: string | null } | null;
   checklist_items: ChecklistItem[];
   special_tasks: SpecialTask[];
   care_actions_due: CareActionDue[];
   photo_count: number;
-  photos: { id: string; storage_path: string; tag: string; caption: string | null; signed_url: string | null }[];
+  photos: Photo[];
   voice_note_count: number;
 };
 
 const CARE_LABELS: Record<string, string> = {
-  fertilizer: "Fertilizer",
-  vermi_compost: "Vermi Compost",
-  micro_nutrients: "Micro Nutrients",
-  neem_oil: "Neem Oil",
+  fertilizer: "Apply Fertilizer",
+  vermi_compost: "Apply Vermi Compost",
+  micro_nutrients: "Apply Micro Nutrients",
+  neem_oil: "Apply Neem Oil",
 };
+
+const ISSUE_OPTIONS = [
+  { value: "leaves_drooping", label: "Leaves drooping" },
+  { value: "pest_infected", label: "Plant infected with pest" },
+  { value: "other", label: "Other (describe)" },
+] as const;
 
 const NOT_COMPLETED_REASONS = [
   "Customer not available",
@@ -90,11 +111,28 @@ export default function ServiceExecutionPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showNotCompleted, setShowNotCompleted] = useState(false);
   const [ncReason, setNcReason] = useState("");
-  const [showRequestModal, setShowRequestModal] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [completionState, setCompletionState] = useState<{
+    done: boolean;
+    issueRaised: boolean;
+    clientRequestRaised: boolean;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const issueFileInputRef = useRef<HTMLInputElement>(null);
+  const voiceInputRef = useRef<HTMLInputElement>(null);
 
   const service: ServiceDetail | null = data?.data ?? null;
+  const isInProgress = service?.status === "in_progress";
+
+  const {
+    draft,
+    updateChecklist,
+    toggleCareAction,
+    toggleSpecialTask,
+    updateIssue,
+    addIssuePhotoId,
+    setHasClientRequest,
+  } = useServiceDraft(serviceId, isInProgress ?? false);
 
   if (isLoading) {
     return (
@@ -113,10 +151,42 @@ export default function ServiceExecutionPage() {
   }
 
   const isScheduled = service.status === "scheduled";
-  const isInProgress = service.status === "in_progress";
-  const isDone = service.status === "completed" || service.status === "not_completed";
-  const canComplete = isInProgress && service.photo_count >= 2;
-  const voiceInputRef = useRef<HTMLInputElement>(null);
+  const isDone =
+    service.status === "completed" || service.status === "not_completed";
+
+  // Photo helpers
+  const generalPhotos = (service.photos ?? []).filter(
+    (p) => p.signed_url && p.tag === "general"
+  );
+  const issuePhotos = (service.photos ?? []).filter(
+    (p) => p.signed_url && p.tag === "issue"
+  );
+  const generalPhotoCount = generalPhotos.length;
+
+  const dayLabel = new Date(
+    service.scheduled_date + "T00:00:00"
+  ).toLocaleDateString("en-IN", { weekday: "long" });
+
+  // Checklist state helper — use draft if in_progress, otherwise use server state
+  function getChecklistStatus(item: ChecklistItem) {
+    if (isInProgress && draft.checklistState[item.id]) {
+      return draft.checklistState[item.id];
+    }
+    return item.completion_status;
+  }
+
+  function isCareActionDone(typeId: string) {
+    if (isInProgress) return draft.careActionsDone.includes(typeId);
+    return false;
+  }
+
+  function isSpecialTaskDone(taskId: string) {
+    if (isInProgress) return draft.specialTasksDone.includes(taskId);
+    return false;
+  }
+
+  // Determine if end service is possible
+  const canEnd = isInProgress && generalPhotoCount >= 2;
 
   // ─── Actions ──────────────────────────────────────────────────────────
 
@@ -127,18 +197,57 @@ export default function ServiceExecutionPage() {
     setActionLoading(null);
   }
 
-  async function handleComplete() {
-    setActionLoading("complete");
-    const res = await fetch(`/api/ops/services/${serviceId}/complete`, {
+  async function handleEndService() {
+    if (!canEnd) return;
+    setActionLoading("end");
+
+    // Build checklist payload from draft + server items
+    const checklist = service!.checklist_items.map((item) => ({
+      id: item.id,
+      completion_status: (draft.checklistState[item.id] ??
+        item.completion_status) as "done" | "pending" | "not_required",
+    }));
+
+    // Build issues array — one entry per selected type
+    const issues =
+      draft.issueState.hasIssues && draft.issueState.types?.length
+        ? draft.issueState.types.map((t) => ({
+            type: t,
+            description:
+              t === "other" ? draft.issueState.description : undefined,
+            photo_ids: draft.issueState.photoIds,
+            communicated_to_customer:
+              draft.issueState.communicatedToCustomer,
+          }))
+        : [];
+
+    const payload = {
+      checklist,
+      care_actions_done: draft.careActionsDone,
+      special_tasks_done: draft.specialTasksDone,
+      issues,
+      has_client_request: draft.hasClientRequest,
+    };
+
+    const res = await fetch(`/api/ops/services/${serviceId}/end`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
+
     const json = await res.json();
     if (!res.ok) {
-      alert(json.error ?? "Failed to complete");
+      alert(json.error ?? "Failed to end service");
       setActionLoading(null);
       return;
     }
-    await mutate();
+
+    clearDraft(serviceId);
+    setCompletionState({
+      done: true,
+      issueRaised: json.issue_raised ?? false,
+      clientRequestRaised: json.client_request_raised ?? false,
+    });
     setActionLoading(null);
   }
 
@@ -150,81 +259,53 @@ export default function ServiceExecutionPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reason: ncReason }),
     });
+    clearDraft(serviceId);
     setShowNotCompleted(false);
     await mutate();
     setActionLoading(null);
   }
 
-  async function handleChecklistToggle(item: ChecklistItem) {
-    const nextStatus =
-      item.completion_status === "done"
-        ? "pending"
-        : item.completion_status === "pending"
-        ? "done"
-        : "pending";
-
-    await fetch(
-      `/api/ops/services/${serviceId}/checklist/${item.id}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completion_status: nextStatus }),
-      }
-    );
-    mutate();
-  }
-
-  async function handleChecklistNotRequired(item: ChecklistItem) {
-    await fetch(
-      `/api/ops/services/${serviceId}/checklist/${item.id}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completion_status: "not_required" }),
-      }
-    );
-    mutate();
-  }
-
-  async function handleCareAction(action: CareActionDue) {
-    await fetch(
-      `/api/ops/services/${serviceId}/care-actions/${action.care_action_type_id}`,
-      { method: "POST" }
-    );
-    mutate();
-  }
-
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoUpload(
+    e: React.ChangeEvent<HTMLInputElement>,
+    tag: "general" | "issue"
+  ) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setActionLoading("photo");
+    setActionLoading(tag === "issue" ? "issue-photo" : "photo");
 
     const compressed = await compressImage(file);
     const formData = new FormData();
     formData.append("photo", compressed);
-    formData.append("tag", "general");
+    formData.append("tag", tag);
 
-    await fetch(`/api/ops/gardener/services/${serviceId}/photos`, {
-      method: "POST",
-      body: formData,
-    });
+    const res = await fetch(
+      `/api/ops/gardener/services/${serviceId}/photos`,
+      { method: "POST", body: formData }
+    );
+    const json = await res.json();
+
+    if (tag === "issue" && json.data?.id) {
+      addIssuePhotoId(json.data.id);
+    }
 
     // Reset input
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (tag === "general" && fileInputRef.current)
+      fileInputRef.current.value = "";
+    if (tag === "issue" && issueFileInputRef.current)
+      issueFileInputRef.current.value = "";
     await mutate();
     setActionLoading(null);
   }
 
   async function handlePhotoDelete(photoId: string) {
     setActionLoading("photo-delete");
-    await fetch(`/api/ops/gardener/services/${serviceId}/photos?photo_id=${photoId}`, {
-      method: "DELETE",
-    });
+    await fetch(
+      `/api/ops/gardener/services/${serviceId}/photos?photo_id=${photoId}`,
+      { method: "DELETE" }
+    );
     await mutate();
     setActionLoading(null);
   }
-
-  const servicePhotos = service?.photos?.filter((p) => p.signed_url) ?? [];
 
   async function handleVoiceUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -237,62 +318,112 @@ export default function ServiceExecutionPage() {
       body: formData,
     });
     if (voiceInputRef.current) voiceInputRef.current.value = "";
+    setHasClientRequest(true);
     await mutate();
     setActionLoading(null);
   }
 
-  async function handleRequestSubmit(type: string, description: string) {
-    await fetch("/api/ops/requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customer_id: service!.customer_id,
-        service_id: serviceId,
-        type,
-        description,
-      }),
-    });
-    setShowRequestModal(false);
-  }
+  // ─── Completion Screen ────────────────────────────────────────────────
 
-  const dayLabel = new Date(service.scheduled_date + "T00:00:00").toLocaleDateString(
-    "en-IN",
-    { weekday: "long" }
-  );
-
-  return (
-    <div className="min-h-screen bg-cream pb-36">
-      {/* Header */}
-      <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
+  if (completionState?.done) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center px-4">
+        <div className="bg-offwhite rounded-2xl border border-stone/60 p-8 max-w-[400px] w-full text-center space-y-4">
+          <CheckCircle2 size={48} className="text-forest mx-auto" />
+          <h2
+            className="text-xl text-charcoal"
+            style={{
+              fontFamily: "var(--font-cormorant, serif)",
+              fontWeight: 500,
+            }}
+          >
+            Service Completed
+          </h2>
+          {completionState.issueRaised && (
+            <div className="bg-terra/10 rounded-xl px-4 py-3 text-sm text-terra">
+              <CircleAlert size={16} className="inline mr-1.5 -mt-0.5" />
+              Issue raised to Horticulturist. They will be in touch.
+            </div>
+          )}
+          {completionState.clientRequestRaised && (
+            <p className="text-sm text-sage">
+              Client request has been logged.
+            </p>
+          )}
           <button
             onClick={() => router.push("/ops/gardener/today")}
-            className="text-charcoal hover:text-forest"
+            className="w-full py-3 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden"
           >
-            <ArrowLeft size={20} />
+            Back to Today
           </button>
-          <div className="flex-1 min-w-0">
-            <h1
-              className="text-xl text-charcoal truncate"
-              style={{
-                fontFamily: "var(--font-cormorant, serif)",
-                fontWeight: 500,
-              }}
-            >
-              {service.customer?.name ?? "Customer"}
-            </h1>
-            <p className="text-xs text-sage">
-              {dayLabel}{" "}
-              {service.time_window_start &&
-                `${service.time_window_start} – ${service.time_window_end}`}
-            </p>
-          </div>
         </div>
       </div>
+    );
+  }
 
-      <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
-        {/* Start button for scheduled services */}
-        {isScheduled && (
+  // ─── Guidelines View (Page 1 — Scheduled services only) ───────────────
+
+  if (isScheduled) {
+    return (
+      <div className="min-h-screen bg-cream pb-24">
+        <Header
+          customerName={service.customer?.name ?? "Customer"}
+          dayLabel={dayLabel}
+          timeLabel={
+            service.time_window_start
+              ? `${service.time_window_start} – ${service.time_window_end}`
+              : undefined
+          }
+          onBack={() => router.push("/ops/gardener/today")}
+          badge="Preview"
+        />
+
+        <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
+          {/* Guidelines */}
+          <SectionCard title="Nuvvy Service Guidelines">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-medium text-forest uppercase tracking-wide mb-1.5">
+                  Do&apos;s
+                </p>
+                <ul className="space-y-2">
+                  {DOS_LIST.map((item, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 text-sm text-charcoal"
+                    >
+                      <Check
+                        size={14}
+                        className="text-forest flex-shrink-0 mt-0.5"
+                      />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="border-t border-stone/30 pt-3">
+                <p className="text-xs font-medium text-terra uppercase tracking-wide mb-1.5">
+                  Don&apos;ts
+                </p>
+                <ul className="space-y-2">
+                  {DONTS_LIST.map((item, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 text-sm text-charcoal"
+                    >
+                      <AlertTriangle
+                        size={14}
+                        className="text-terra flex-shrink-0 mt-0.5"
+                      />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* Start Service */}
           <button
             onClick={handleStart}
             disabled={actionLoading === "start"}
@@ -301,278 +432,507 @@ export default function ServiceExecutionPage() {
             {actionLoading === "start" ? (
               <Loader2 size={18} className="animate-spin" />
             ) : (
-              "Start Service"
+              <>
+                Start Service <ChevronRight size={16} />
+              </>
             )}
           </button>
-        )}
 
-        {/* Special Tasks */}
-        {service.special_tasks.length > 0 && (
-          <SectionCard title="Special Tasks">
-            {service.special_tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-start gap-3 py-2 border-b border-stone/20 last:border-0"
-              >
-                <div
-                  className={`w-5 h-5 rounded-md border-2 mt-0.5 flex items-center justify-center flex-shrink-0 ${
-                    task.is_completed
-                      ? "bg-forest border-forest"
-                      : "border-stone"
-                  }`}
-                >
-                  {task.is_completed && <Check size={12} className="text-offwhite" />}
-                </div>
-                <span
-                  className={`text-sm ${
-                    task.is_completed
-                      ? "text-sage line-through"
-                      : "text-charcoal"
-                  }`}
-                >
-                  {task.description}
-                </span>
-              </div>
-            ))}
-          </SectionCard>
-        )}
+          {/* Preview: Checklist (read-only) */}
+          <PreviewChecklist service={service} />
+        </div>
+      </div>
+    );
+  }
 
-        {/* Care Actions Due */}
-        {service.care_actions_due.length > 0 && (
-          <SectionCard title="Care Actions Due">
-            {service.care_actions_due.map((action) => (
-              <div
-                key={action.care_action_type_id}
-                className="flex items-center justify-between py-2.5 border-b border-stone/20 last:border-0"
-              >
-                <div>
-                  <p className="text-sm text-charcoal">
-                    {CARE_LABELS[action.care_action_name] ?? action.care_action_name}
-                  </p>
-                  <p className="text-xs text-sage">Due {action.next_due_date}</p>
-                </div>
-                {isInProgress && (
-                  <button
-                    onClick={() => handleCareAction(action)}
-                    disabled={action.is_done}
-                    className={`min-w-[64px] py-1.5 px-3 rounded-xl text-xs font-medium ${
-                      action.is_done
-                        ? "bg-[#EAF2EC] text-sage"
-                        : "bg-forest text-offwhite hover:bg-garden"
-                    }`}
+  // ─── Done View (read-only summary) ────────────────────────────────────
+
+  if (isDone) {
+    return (
+      <div className="min-h-screen bg-cream pb-24">
+        <Header
+          customerName={service.customer?.name ?? "Customer"}
+          dayLabel={dayLabel}
+          timeLabel={
+            service.time_window_start
+              ? `${service.time_window_start} – ${service.time_window_end}`
+              : undefined
+          }
+          onBack={() => router.push("/ops/gardener/today")}
+          badge={service.status === "completed" ? "Completed" : "Not Completed"}
+        />
+        <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
+          <PreviewChecklist service={service} />
+          {generalPhotos.length > 0 && (
+            <SectionCard title={`Photos (${generalPhotos.length})`}>
+              <div className="flex gap-3 overflow-x-auto">
+                {generalPhotos.map((p) => (
+                  <div
+                    key={p.id}
+                    className="w-20 h-20 bg-cream rounded-xl border border-stone/40 overflow-hidden flex-shrink-0"
                   >
-                    {action.is_done ? "Done" : "Mark Done"}
-                  </button>
-                )}
-              </div>
-            ))}
-          </SectionCard>
-        )}
-
-        {/* Checklist */}
-        {service.checklist_items.length > 0 && (
-          <SectionCard title="Checklist">
-            {service.checklist_items.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 py-2.5 border-b border-stone/20 last:border-0"
-              >
-                {/* Toggle button */}
-                <button
-                  onClick={() => isInProgress && handleChecklistToggle(item)}
-                  disabled={!isInProgress}
-                  className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    item.completion_status === "done"
-                      ? "bg-forest border-forest"
-                      : item.completion_status === "not_required"
-                      ? "bg-stone/30 border-stone"
-                      : "border-stone hover:border-forest"
-                  }`}
-                >
-                  {item.completion_status === "done" && (
-                    <Check size={14} className="text-offwhite" />
-                  )}
-                  {item.completion_status === "not_required" && (
-                    <Minus size={14} className="text-sage" />
-                  )}
-                </button>
-
-                <span
-                  className={`text-sm flex-1 ${
-                    item.completion_status === "done"
-                      ? "text-sage line-through"
-                      : item.completion_status === "not_required"
-                      ? "text-stone line-through"
-                      : "text-charcoal"
-                  }`}
-                >
-                  {item.label}
-                </span>
-
-                {/* N/A button */}
-                {isInProgress && item.completion_status !== "not_required" && (
-                  <button
-                    onClick={() => handleChecklistNotRequired(item)}
-                    className="text-[10px] text-sage border border-stone/40 rounded px-1.5 py-0.5 hover:bg-cream"
-                  >
-                    N/A
-                  </button>
-                )}
-              </div>
-            ))}
-          </SectionCard>
-        )}
-
-        {/* Photos */}
-        {(isInProgress || isDone) && (
-          <SectionCard title={`Photos (${service.photo_count})`}>
-            {service.photo_count < 2 && isInProgress && (
-              <p className="text-xs text-terra flex items-center gap-1 mb-2">
-                <AlertTriangle size={12} />
-                At least 2 photos required to complete
-              </p>
-            )}
-
-            {/* Photo thumbnails */}
-            {servicePhotos.length > 0 && (
-              <div className="flex gap-3 overflow-x-auto mb-3">
-                {servicePhotos.map((p, i) => (
-                  <div key={p.id} className="relative flex-shrink-0">
-                    <div
-                      className="w-20 h-20 bg-cream rounded-xl border border-stone/40 overflow-hidden cursor-pointer hover:border-forest/60 transition-colors"
-                      onClick={() => setLightboxIndex(i)}
-                    >
-                      <img src={p.signed_url!} alt={p.caption ?? "Visit photo"} className="w-full h-full object-cover" />
-                    </div>
-                    {isInProgress && (
-                      <button
-                        onClick={() => handlePhotoDelete(p.id)}
-                        disabled={actionLoading === "photo-delete"}
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-terra text-offwhite rounded-full flex items-center justify-center hover:bg-red-600 transition-colors disabled:opacity-50"
-                        title="Delete photo"
-                      >
-                        <Trash2 size={10} />
-                      </button>
-                    )}
+                    <img
+                      src={p.signed_url!}
+                      alt="Visit photo"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 ))}
               </div>
-            )}
+            </SectionCard>
+          )}
+          {service.not_completed_reason && (
+            <SectionCard title="Reason">
+              <p className="text-sm text-charcoal">
+                {service.not_completed_reason}
+              </p>
+            </SectionCard>
+          )}
+        </div>
+      </div>
+    );
+  }
 
-            {isInProgress && (
-              <>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
+  // ─── Execution View (Page 2 — In Progress) ────────────────────────────
 
-                  onChange={handlePhotoUpload}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={actionLoading === "photo"}
-                  className="w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2"
+  // Merge special tasks + care actions into one "Tasks for Today" list
+  const hasSpecialTasks =
+    service.special_tasks.length > 0 || service.care_actions_due.length > 0;
+
+  return (
+    <div className="min-h-screen bg-cream pb-36">
+      <Header
+        customerName={service.customer?.name ?? "Customer"}
+        dayLabel={dayLabel}
+        timeLabel={
+          service.time_window_start
+            ? `${service.time_window_start} – ${service.time_window_end}`
+            : undefined
+        }
+        onBack={() => router.push("/ops/gardener/today")}
+      />
+
+      <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
+        {/* 1. Special Tasks for Today */}
+        {hasSpecialTasks && (
+          <SectionCard title="Special Tasks for Today">
+            {/* Care actions due */}
+            {service.care_actions_due.map((action) => {
+              const done = isCareActionDone(action.care_action_type_id);
+              return (
+                <div
+                  key={action.care_action_type_id}
+                  className="flex items-center gap-3 py-2.5 border-b border-stone/20 last:border-0"
                 >
-                  {actionLoading === "photo" ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <>
-                      <Camera size={16} /> Take Photo
-                    </>
-                  )}
-                </button>
-              </>
-            )}
+                  <button
+                    onClick={() =>
+                      toggleCareAction(action.care_action_type_id, !done)
+                    }
+                    className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      done
+                        ? "bg-forest border-forest"
+                        : "border-stone hover:border-forest"
+                    }`}
+                  >
+                    {done && <Check size={14} className="text-offwhite" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <span
+                      className={`text-sm ${
+                        done ? "text-sage line-through" : "text-charcoal"
+                      }`}
+                    >
+                      {CARE_LABELS[action.care_action_name] ??
+                        action.care_action_name}
+                    </span>
+                    <p className="text-xs text-sage">
+                      Due {action.next_due_date}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+            {/* Horticulturist-added tasks */}
+            {service.special_tasks.map((task) => {
+              const done = isSpecialTaskDone(task.id);
+              return (
+                <div
+                  key={task.id}
+                  className="flex items-center gap-3 py-2.5 border-b border-stone/20 last:border-0"
+                >
+                  <button
+                    onClick={() => toggleSpecialTask(task.id, !done)}
+                    className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      done
+                        ? "bg-forest border-forest"
+                        : "border-stone hover:border-forest"
+                    }`}
+                  >
+                    {done && <Check size={14} className="text-offwhite" />}
+                  </button>
+                  <span
+                    className={`text-sm flex-1 ${
+                      done ? "text-sage line-through" : "text-charcoal"
+                    }`}
+                  >
+                    {task.description}
+                  </span>
+                </div>
+              );
+            })}
+          </SectionCard>
+        )}
 
-            {lightboxIndex !== null && servicePhotos.length > 0 && (
-              <PhotoLightbox
-                photos={servicePhotos.map((p) => ({ url: p.signed_url!, alt: p.caption ?? undefined }))}
-                initialIndex={lightboxIndex}
-                onClose={() => setLightboxIndex(null)}
+        {/* 2. Regular Checklist */}
+        {service.checklist_items.length > 0 && (
+          <SectionCard title="Service Checklist">
+            {service.checklist_items.map((item) => {
+              const status = getChecklistStatus(item);
+              const done = status === "done";
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-3 py-2.5 border-b border-stone/20 last:border-0"
+                >
+                  <button
+                    onClick={() =>
+                      updateChecklist(item.id, done ? "pending" : "done")
+                    }
+                    className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      done
+                        ? "bg-forest border-forest"
+                        : "border-stone hover:border-forest"
+                    }`}
+                  >
+                    {done && <Check size={14} className="text-offwhite" />}
+                  </button>
+                  <span
+                    className={`text-sm flex-1 ${
+                      done ? "text-sage line-through" : "text-charcoal"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </div>
+              );
+            })}
+          </SectionCard>
+        )}
+
+        {/* 3. Photos — wide shots */}
+        <SectionCard
+          title={`Balcony Photos (${generalPhotoCount}/5)`}
+        >
+          {generalPhotoCount < 2 && (
+            <p className="text-xs text-terra flex items-center gap-1 mb-2">
+              <AlertTriangle size={12} />
+              At least 2 wide-shot photos required
+            </p>
+          )}
+
+          {generalPhotos.length > 0 && (
+            <div className="flex gap-3 overflow-x-auto mb-3">
+              {generalPhotos.map((p, i) => (
+                <div key={p.id} className="relative flex-shrink-0">
+                  <div
+                    className="w-20 h-20 bg-cream rounded-xl border border-stone/40 overflow-hidden cursor-pointer hover:border-forest/60 transition-colors"
+                    onClick={() => setLightboxIndex(i)}
+                  >
+                    <img
+                      src={p.signed_url!}
+                      alt="Balcony photo"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <button
+                    onClick={() => handlePhotoDelete(p.id)}
+                    disabled={actionLoading === "photo-delete"}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-terra text-offwhite rounded-full flex items-center justify-center hover:bg-red-600 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {generalPhotoCount < 5 && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => handlePhotoUpload(e, "general")}
+                className="hidden"
               />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={actionLoading === "photo"}
+                className="w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2"
+              >
+                {actionLoading === "photo" ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <>
+                    <Camera size={16} /> Take Wide Shot Photo
+                  </>
+                )}
+              </button>
+            </>
+          )}
+
+          {lightboxIndex !== null && generalPhotos.length > 0 && (
+            <PhotoLightbox
+              photos={generalPhotos.map((p) => ({
+                url: p.signed_url!,
+                alt: "Balcony photo",
+              }))}
+              initialIndex={lightboxIndex}
+              onClose={() => setLightboxIndex(null)}
+            />
+          )}
+        </SectionCard>
+
+        {/* 4. Issues */}
+        <SectionCard title="Issues">
+          <div className="space-y-3">
+            {/* No issues / Yes toggle */}
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  updateIssue({ hasIssues: false })
+                }
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                  !draft.issueState.hasIssues
+                    ? "bg-forest text-offwhite border-forest"
+                    : "bg-cream text-charcoal border-stone"
+                }`}
+              >
+                No issues
+              </button>
+              <button
+                onClick={() =>
+                  updateIssue({ ...draft.issueState, hasIssues: true })
+                }
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
+                  draft.issueState.hasIssues
+                    ? "bg-terra text-offwhite border-terra"
+                    : "bg-cream text-charcoal border-stone"
+                }`}
+              >
+                Yes, I see issues
+              </button>
+            </div>
+
+            {/* Issue details */}
+            {draft.issueState.hasIssues && (
+              <div className="space-y-3 border-t border-stone/30 pt-3">
+                {/* Issue type multi-select */}
+                <p className="text-xs text-sage">Select all that apply:</p>
+                <div className="space-y-2">
+                  {ISSUE_OPTIONS.map((opt) => {
+                    const selected = (
+                      draft.issueState.types ?? []
+                    ).includes(opt.value as IssueType);
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          const current = draft.issueState.types ?? [];
+                          const next = selected
+                            ? current.filter((t) => t !== opt.value)
+                            : [...current, opt.value as IssueType];
+                          updateIssue({ ...draft.issueState, types: next });
+                        }}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl text-sm border transition-colors flex items-center gap-2.5 ${
+                          selected
+                            ? "border-terra bg-terra/5 text-terra"
+                            : "border-stone text-charcoal hover:border-terra/40"
+                        }`}
+                      >
+                        <span
+                          className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                            selected
+                              ? "bg-terra border-terra"
+                              : "border-stone"
+                          }`}
+                        >
+                          {selected && (
+                            <Check size={10} className="text-offwhite" />
+                          )}
+                        </span>
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Other description */}
+                {(draft.issueState.types ?? []).includes("other") && (
+                  <textarea
+                    className="w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest min-h-[60px] placeholder:text-stone"
+                    value={draft.issueState.description ?? ""}
+                    onChange={(e) =>
+                      updateIssue({
+                        ...draft.issueState,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Describe the issue…"
+                  />
+                )}
+
+                {/* Issue photo */}
+                {(draft.issueState.types ?? []).length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-terra flex items-center gap-1">
+                      <Camera size={12} />
+                      Please take a photo of the issue
+                    </p>
+
+                    {issuePhotos.length > 0 && (
+                      <div className="flex gap-2">
+                        {issuePhotos.map((p) => (
+                          <div key={p.id} className="relative flex-shrink-0">
+                            <div className="w-16 h-16 bg-cream rounded-xl border border-terra/40 overflow-hidden">
+                              <img
+                                src={p.signed_url!}
+                                alt="Issue photo"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <button
+                              onClick={() => handlePhotoDelete(p.id)}
+                              className="absolute -top-1 -right-1 w-4 h-4 bg-terra text-offwhite rounded-full flex items-center justify-center"
+                            >
+                              <Trash2 size={8} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <input
+                      ref={issueFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => handlePhotoUpload(e, "issue")}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => issueFileInputRef.current?.click()}
+                      disabled={actionLoading === "issue-photo"}
+                      className="w-full py-2 border border-dashed border-terra/40 rounded-xl text-xs text-terra hover:bg-terra/5 flex items-center justify-center gap-1.5"
+                    >
+                      {actionLoading === "issue-photo" ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <>
+                          <Camera size={14} /> Take Issue Photo
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* Communicated to customer */}
+                {(draft.issueState.types ?? []).length > 0 && (
+                  <label className="flex items-start gap-2 py-2 cursor-pointer">
+                    <button
+                      onClick={() =>
+                        updateIssue({
+                          ...draft.issueState,
+                          communicatedToCustomer:
+                            !draft.issueState.communicatedToCustomer,
+                        })
+                      }
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
+                        draft.issueState.communicatedToCustomer
+                          ? "bg-forest border-forest"
+                          : "border-stone"
+                      }`}
+                    >
+                      {draft.issueState.communicatedToCustomer && (
+                        <Check size={12} className="text-offwhite" />
+                      )}
+                    </button>
+                    <span className="text-sm text-charcoal">
+                      I have communicated this issue to the customer
+                    </span>
+                  </label>
+                )}
+              </div>
             )}
-          </SectionCard>
-        )}
+          </div>
+        </SectionCard>
 
-        {/* Log Request */}
-        {isInProgress && (
+        {/* 5. Client Requests — Voice Note */}
+        <SectionCard title="Client Requests">
+          <p className="text-xs text-sage mb-2">
+            Record a voice note if the customer has any requests
+          </p>
+          <input
+            ref={voiceInputRef}
+            type="file"
+            accept="audio/*"
+            onChange={handleVoiceUpload}
+            className="hidden"
+          />
           <button
-            onClick={() => setShowRequestModal(true)}
-            className="w-full py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-offwhite flex items-center justify-center gap-1.5"
+            onClick={() => voiceInputRef.current?.click()}
+            disabled={actionLoading === "voice"}
+            className="w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2"
           >
-            + Log a problem or request
-          </button>
-        )}
-
-        {/* Voice Note */}
-        {(isInProgress || isDone) && (
-          <SectionCard
-            title={`Voice Note${service.voice_note_count > 0 ? " (1)" : ""}`}
-          >
-            {isInProgress && (
+            {actionLoading === "voice" ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
               <>
-                <input
-                  ref={voiceInputRef}
-                  type="file"
-                  accept="audio/*"
-                  onChange={handleVoiceUpload}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => voiceInputRef.current?.click()}
-                  disabled={actionLoading === "voice"}
-                  className="w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2"
-                >
-                  {actionLoading === "voice" ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <>
-                      <Mic size={16} />{" "}
-                      {service.voice_note_count > 0
-                        ? "Replace Voice Note"
-                        : "Add Voice Note"}
-                    </>
-                  )}
-                </button>
+                <Mic size={16} />{" "}
+                {service.voice_note_count > 0
+                  ? "Replace Voice Note"
+                  : "Record Voice Note"}
               </>
             )}
-            {isDone && service.voice_note_count > 0 && (
-              <p className="text-xs text-sage">Voice note recorded</p>
-            )}
-            {isDone && service.voice_note_count === 0 && (
-              <p className="text-xs text-stone">No voice note</p>
-            )}
-          </SectionCard>
-        )}
+          </button>
+          {service.voice_note_count > 0 && (
+            <p className="text-xs text-forest mt-2 flex items-center gap-1">
+              <Check size={12} /> Voice note recorded
+            </p>
+          )}
+        </SectionCard>
       </div>
 
-      {/* Bottom action bar */}
-      {isInProgress && (
-        <div className="fixed left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
-          <div className="max-w-[480px] mx-auto space-y-2">
-            <button
-              onClick={handleComplete}
-              disabled={!canComplete || actionLoading === "complete"}
-              className="w-full py-3 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              {actionLoading === "complete" ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <>
-                  <Check size={16} /> Complete Service
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => setShowNotCompleted(true)}
-              className="w-full py-2.5 border border-stone rounded-xl text-sm text-terra hover:bg-terra/5"
-            >
-              Mark as Not Completed
-            </button>
-          </div>
+      {/* 6. Bottom action bar — End Service */}
+      <div
+        className="fixed left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20"
+        style={{
+          bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))",
+        }}
+      >
+        <div className="max-w-[480px] mx-auto space-y-2">
+          <button
+            onClick={handleEndService}
+            disabled={!canEnd || actionLoading === "end"}
+            className="w-full py-3 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            {actionLoading === "end" ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <>
+                <Check size={16} /> End Service
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => setShowNotCompleted(true)}
+            className="w-full py-2.5 border border-stone rounded-xl text-sm text-terra hover:bg-terra/5"
+          >
+            Mark as Not Completed
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Not completed modal */}
       {showNotCompleted && (
@@ -614,19 +974,71 @@ export default function ServiceExecutionPage() {
           </div>
         </div>
       )}
-
-      {/* Request modal */}
-      {showRequestModal && (
-        <RequestModal
-          onClose={() => setShowRequestModal(false)}
-          onSubmit={handleRequestSubmit}
-        />
-      )}
     </div>
   );
 }
 
-// ─── Shared Components ────────────────────────────────────────────────────────
+// ─── Static Content ──────────────────────────────────────────────────────────
+
+const DOS_LIST = [
+  "Greet the customer at entry.",
+  "After service, tell customer about what you did, issues identified and what you could not do.",
+  "Ask customers about concerns or if they want additional plants.",
+  "Call your horticulturist if you don't know what to do.",
+  "If you apply neem oil, tell customer to not visit garden for 2-3 hours.",
+];
+
+const DONTS_LIST = [
+  "Prune plants without talking to customer first.",
+];
+
+// ─── Shared Components ──────────────────────────────────────────────────────
+
+function Header({
+  customerName,
+  dayLabel,
+  timeLabel,
+  onBack,
+  badge,
+}: {
+  customerName: string;
+  dayLabel: string;
+  timeLabel?: string;
+  onBack: () => void;
+  badge?: string;
+}) {
+  return (
+    <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4 sticky top-0 z-10">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="text-charcoal hover:text-forest"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1
+            className="text-xl text-charcoal truncate"
+            style={{
+              fontFamily: "var(--font-cormorant, serif)",
+              fontWeight: 500,
+            }}
+          >
+            {customerName}
+          </h1>
+          <p className="text-xs text-sage">
+            {dayLabel} {timeLabel && `${timeLabel}`}
+          </p>
+        </div>
+        {badge && (
+          <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-cream text-charcoal border border-stone/40">
+            {badge}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SectionCard({
   title,
@@ -645,74 +1057,91 @@ function SectionCard({
   );
 }
 
-function RequestModal({
-  onClose,
-  onSubmit,
-}: {
-  onClose: () => void;
-  onSubmit: (type: string, description: string) => void;
-}) {
-  const [type, setType] = useState("problem");
-  const [description, setDescription] = useState("");
-  const [saving, setSaving] = useState(false);
+/** Read-only preview of checklist, care actions, and special tasks */
+function PreviewChecklist({ service }: { service: ServiceDetail }) {
+  const CARE_PREVIEW: Record<string, string> = {
+    fertilizer: "Apply Fertilizer",
+    vermi_compost: "Apply Vermi Compost",
+    micro_nutrients: "Apply Micro Nutrients",
+    neem_oil: "Apply Neem Oil",
+  };
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    await onSubmit(type, description);
-    setSaving(false);
-  }
+  const hasSpecialItems =
+    service.special_tasks.length > 0 || service.care_actions_due.length > 0;
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
-      <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6">
-        <h2 className="font-semibold text-charcoal mb-3">Log Request</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex gap-2">
-            {["problem", "service_request", "other"].map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors ${
-                  type === t
-                    ? "bg-forest text-offwhite border-forest"
-                    : "bg-cream text-charcoal border-stone"
+    <>
+      {hasSpecialItems && (
+        <SectionCard title="Special Tasks for Today">
+          {service.care_actions_due.map((action) => (
+            <div
+              key={action.care_action_type_id}
+              className="flex items-center gap-3 py-2 text-sm"
+            >
+              <div className="w-5 h-5 rounded-md border-2 border-stone flex-shrink-0" />
+              <div>
+                <span className={action.is_done ? "text-sage line-through" : "text-charcoal"}>
+                  {CARE_PREVIEW[action.care_action_name] ??
+                    action.care_action_name}
+                </span>
+                <p className="text-xs text-sage">Due {action.next_due_date}</p>
+              </div>
+            </div>
+          ))}
+          {service.special_tasks.map((task) => (
+            <div
+              key={task.id}
+              className="flex items-center gap-3 py-2 text-sm"
+            >
+              <div
+                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
+                  task.is_completed
+                    ? "bg-forest border-forest"
+                    : "border-stone"
                 }`}
               >
-                {t === "problem"
-                  ? "Problem"
-                  : t === "service_request"
-                  ? "Service Request"
-                  : "Other"}
-              </button>
-            ))}
-          </div>
-          <textarea
-            className="w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest min-h-[80px] placeholder:text-stone"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe the issue…"
-            required
-          />
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving || !description.trim()}
-              className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
-            >
-              {saving ? "Saving…" : "Submit"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+                {task.is_completed && (
+                  <Check size={10} className="text-offwhite" />
+                )}
+              </div>
+              <span
+                className={
+                  task.is_completed
+                    ? "text-sage line-through"
+                    : "text-charcoal"
+                }
+              >
+                {task.description}
+              </span>
+            </div>
+          ))}
+        </SectionCard>
+      )}
+
+      {service.checklist_items.length > 0 && (
+        <SectionCard title="Service Checklist">
+          {service.checklist_items.map((item) => {
+            const done = item.completion_status === "done";
+            return (
+              <div
+                key={item.id}
+                className="flex items-center gap-3 py-2 text-sm"
+              >
+                <div
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
+                    done ? "bg-forest border-forest" : "border-stone"
+                  }`}
+                >
+                  {done && <Check size={10} className="text-offwhite" />}
+                </div>
+                <span className={done ? "text-sage line-through" : "text-charcoal"}>
+                  {item.label}
+                </span>
+              </div>
+            );
+          })}
+        </SectionCard>
+      )}
+    </>
   );
 }

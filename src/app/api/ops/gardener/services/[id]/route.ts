@@ -67,9 +67,10 @@ export async function GET(
       .eq("customer_id", service.customer_id),
   ]);
 
-  // Filter care actions that are due (next_due_date ≤ today)
+  // Filter care actions that are due by the service's scheduled date (or today, whichever is later)
+  const dueBy = service.scheduled_date > today ? service.scheduled_date : today;
   const dueCareActions = (careSchedules ?? []).filter(
-    (cs) => cs.next_due_date && cs.next_due_date <= today
+    (cs) => cs.next_due_date && cs.next_due_date <= dueBy
   );
 
   // Get care action type names
@@ -97,11 +98,30 @@ export async function GET(
       .map((a) => a.care_action_type_id)
   );
 
+  // For scheduled services with no checklist yet, return the template as a preview
+  let finalChecklist = checklistItems ?? [];
+  if (finalChecklist.length === 0 && service.status === "scheduled") {
+    const { data: templates } = await supabase
+      .from("checklist_template_items")
+      .select("id, label, is_required, order_index, category")
+      .eq("is_active", true)
+      .order("order_index");
+    finalChecklist = (templates ?? []).map((t) => ({
+      id: t.id,
+      label: t.label,
+      is_required: t.is_required,
+      order_index: t.order_index,
+      is_completed: false,
+      completion_status: "pending",
+      notes: null,
+    }));
+  }
+
   return NextResponse.json({
     data: {
       ...service,
       customer: customer ?? null,
-      checklist_items: checklistItems ?? [],
+      checklist_items: finalChecklist,
       special_tasks: specialTasks ?? [],
       photo_count: (photos ?? []).length,
       photos: await Promise.all(
