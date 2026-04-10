@@ -36,6 +36,11 @@ type ServiceDetail = {
     is_done: boolean;
     next_due_date: string;
   }[];
+  care_actions_performed: {
+    care_action_type_id: string;
+    care_action_name: string;
+    marked_done: boolean;
+  }[];
   photo_count: number;
   voice_note_count: number;
 };
@@ -496,24 +501,43 @@ export default function ServiceDetailPage() {
           </Card>
         )}
 
-        {/* Care actions */}
-        {service.care_actions_due.length > 0 && (
+        {/* Care actions — show performed actions for completed services, due actions otherwise */}
+        {(service.care_actions_performed?.length > 0 ||
+          service.care_actions_due.length > 0) && (
           <Card title="Care Actions">
-            {service.care_actions_due.map((ca) => (
-              <div
-                key={ca.care_action_name}
-                className="flex items-center justify-between py-1 text-sm"
-              >
-                <span className="text-charcoal">{ca.care_action_name}</span>
-                <span
-                  className={`text-xs font-medium ${
-                    ca.is_done ? "text-forest" : "text-terra"
-                  }`}
-                >
-                  {ca.is_done ? "Done" : "Not done"}
-                </span>
-              </div>
-            ))}
+            {service.care_actions_performed?.length > 0
+              ? service.care_actions_performed.map((ca) => (
+                  <div
+                    key={ca.care_action_type_id}
+                    className="flex items-center justify-between py-1 text-sm"
+                  >
+                    <span className="text-charcoal capitalize">
+                      {ca.care_action_name.replace(/_/g, " ")}
+                    </span>
+                    <span
+                      className={`text-xs font-medium ${
+                        ca.marked_done ? "text-forest" : "text-terra"
+                      }`}
+                    >
+                      {ca.marked_done ? "Done" : "Not done"}
+                    </span>
+                  </div>
+                ))
+              : service.care_actions_due.map((ca) => (
+                  <div
+                    key={ca.care_action_name}
+                    className="flex items-center justify-between py-1 text-sm"
+                  >
+                    <span className="text-charcoal">{ca.care_action_name}</span>
+                    <span
+                      className={`text-xs font-medium ${
+                        ca.is_done ? "text-forest" : "text-terra"
+                      }`}
+                    >
+                      {ca.is_done ? "Done" : "Not done"}
+                    </span>
+                  </div>
+                ))}
           </Card>
         )}
 

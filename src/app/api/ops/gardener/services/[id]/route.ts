@@ -141,6 +141,21 @@ export async function GET(
         next_due_date: ca.next_due_date,
         is_done: doneActionTypes.has(ca.care_action_type_id),
       })),
+      care_actions_performed: await (async () => {
+        // For completed services, show what was actually done (not what's currently due)
+        if (!existingCareActions || existingCareActions.length === 0) return [];
+        const performedTypeIds = (existingCareActions ?? []).map((a) => a.care_action_type_id);
+        const { data: perfTypes } = await supabase
+          .from("care_action_types")
+          .select("id, name")
+          .in("id", performedTypeIds);
+        const typeMap = Object.fromEntries((perfTypes ?? []).map((t) => [t.id, t.name]));
+        return (existingCareActions ?? []).map((a) => ({
+          care_action_type_id: a.care_action_type_id,
+          care_action_name: typeMap[a.care_action_type_id] ?? "Unknown",
+          marked_done: a.marked_done,
+        }));
+      })(),
     },
   });
 }
