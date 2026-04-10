@@ -46,7 +46,12 @@ export async function POST(
   }
 
   const uuid = crypto.randomUUID();
-  const ext = file.name.split(".").pop() || "webm";
+  // Detect proper extension from content type
+  const contentType = file.type || "audio/webm";
+  let ext = "webm";
+  if (contentType.includes("mp4") || contentType.includes("m4a")) ext = "m4a";
+  else if (contentType.includes("ogg")) ext = "ogg";
+  else if (contentType.includes("wav")) ext = "wav";
   const storagePath = `services/${id}/voice/${uuid}.${ext}`;
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -54,7 +59,7 @@ export async function POST(
   const { error: uploadErr } = await supabase.storage
     .from("nuvvy-ops")
     .upload(storagePath, buffer, {
-      contentType: file.type || "audio/webm",
+      contentType,
       upsert: false,
     });
 

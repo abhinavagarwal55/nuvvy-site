@@ -1036,6 +1036,7 @@ function VoiceRecorder({
   const [uploading, setUploading] = useState(false);
   const [duration, setDuration] = useState(0);
   const [recorded, setRecorded] = useState(hasExisting);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
@@ -1043,7 +1044,11 @@ function VoiceRecorder({
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      // Pick a supported MIME type — Safari uses mp4, Chrome uses webm
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+      const recorder = new MediaRecorder(stream, { mimeType });
       chunks.current = [];
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.current.push(e.data);
@@ -1051,8 +1056,10 @@ function VoiceRecorder({
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         clearInterval(timerRef.current);
-        const blob = new Blob(chunks.current, { type: "audio/webm" });
-        await uploadBlob(blob);
+        const blob = new Blob(chunks.current, { type: mimeType });
+        // Create local playback URL
+        setPlaybackUrl(URL.createObjectURL(blob));
+        await uploadBlob(blob, mimeType);
       };
       recorder.start();
       mediaRecorder.current = recorder;
@@ -1071,10 +1078,11 @@ function VoiceRecorder({
     setRecording(false);
   }
 
-  async function uploadBlob(blob: Blob) {
+  async function uploadBlob(blob: Blob, mimeType: string) {
     setUploading(true);
+    const ext = mimeType.includes("mp4") ? "m4a" : "webm";
     const formData = new FormData();
-    formData.append("voice", blob, "voice-note.webm");
+    formData.append("voice", blob, `voice-note.${ext}`);
     const res = await fetch(
       `/api/ops/gardener/services/${serviceId}/voice`,
       { method: "POST", body: formData }
@@ -1114,6 +1122,12 @@ function VoiceRecorder({
 
   return (
     <>
+      {/* Playback for just-recorded note */}
+      {playbackUrl && (
+        <audio controls className="w-full h-10 mb-2 rounded-xl" src={playbackUrl}>
+          Your browser does not support audio.
+        </audio>
+      )}
       <button
         onClick={startRecording}
         className="w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2"
@@ -1121,7 +1135,7 @@ function VoiceRecorder({
         <Mic size={16} />{" "}
         {recorded ? "Re-record Voice Note" : "Record Voice Note"}
       </button>
-      {recorded && (
+      {recorded && !playbackUrl && (
         <p className="text-xs text-forest mt-2 flex items-center gap-1">
           <Check size={12} /> Voice note recorded
         </p>
