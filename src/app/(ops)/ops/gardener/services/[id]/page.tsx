@@ -119,7 +119,7 @@ export default function ServiceExecutionPage() {
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const issueFileInputRef = useRef<HTMLInputElement>(null);
-  const voiceInputRef = useRef<HTMLInputElement>(null);
+  // voiceInputRef removed — VoiceRecorder component handles its own state
 
   const service: ServiceDetail | null = data?.data ?? null;
   const isInProgress = service?.status === "in_progress";
@@ -307,21 +307,6 @@ export default function ServiceExecutionPage() {
     setActionLoading(null);
   }
 
-  async function handleVoiceUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setActionLoading("voice");
-    const formData = new FormData();
-    formData.append("voice", file);
-    await fetch(`/api/ops/gardener/services/${serviceId}/voice`, {
-      method: "POST",
-      body: formData,
-    });
-    if (voiceInputRef.current) voiceInputRef.current.value = "";
-    setHasClientRequest(true);
-    await mutate();
-    setActionLoading(null);
-  }
 
   // ─── Completion Screen ────────────────────────────────────────────────
 
@@ -873,34 +858,14 @@ export default function ServiceExecutionPage() {
           <p className="text-xs text-sage mb-2">
             Record a voice note if the customer has any requests
           </p>
-          <input
-            ref={voiceInputRef}
-            type="file"
-            accept="audio/*"
-            onChange={handleVoiceUpload}
-            className="hidden"
+          <VoiceRecorder
+            serviceId={serviceId}
+            hasExisting={service.voice_note_count > 0}
+            onUploaded={() => {
+              setHasClientRequest(true);
+              mutate();
+            }}
           />
-          <button
-            onClick={() => voiceInputRef.current?.click()}
-            disabled={actionLoading === "voice"}
-            className="w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2"
-          >
-            {actionLoading === "voice" ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <>
-                <Mic size={16} />{" "}
-                {service.voice_note_count > 0
-                  ? "Replace Voice Note"
-                  : "Record Voice Note"}
-              </>
-            )}
-          </button>
-          {service.voice_note_count > 0 && (
-            <p className="text-xs text-forest mt-2 flex items-center gap-1">
-              <Check size={12} /> Voice note recorded
-            </p>
-          )}
         </SectionCard>
       </div>
 
@@ -1054,6 +1019,114 @@ function SectionCard({
       </p>
       {children}
     </div>
+  );
+}
+
+/** In-app voice recorder using MediaRecorder API */
+function VoiceRecorder({
+  serviceId,
+  hasExisting,
+  onUploaded,
+}: {
+  serviceId: string;
+  hasExisting: boolean;
+  onUploaded: () => void;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [recorded, setRecorded] = useState(hasExisting);
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunks.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        clearInterval(timerRef.current);
+        const blob = new Blob(chunks.current, { type: "audio/webm" });
+        await uploadBlob(blob);
+      };
+      recorder.start();
+      mediaRecorder.current = recorder;
+      setRecording(true);
+      setDuration(0);
+      timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+    } catch {
+      alert("Microphone access is required to record voice notes.");
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorder.current?.state === "recording") {
+      mediaRecorder.current.stop();
+    }
+    setRecording(false);
+  }
+
+  async function uploadBlob(blob: Blob) {
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("voice", blob, "voice-note.webm");
+    const res = await fetch(
+      `/api/ops/gardener/services/${serviceId}/voice`,
+      { method: "POST", body: formData }
+    );
+    if (res.ok) {
+      setRecorded(true);
+      onUploaded();
+    } else {
+      alert("Failed to upload voice note");
+    }
+    setUploading(false);
+  }
+
+  const mins = Math.floor(duration / 60);
+  const secs = duration % 60;
+  const timeLabel = `${mins}:${String(secs).padStart(2, "0")}`;
+
+  if (uploading) {
+    return (
+      <div className="w-full py-3 flex items-center justify-center gap-2 text-sm text-sage">
+        <Loader2 size={16} className="animate-spin" /> Uploading…
+      </div>
+    );
+  }
+
+  if (recording) {
+    return (
+      <button
+        onClick={stopRecording}
+        className="w-full py-3 bg-terra text-offwhite rounded-xl text-sm font-medium flex items-center justify-center gap-2 animate-pulse"
+      >
+        <span className="w-2.5 h-2.5 bg-offwhite rounded-full" />
+        Recording {timeLabel} — Tap to Stop
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={startRecording}
+        className="w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2"
+      >
+        <Mic size={16} />{" "}
+        {recorded ? "Re-record Voice Note" : "Record Voice Note"}
+      </button>
+      {recorded && (
+        <p className="text-xs text-forest mt-2 flex items-center gap-1">
+          <Check size={12} /> Voice note recorded
+        </p>
+      )}
+    </>
   );
 }
 
