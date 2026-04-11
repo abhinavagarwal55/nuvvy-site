@@ -2,15 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { withPerfLog } from "@/lib/perf/with-perf-log";
+import { PerfContext } from "@/lib/perf/perf-context";
 
 // GET /api/ops/customers?status=ACTIVE&society_id=xxx&q=search
-export async function GET(request: NextRequest) {
+export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest, ctx: PerfContext) => {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await ctx.trackAuth(() => requireOpsAuth(request));
   } catch (res) {
     return res as Response;
   }
+  ctx.setUser(auth.userId, auth.role);
   if (auth.role === "gardener") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest) {
   if (societyId) query = query.eq("society_id", societyId);
   if (q) query = query.or(`name.ilike.%${q}%,phone_number.ilike.%${q}%`);
 
-  const { data, error } = await query;
+  const { data, error } = await ctx.trackQuery(async () => await query);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Round 2: care schedules + slots in parallel (only for active customers)
@@ -42,10 +45,10 @@ export async function GET(request: NextRequest) {
   let careScheduleMap: Record<string, number> = {};
   let slotMap: Record<string, boolean> = {};
   if (activeIds.length > 0) {
-    const [{ data: careCounts }, { data: slots }] = await Promise.all([
+    const [{ data: careCounts }, { data: slots }] = await ctx.trackQuery(async () => Promise.all([
       supabase.from("customer_care_schedules").select("customer_id").in("customer_id", activeIds),
       supabase.from("service_slots").select("customer_id").in("customer_id", activeIds).eq("is_active", true),
-    ]);
+    ]));
     for (const row of careCounts ?? []) {
       careScheduleMap[row.customer_id] = (careScheduleMap[row.customer_id] ?? 0) + 1;
     }
@@ -73,7 +76,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({ data: customers });
-}
+});
 
 const CreateCustomerSchema = z.object({
   name: z.string().min(1, "Name is required"),

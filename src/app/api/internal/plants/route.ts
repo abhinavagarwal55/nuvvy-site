@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import { getInternalAccess } from "@/lib/internal/authz";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { withPerfLog } from "@/lib/perf/with-perf-log";
+import { PerfContext } from "@/lib/perf/perf-context";
 
 // Force Node.js runtime for this route
 export const runtime = "nodejs";
@@ -41,7 +43,7 @@ async function checkAuth(): Promise<{ authorized: boolean; error?: string; statu
   return { authorized: true };
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withPerfLog('/api/internal/plants', async (request: NextRequest, ctx: PerfContext) => {
   try {
     const authCheck = await checkAuth();
     if (!authCheck.authorized) {
@@ -117,7 +119,7 @@ export async function GET(request: NextRequest) {
     // Apply pagination
     query = query.range(offset, offset + limit - 1);
 
-    const { data, error, count } = await query;
+    const { data, error, count } = await ctx.trackQuery(async () => await query);
 
     if (error) {
       console.error("GET /api/internal/plants failed: Supabase query error", error);
@@ -129,10 +131,10 @@ export async function GET(request: NextRequest) {
 
     // Return new shape: { plants, totalCount }
     return NextResponse.json(
-      { 
+      {
         data: data || [],
         totalCount: count || 0,
-        error: null 
+        error: null
       },
       { status: 200 }
     );
@@ -144,7 +146,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 export async function POST(request: NextRequest) {
   try {

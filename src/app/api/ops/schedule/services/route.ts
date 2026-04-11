@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { withPerfLog } from "@/lib/perf/with-perf-log";
+import { PerfContext } from "@/lib/perf/perf-context";
 
 // GET /api/ops/schedule/services?customer_id=xxx&gardener_id=xxx&date_from=xxx&date_to=xxx&status=xxx
-export async function GET(request: NextRequest) {
+export const GET = withPerfLog('/api/ops/schedule/services', async (request: NextRequest, ctx: PerfContext) => {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await ctx.trackAuth(() => requireOpsAuth(request));
   } catch (res) {
     return res as Response;
   }
+  ctx.setUser(auth.userId, auth.role);
   if (auth.role === "gardener") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -36,7 +39,7 @@ export async function GET(request: NextRequest) {
   if (dateTo) query = query.lte("scheduled_date", dateTo);
   if (status) query = query.eq("status", status);
 
-  const { data, error } = await query.limit(200);
+  const { data, error } = await ctx.trackQuery(async () => await query.limit(200));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Join customer and gardener names
@@ -51,10 +54,10 @@ export async function GET(request: NextRequest) {
   let gardenerNames: Record<string, string> = {};
 
   if (customerIds.length > 0) {
-    const { data: customers } = await supabase
+    const { data: customers } = await ctx.trackQuery(async () => supabase
       .from("customers")
       .select("id, name")
-      .in("id", customerIds);
+      .in("id", customerIds));
     customerNames = Object.fromEntries(
       (customers ?? []).map((c) => [c.id, c.name])
     );
@@ -62,18 +65,18 @@ export async function GET(request: NextRequest) {
 
   if (gardenerIds.length > 0) {
     // gardener_id is from gardeners table, need to join to profiles for name
-    const { data: gardeners } = await supabase
+    const { data: gardeners } = await ctx.trackQuery(async () => supabase
       .from("gardeners")
       .select("id, profile_id")
-      .in("id", gardenerIds);
+      .in("id", gardenerIds));
     const profileIds = (gardeners ?? [])
       .map((g) => g.profile_id)
       .filter(Boolean);
     if (profileIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await ctx.trackQuery(async () => supabase
         .from("profiles")
         .select("id, full_name")
-        .in("id", profileIds);
+        .in("id", profileIds));
       const profileMap = Object.fromEntries(
         (profiles ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
       );
@@ -95,4 +98,4 @@ export async function GET(request: NextRequest) {
   }));
 
   return NextResponse.json({ data: services });
-}
+});

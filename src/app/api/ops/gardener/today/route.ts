@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { withPerfLog } from "@/lib/perf/with-perf-log";
+import { PerfContext } from "@/lib/perf/perf-context";
 
 // GET /api/ops/gardener/today — all services for this gardener today
-export async function GET(request: NextRequest) {
+export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRequest, ctx: PerfContext) => {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await ctx.trackAuth(() => requireOpsAuth(request));
   } catch (res) {
     return res as Response;
   }
+  ctx.setUser(auth.userId, auth.role);
 
   // Gardener: use their gardener_id. Admin/horti: require ?gardener_id param
   let gardenerId = auth.gardener_id;
@@ -27,14 +30,14 @@ export async function GET(request: NextRequest) {
   const today = new Date().toISOString().split("T")[0];
   const supabase = getSupabaseAdmin();
 
-  const { data: services, error } = await supabase
+  const { data: services, error } = await ctx.trackQuery(async () => supabase
     .from("service_visits")
     .select(
       "id, customer_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off"
     )
     .eq("assigned_gardener_id", gardenerId)
     .eq("scheduled_date", today)
-    .order("time_window_start", { ascending: true });
+    .order("time_window_start", { ascending: true }));
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -42,10 +45,10 @@ export async function GET(request: NextRequest) {
   const customerIds = [...new Set((services ?? []).map((s) => s.customer_id))];
   let customerNames: Record<string, string> = {};
   if (customerIds.length > 0) {
-    const { data: customers } = await supabase
+    const { data: customers } = await ctx.trackQuery(async () => supabase
       .from("customers")
       .select("id, name")
-      .in("id", customerIds);
+      .in("id", customerIds));
     customerNames = Object.fromEntries(
       (customers ?? []).map((c) => [c.id, c.name])
     );
@@ -57,4 +60,4 @@ export async function GET(request: NextRequest) {
   }));
 
   return NextResponse.json({ data: result });
-}
+});

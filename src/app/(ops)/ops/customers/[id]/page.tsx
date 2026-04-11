@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
+import { usePerf } from "@/lib/perf/use-perf";
 import {
   ArrowLeft,
   Phone,
@@ -154,6 +155,7 @@ export default function Customer360Page() {
   const router = useRouter();
   const customerId = params.id as string;
   const searchParams = useSearchParams();
+  const perfFetcher = usePerf(`/api/ops/customers/${customerId}`, '/ops/customers/[id]');
 
   const [tab, setTab] = useState<"overview" | "services" | "requests" | "billing">("overview");
   const [showDeactivate, setShowDeactivate] = useState(false);
@@ -169,7 +171,7 @@ export default function Customer360Page() {
   // SWR fetches
   const { data: custData, isLoading: custLoading, mutate: mutateCust } = useSWR(
     `/api/ops/customers/${customerId}`,
-    fetcher
+    perfFetcher
   );
   const { data: svcData, isLoading: svcLoading, mutate: mutateSvc } = useSWR(
     `/api/ops/schedule/services?customer_id=${customerId}`,

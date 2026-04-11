@@ -5,6 +5,7 @@ import { Plus, Search, ChevronRight, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
+import { usePerf } from "@/lib/perf/use-perf";
 
 type Customer = {
   id: string;
@@ -33,8 +34,6 @@ const PLANT_RANGE_LABEL: Record<string, string> = {
 const inputCls =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest placeholder:text-stone";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
 function SkeletonCard() {
   return (
     <div className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 animate-pulse">
@@ -56,6 +55,7 @@ function SkeletonCard() {
 }
 
 export default function CustomersPage() {
+  const perfFetcher = usePerf('/api/ops/customers', '/ops/customers');
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
@@ -74,7 +74,7 @@ export default function CustomersPage() {
     return `/api/ops/customers${qs ? `?${qs}` : ""}`;
   }, [statusFilter, searchDebounced]);
 
-  const { data, isLoading } = useSWR(swrKey, fetcher);
+  const { data, isLoading } = useSWR(swrKey, perfFetcher);
   const customers: Customer[] = data?.data ?? [];
 
   const drafts = customers.filter((c) => c.status === "DRAFT");

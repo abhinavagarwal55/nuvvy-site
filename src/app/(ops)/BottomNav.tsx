@@ -19,6 +19,7 @@ import {
   LogOut,
   User,
   ChevronRight,
+  BarChart2,
 } from "lucide-react";
 import { useState } from "react";
 import type { OpsRole } from "@/lib/internal/authz";
@@ -72,16 +73,16 @@ export default function BottomNav({ role }: { role: OpsRole }) {
   return (
     <>
       {/* Desktop: left sidebar — hidden on mobile */}
-      <DesktopSidebar />
+      <DesktopSidebar role={role} />
       {/* Mobile: bottom nav — hidden on desktop */}
-      <MobileNav items={mobileBottomNav} className="md:hidden" />
+      <MobileNav items={mobileBottomNav} className="md:hidden" role={role} />
     </>
   );
 }
 
 // ─── Desktop Sidebar ───────────────────────────────────────────────────────
 
-function DesktopSidebar() {
+function DesktopSidebar({ role }: { role: OpsRole }) {
   const pathname = usePathname();
 
   return (
@@ -138,6 +139,24 @@ function DesktopSidebar() {
             </Link>
           );
         })}
+
+        {/* Admin-only: Metrics */}
+        {role === "admin" && (
+          <>
+            <div className="border-t border-stone/40 my-3" />
+            <Link
+              href="/ops/metrics"
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-colors ${
+                pathname === "/ops/metrics"
+                  ? "bg-forest text-offwhite"
+                  : "text-sage hover:bg-cream hover:text-charcoal"
+              }`}
+            >
+              <BarChart2 size={16} />
+              Metrics
+            </Link>
+          </>
+        )}
       </nav>
 
       {/* Logout */}
@@ -162,9 +181,11 @@ function DesktopSidebar() {
 function MobileNav({
   items,
   className = "",
+  role,
 }: {
   items: NavItem[];
   className?: string;
+  role?: OpsRole;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -194,6 +215,21 @@ function MobileNav({
               <ChevronRight size={16} className="text-stone" />
             </Link>
           ))}
+
+          {/* Admin-only: Metrics */}
+          {role === "admin" && (
+            <Link
+              href="/ops/metrics"
+              onClick={() => setMoreOpen(false)}
+              className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-charcoal hover:bg-cream"
+            >
+              <span className="flex items-center gap-3">
+                <BarChart2 size={20} />
+                Metrics
+              </span>
+              <ChevronRight size={16} className="text-stone" />
+            </Link>
+          )}
 
           {/* Divider + Profile & Logout */}
           <div className="border-t border-stone/40 my-2" />

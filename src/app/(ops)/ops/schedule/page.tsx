@@ -11,6 +11,7 @@ import {
   MoreVertical,
   X,
 } from "lucide-react";
+import { usePerf } from "@/lib/perf/use-perf";
 
 /* ---------- Types ---------- */
 
@@ -178,6 +179,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 /* ---------- Slide-up modal shell ---------- */
 
+
 function SlideUpModal({
   open,
   onClose,
@@ -284,6 +286,7 @@ function PillDropdown({
 /* ---------- Main Page ---------- */
 
 export default function SchedulePage() {
+  const perfFetcher = usePerf('/api/ops/schedule/services', '/ops/schedule');
   const [weekOffset, setWeekOffset] = useState(0);
 
   // Modal state
@@ -324,7 +327,7 @@ export default function SchedulePage() {
     data: servicesData,
     isLoading: loading,
     mutate,
-  } = useSWR(`/api/ops/schedule/services?date_from=${week.from}&date_to=${week.to}`, fetcher);
+  } = useSWR(`/api/ops/schedule/services?date_from=${week.from}&date_to=${week.to}`, perfFetcher);
   const services: Service[] = servicesData?.data ?? [];
 
   // SWR: customers + gardeners (for create modal — only fetch when modal is open)

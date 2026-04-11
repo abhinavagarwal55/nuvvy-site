@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type RefObject, type MouseEventHandler } from "react";
 import { PLANT_CATEGORIES, LIGHT_CONDITIONS, PRICE_BANDS } from "@/config/plantOptions";
 import { PLANT_FIELD_DEFS, DEFAULT_VISIBLE_COLUMNS, INITIAL_VISIBLE_COLUMNS } from "@/lib/internal/plants/plantFields";
+import { trackFetch } from "@/lib/perf/use-perf";
 
 // Helper to safely read JSON from response, handling HTML errors and empty bodies
 async function safeReadJson(res: Response) {
@@ -194,11 +195,15 @@ export default function PlantsPage() {
         ...(sortDir && { dir: sortDir }),
       });
 
-      const response = await fetch(`/api/internal/plants?${params}`);
-      const result = await safeReadJson(response);
+      const url = `/api/internal/plants?${params}`;
+      const result = await trackFetch(url, '/internal/plants', async () => {
+        const response = await fetch(url);
+        const parsed = await safeReadJson(response);
+        return { response, data: parsed };
+      });
 
       if (!result.ok || result.body?.error) {
-        throw new Error(result.body?.error || `HTTP ${response.status}`);
+        throw new Error(result.body?.error || `Failed to fetch plants`);
       }
 
       const json = result.body as PlantsResponse;

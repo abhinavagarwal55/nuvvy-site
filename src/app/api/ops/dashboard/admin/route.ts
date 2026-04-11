@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { withPerfLog } from "@/lib/perf/with-perf-log";
+import { PerfContext } from "@/lib/perf/perf-context";
 
 // GET /api/ops/dashboard/admin
-export async function GET(request: NextRequest) {
+export const GET = withPerfLog('/api/ops/dashboard/admin', async (request: NextRequest, ctx: PerfContext) => {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await ctx.trackAuth(() => requireOpsAuth(request));
   } catch (res) {
     return res as Response;
   }
+  ctx.setUser(auth.userId, auth.role);
   if (auth.role !== "admin") {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
@@ -22,7 +25,7 @@ export async function GET(request: NextRequest) {
     { data: todayServices },
     { data: pendingBills },
     { count: openRequests },
-  ] = await Promise.all([
+  ] = await ctx.trackQuery(async () => Promise.all([
     supabase
       .from("customers")
       .select("id", { count: "exact", head: true })
@@ -39,7 +42,7 @@ export async function GET(request: NextRequest) {
       .from("requests")
       .select("id", { count: "exact", head: true })
       .in("status", ["open", "in_progress"]),
-  ]);
+  ]));
 
   // Compute service counts
   const svcByStatus: Record<string, number> = {};
@@ -60,10 +63,10 @@ export async function GET(request: NextRequest) {
   const customerIds = [...new Set(followUpBills.map((b) => b.customer_id))];
   let customerNames: Record<string, string> = {};
   if (customerIds.length > 0) {
-    const { data: customers } = await supabase
+    const { data: customers } = await ctx.trackQuery(async () => supabase
       .from("customers")
       .select("id, name")
-      .in("id", customerIds);
+      .in("id", customerIds));
     customerNames = Object.fromEntries(
       (customers ?? []).map((c) => [c.id, c.name])
     );
@@ -90,4 +93,4 @@ export async function GET(request: NextRequest) {
       open_requests: openRequests ?? 0,
     },
   });
-}
+});

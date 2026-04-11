@@ -12,6 +12,7 @@ import {
   Leaf,
   ChevronRight,
 } from "lucide-react";
+import { usePerf } from "@/lib/perf/use-perf";
 
 type AdminDashboard = {
   active_customers: number;
@@ -44,9 +45,11 @@ const CARE_LABELS: Record<string, string> = {
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function HomePage() {
+  const perfFetcher = usePerf('/api/ops/people/me/role', '/ops/home');
+
   const { data: roleData, isLoading: roleLoading } = useSWR(
     "/api/ops/people/me/role",
-    fetcher
+    perfFetcher
   );
 
   const role = roleData?.data?.role ?? roleData?.role ?? null;

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { Clock, ChevronRight, Play } from "lucide-react";
+import { usePerf } from "@/lib/perf/use-perf";
 
 type TodayService = {
   id: string;
@@ -25,12 +26,14 @@ const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
   cancelled: { cls: "bg-stone/20 text-sage border-stone/40", label: "Cancelled" },
 };
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fallbackFetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function GardenerTodayPage() {
+  const perfFetcher = usePerf('/api/ops/gardener/today', '/ops/gardener/today');
+
   const { data, error, isLoading, mutate } = useSWR(
     "/api/ops/gardener/today",
-    fetcher,
+    perfFetcher,
     { refreshInterval: 30000 } // poll every 30s
   );
 

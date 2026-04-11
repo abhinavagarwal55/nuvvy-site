@@ -1,41 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { withPerfLog } from "@/lib/perf/with-perf-log";
+import { PerfContext } from "@/lib/perf/perf-context";
 
 // Force dynamic behavior
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // GET /api/internal/customers
-export async function GET(request: NextRequest) {
+export const GET = withPerfLog('/api/internal/customers', async (request: NextRequest, ctx: PerfContext) => {
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") || "";
     const status = searchParams.get("status") || "all";
-    
+
     const supabase = getSupabaseAdmin();
-    
+
     // Build query
     let query = supabase
       .from("customers")
       .select("*", { count: "exact" });
-    
+
     // Apply search filter (name or phone number)
     if (q) {
       query = query.or(`name.ilike.%${q}%,phone_number.ilike.%${q}%`);
     }
-    
+
     // Apply status filter
     if (status === "active") {
       query = query.eq("status", "ACTIVE");
     } else if (status === "inactive") {
       query = query.eq("status", "INACTIVE");
     }
-    
+
     // Order by updated_at desc
     query = query.order("updated_at", { ascending: false });
-    
-    const { data, error, count } = await query;
-    
+
+    const { data, error, count } = await ctx.trackQuery(async () => await query);
+
     if (error) {
       console.error("Supabase error:", error);
       return NextResponse.json(
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
         { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
       );
     }
-    
+
     return NextResponse.json(
       { customers: data || [], totalCount: count || 0 },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest) {
       { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
     );
   }
-}
+});
 
 // POST /api/internal/customers
 export async function POST(request: NextRequest) {

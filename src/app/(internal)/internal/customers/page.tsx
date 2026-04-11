@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getInternalApiUrl } from "@/lib/internal/apiUrl";
+import { trackFetch } from "@/lib/perf/use-perf";
 
 // Type for customer
 interface Customer {
@@ -73,14 +74,18 @@ export default function CustomersPage() {
       const params = new URLSearchParams();
       if (debouncedQuery) params.append("q", debouncedQuery);
       if (statusFilter !== "all") params.append("status", statusFilter);
-      
-      const response = await fetch(getInternalApiUrl(`/api/internal/customers?${params.toString()}`));
-      const data = await response.json();
-      
-      if (!response.ok) {
+
+      const url = getInternalApiUrl(`/api/internal/customers?${params.toString()}`);
+      const data = await trackFetch(url, '/internal/customers', async () => {
+        const response = await fetch(url);
+        const json = await response.json();
+        return { response, data: json };
+      });
+
+      if (data.error) {
         throw new Error(data.error || "Failed to fetch customers");
       }
-      
+
       setCustomers(data.customers || []);
       setTotalCount(data.totalCount || 0);
     } catch (err) {

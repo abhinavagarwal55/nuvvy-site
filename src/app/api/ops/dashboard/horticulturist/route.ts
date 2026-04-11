@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { withPerfLog } from "@/lib/perf/with-perf-log";
+import { PerfContext } from "@/lib/perf/perf-context";
 
 // GET /api/ops/dashboard/horticulturist
-export async function GET(request: NextRequest) {
+export const GET = withPerfLog('/api/ops/dashboard/horticulturist', async (request: NextRequest, ctx: PerfContext) => {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await ctx.trackAuth(() => requireOpsAuth(request));
   } catch (res) {
     return res as Response;
   }
+  ctx.setUser(auth.userId, auth.role);
   if (auth.role === "gardener") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -33,7 +36,7 @@ export async function GET(request: NextRequest) {
     { count: openRequests },
     { data: weekServices },
     { data: careSchedulesDue },
-  ] = await Promise.all([
+  ] = await ctx.trackQuery(async () => Promise.all([
     supabase
       .from("service_visits")
       .select("id", { count: "exact", head: true })
@@ -53,7 +56,7 @@ export async function GET(request: NextRequest) {
       .select("care_action_type_id, next_due_date")
       .lte("next_due_date", weekTo)
       .gte("next_due_date", weekFrom),
-  ]);
+  ]));
 
   // Group care actions due by type
   const careByType: Record<string, number> = {};
@@ -66,10 +69,10 @@ export async function GET(request: NextRequest) {
   let careTypeNames: Record<string, string> = {};
   const typeIds = Object.keys(careByType);
   if (typeIds.length > 0) {
-    const { data: types } = await supabase
+    const { data: types } = await ctx.trackQuery(async () => supabase
       .from("care_action_types")
       .select("id, name")
-      .in("id", typeIds);
+      .in("id", typeIds));
     careTypeNames = Object.fromEntries(
       (types ?? []).map((t) => [t.id, t.name])
     );
@@ -88,7 +91,7 @@ export async function GET(request: NextRequest) {
       care_actions_due_this_week: careActionsDue,
     },
   });
-}
+});
 
 function fmt(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

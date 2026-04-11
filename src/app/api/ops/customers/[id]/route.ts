@@ -3,31 +3,31 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
+import { withPerfLog } from "@/lib/perf/with-perf-log";
+import { PerfContext } from "@/lib/perf/perf-context";
 
 // GET /api/ops/customers/[id] — customer 360 data
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withPerfLog('/api/ops/customers/[id]', async (request: NextRequest, ctx: PerfContext, routeParams: unknown) => {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await ctx.trackAuth(() => requireOpsAuth(request));
   } catch (res) {
     return res as Response;
   }
+  ctx.setUser(auth.userId, auth.role);
   if (auth.role === "gardener") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id } = await (routeParams as { params: Promise<{ id: string }> }).params;
   const supabase = getSupabaseAdmin();
 
   // Round 1: customer with society via FK join
-  const { data: customer, error } = await supabase
+  const { data: customer, error } = await ctx.trackQuery(async () => supabase
     .from("customers")
     .select("*, societies(id, name)")
     .eq("id", id)
-    .single();
+    .single());
 
   if (error) {
     if (error.code === "PGRST116")
@@ -40,7 +40,7 @@ export async function GET(
     { data: observations },
     { data: subscription },
     { data: careSchedules },
-  ] = await Promise.all([
+  ] = await ctx.trackQuery(async () => Promise.all([
     supabase
       .from("customer_observations")
       .select("id, text, created_by, updated_at")
@@ -60,7 +60,7 @@ export async function GET(
         "id, care_action_type_id, cycle_anchor_date, next_due_date, last_done_date, care_action_types(id, name)"
       )
       .eq("customer_id", id),
-  ]);
+  ]));
 
   // Extract society from joined result
   const societyObj = customer.societies as unknown as { id: string; name: string } | null;
@@ -92,7 +92,7 @@ export async function GET(
       }),
     },
   });
-}
+});
 
 const UpdateCustomerSchema = z.object({
   name: z.string().min(1).optional(),
