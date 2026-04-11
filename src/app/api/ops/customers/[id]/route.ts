@@ -22,10 +22,10 @@ export async function GET(
   const { id } = await params;
   const supabase = getSupabaseAdmin();
 
-  // Fetch customer
+  // Round 1: customer with society via FK join
   const { data: customer, error } = await supabase
     .from("customers")
-    .select("*")
+    .select("*, societies(id, name)")
     .eq("id", id)
     .single();
 
@@ -35,12 +35,11 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Fetch related data in parallel
+  // Round 2: all related data in parallel (with FK joins to eliminate sequential lookups)
   const [
     { data: observations },
     { data: subscription },
     { data: careSchedules },
-    { data: society },
   ] = await Promise.all([
     supabase
       .from("customer_observations")
@@ -49,7 +48,7 @@ export async function GET(
       .order("updated_at", { ascending: false }),
     supabase
       .from("subscriptions")
-      .select("id, plan_id, start_date, end_date, status")
+      .select("id, plan_id, start_date, end_date, status, service_plans(id, name, visit_frequency, price)")
       .eq("customer_id", id)
       .eq("status", "active")
       .order("created_at", { ascending: false })
@@ -58,54 +57,39 @@ export async function GET(
     supabase
       .from("customer_care_schedules")
       .select(
-        "id, care_action_type_id, cycle_anchor_date, next_due_date, last_done_date"
+        "id, care_action_type_id, cycle_anchor_date, next_due_date, last_done_date, care_action_types(id, name)"
       )
       .eq("customer_id", id),
-    customer.society_id
-      ? supabase
-          .from("societies")
-          .select("id, name")
-          .eq("id", customer.society_id)
-          .single()
-      : Promise.resolve({ data: null }),
   ]);
 
-  // If there's an active subscription, fetch the plan name
-  let planInfo = null;
-  if (subscription?.plan_id) {
-    const { data: plan } = await supabase
-      .from("service_plans")
-      .select("id, name, visit_frequency, price")
-      .eq("id", subscription.plan_id)
-      .single();
-    planInfo = plan;
-  }
+  // Extract society from joined result
+  const societyObj = customer.societies as unknown as { id: string; name: string } | null;
 
-  // Fetch care action type names for schedule display
-  let careActionTypes: Record<string, string> = {};
-  if (careSchedules && careSchedules.length > 0) {
-    const typeIds = careSchedules.map((cs) => cs.care_action_type_id);
-    const { data: types } = await supabase
-      .from("care_action_types")
-      .select("id, name")
-      .in("id", typeIds);
-    careActionTypes = Object.fromEntries(
-      (types ?? []).map((t) => [t.id, t.name])
-    );
-  }
+  // Extract plan from joined subscription
+  const planInfo = subscription
+    ? (subscription.service_plans as unknown as { id: string; name: string; visit_frequency: string; price: number } | null)
+    : null;
 
   return NextResponse.json({
     data: {
       ...customer,
-      society: society ?? null,
+      societies: undefined, // remove raw join field
+      society: societyObj ?? null,
       observations: observations ?? [],
       subscription: subscription
-        ? { ...subscription, plan: planInfo }
+        ? { id: subscription.id, plan_id: subscription.plan_id, start_date: subscription.start_date, end_date: subscription.end_date, status: subscription.status, plan: planInfo }
         : null,
-      care_schedules: (careSchedules ?? []).map((cs) => ({
-        ...cs,
-        care_action_name: careActionTypes[cs.care_action_type_id] ?? null,
-      })),
+      care_schedules: (careSchedules ?? []).map((cs) => {
+        const typeObj = cs.care_action_types as unknown as { id: string; name: string } | null;
+        return {
+          id: cs.id,
+          care_action_type_id: cs.care_action_type_id,
+          cycle_anchor_date: cs.cycle_anchor_date,
+          next_due_date: cs.next_due_date,
+          last_done_date: cs.last_done_date,
+          care_action_name: typeObj?.name ?? null,
+        };
+      }),
     },
   });
 }

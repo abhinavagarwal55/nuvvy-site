@@ -49,9 +49,11 @@ export async function requireOpsAuth(request: NextRequest): Promise<OpsAuthConte
   }
 
   const adminSupabase = getSupabaseAdmin();
+
+  // Single query: fetch profile + gardener row (if exists) via FK join
   const { data: profile } = await adminSupabase
     .from("profiles")
-    .select("role, status, inactive_since")
+    .select("role, status, inactive_since, gardeners(id)")
     .eq("id", user.id)
     .single();
 
@@ -73,15 +75,9 @@ export async function requireOpsAuth(request: NextRequest): Promise<OpsAuthConte
     );
   }
 
-  let gardener_id: string | null = null;
-  if (profile.role === "gardener") {
-    const { data: gardener } = await adminSupabase
-      .from("gardeners")
-      .select("id")
-      .eq("profile_id", user.id)
-      .single();
-    gardener_id = gardener?.id ?? null;
-  }
+  // Extract gardener_id from joined result (array of gardener rows, take first)
+  const gardenersArr = profile.gardeners as unknown as { id: string }[] | null;
+  const gardener_id = gardenersArr?.[0]?.id ?? null;
 
   return {
     userId: user.id,

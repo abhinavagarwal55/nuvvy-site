@@ -1,20 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
-import { isDevBypassAuthMiddleware } from "@/lib/internal/dev-bypass";
 
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
   const url = request.nextUrl.clone();
-  
+
   // Check if we're in local development
-  const isDevelopment = 
-    hostname.includes("localhost") || 
+  const isDevelopment =
+    hostname.includes("localhost") ||
     hostname.includes("127.0.0.1") ||
     process.env.NODE_ENV !== "production";
-  
-  // Check if dev bypass is enabled
-  const bypassAuth = isDevBypassAuthMiddleware(hostname);
   
   // Protect /api/ops/* routes — same domain restriction as /api/internal/*
   // Auth is handled in each route handler; middleware only enforces domain
@@ -28,40 +23,14 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Protect /api/internal/* routes
+  // Protect /api/internal/* routes — domain gating only, auth handled in route handlers
   if (url.pathname.startsWith("/api/internal")) {
-    // Block from public domain - return 404
     if (!isDevelopment && !hostname.startsWith("internal.") && hostname !== "internal.nuvvy.in") {
       return new NextResponse(null, { status: 404 });
     }
-
-    // Skip auth check if dev bypass is enabled
-    if (bypassAuth) {
-      return NextResponse.next();
-    }
-
-    // Check authentication for internal API routes
-    try {
-      const { supabase, response } = createMiddlewareSupabaseClient(request);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return NextResponse.json(
-          { error: "Unauthorized" },
-          { status: 401 }
-        );
-      }
-
-      return response;
-    } catch (error) {
-      // If auth check fails, return 401
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const response = NextResponse.next();
+    response.headers.set("x-pathname", url.pathname);
+    return response;
   }
   
   // Add pathname to headers for layout to check

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { getCachedCareActionTypes } from "@/lib/cache/reference-data";
 
 // GET /api/ops/gardener/services/[id] — full service detail for execution screen
 export async function GET(
@@ -73,18 +74,11 @@ export async function GET(
     (cs) => cs.next_due_date && cs.next_due_date <= dueBy
   );
 
-  // Get care action type names
-  let careTypeNames: Record<string, { name: string; freq: number }> = {};
-  if (dueCareActions.length > 0) {
-    const typeIds = dueCareActions.map((ca) => ca.care_action_type_id);
-    const { data: types } = await supabase
-      .from("care_action_types")
-      .select("id, name, default_frequency_days")
-      .in("id", typeIds);
-    careTypeNames = Object.fromEntries(
-      (types ?? []).map((t) => [t.id, { name: t.name, freq: t.default_frequency_days }])
-    );
-  }
+  // Get care action type names from cache
+  const allCareTypes = await getCachedCareActionTypes();
+  const careTypeNames: Record<string, { name: string; freq: number }> = Object.fromEntries(
+    allCareTypes.map((t) => [t.id, { name: t.name, freq: t.default_frequency_days }])
+  );
 
   // Check which care actions have already been marked done for this service
   const { data: existingCareActions } = await supabase

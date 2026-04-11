@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getInternalApiUrl } from "@/lib/internal/apiUrl";
 
@@ -36,7 +36,16 @@ export default function CustomersPage() {
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [searchQuery]);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -62,7 +71,7 @@ export default function CustomersPage() {
       setError(null);
       
       const params = new URLSearchParams();
-      if (searchQuery) params.append("q", searchQuery);
+      if (debouncedQuery) params.append("q", debouncedQuery);
       if (statusFilter !== "all") params.append("status", statusFilter);
       
       const response = await fetch(getInternalApiUrl(`/api/internal/customers?${params.toString()}`));
@@ -80,7 +89,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, statusFilter]);
+  }, [debouncedQuery, statusFilter]);
   
   useEffect(() => {
     fetchCustomers();
@@ -184,8 +193,11 @@ export default function CustomersPage() {
       
       // Success
       if (modalMode === "create") {
-        // Refetch after create
-        await fetchCustomers();
+        // Optimistic update: prepend new customer to list
+        if (result.data) {
+          setCustomers((prev) => [result.data, ...prev]);
+          setTotalCount((prev) => prev + 1);
+        }
         setTimeout(() => {
           handleCloseModal();
         }, 1500);

@@ -22,10 +22,11 @@ export async function GET(request: NextRequest) {
 
   const supabase = getSupabaseAdmin();
 
+  // Round 1: customers with society name via FK join
   let query = supabase
     .from("customers")
     .select(
-      "id, name, phone_number, address, status, society_id, plant_count_range, created_at, updated_at"
+      "id, name, phone_number, address, status, society_id, plant_count_range, created_at, updated_at, societies(name)"
     )
     .order("created_at", { ascending: false });
 
@@ -36,22 +37,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Join society names
-  const societyIds = [
-    ...new Set((data ?? []).map((c) => c.society_id).filter(Boolean)),
-  ];
-  let societyMap: Record<string, string> = {};
-  if (societyIds.length > 0) {
-    const { data: societies } = await supabase
-      .from("societies")
-      .select("id, name")
-      .in("id", societyIds);
-    societyMap = Object.fromEntries(
-      (societies ?? []).map((s) => [s.id, s.name])
-    );
-  }
-
-  // Check which active customers have care schedules and slots
+  // Round 2: care schedules + slots in parallel (only for active customers)
   const activeIds = (data ?? []).filter((c) => c.status === "ACTIVE").map((c) => c.id);
   let careScheduleMap: Record<string, number> = {};
   let slotMap: Record<string, boolean> = {};
@@ -68,12 +54,23 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const customers = (data ?? []).map((c) => ({
-    ...c,
-    society_name: c.society_id ? societyMap[c.society_id] ?? null : null,
-    has_care_schedules: c.status === "ACTIVE" ? (careScheduleMap[c.id] ?? 0) > 0 : null,
-    has_slot: c.status === "ACTIVE" ? slotMap[c.id] ?? false : null,
-  }));
+  const customers = (data ?? []).map((c) => {
+    const societyObj = c.societies as unknown as { name: string } | null;
+    return {
+      id: c.id,
+      name: c.name,
+      phone_number: c.phone_number,
+      address: c.address,
+      status: c.status,
+      society_id: c.society_id,
+      plant_count_range: c.plant_count_range,
+      created_at: c.created_at,
+      updated_at: c.updated_at,
+      society_name: societyObj?.name ?? null,
+      has_care_schedules: c.status === "ACTIVE" ? (careScheduleMap[c.id] ?? 0) > 0 : null,
+      has_slot: c.status === "ACTIVE" ? slotMap[c.id] ?? false : null,
+    };
+  });
 
   return NextResponse.json({ data: customers });
 }
