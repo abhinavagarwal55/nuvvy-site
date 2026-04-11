@@ -30,9 +30,8 @@ type Draft = {
   light_condition: string;
   watering_responsibility: string[];
   house_help_phone: string;
-  garden_notes: string;
   // Step 3
-  observations: string;
+  garden_notes: string;
   // Step 4
   plan_id: string;
 };
@@ -40,7 +39,7 @@ type Draft = {
 const STEPS = [
   "Customer Details",
   "Garden Details",
-  "Photos & Observations",
+  "Photos & Notes",
   "Plan Assignment",
   "Review & Confirm",
   "Post-Onboarding",
@@ -76,7 +75,6 @@ const EMPTY_DRAFT: Draft = {
   watering_responsibility: [],
   house_help_phone: "",
   garden_notes: "",
-  observations: "",
   plan_id: "",
 };
 
@@ -656,17 +654,6 @@ function Step2GardenDetails({
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-charcoal mb-1">
-          Garden notes
-        </label>
-        <textarea
-          className={`${inputCls} min-h-[80px]`}
-          value={draft.garden_notes}
-          onChange={(e) => update("garden_notes", e.target.value)}
-          placeholder="Any special notes about the garden…"
-        />
-      </div>
     </div>
   );
 }
@@ -775,16 +762,16 @@ function Step3ObservationsAndCare({
         )}
       </div>
 
-      {/* Observations */}
+      {/* Notes */}
       <div>
         <label className="block text-sm font-medium text-charcoal mb-1">
-          Horticulturist observations
+          Notes
         </label>
         <textarea
           className={`${inputCls} min-h-[100px]`}
-          value={draft.observations}
-          onChange={(e) => update("observations", e.target.value)}
-          placeholder="Initial observations about the garden…"
+          value={draft.garden_notes}
+          onChange={(e) => update("garden_notes", e.target.value)}
+          placeholder="Any observations or notes about the garden…"
         />
       </div>
 

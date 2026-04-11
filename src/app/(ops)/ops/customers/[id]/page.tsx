@@ -741,8 +741,8 @@ function InlineEditForm({
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-charcoal mb-1">Garden notes</label>
-            <textarea className={`${editInputCls} min-h-[80px]`} value={gardenNotes} onChange={(e) => setGardenNotes(e.target.value)} placeholder="Any notes about the garden…" />
+            <label className="block text-xs font-medium text-charcoal mb-1">Notes</label>
+            <textarea className={`${editInputCls} min-h-[80px]`} value={gardenNotes} onChange={(e) => setGardenNotes(e.target.value)} placeholder="Any observations or notes about the garden…" />
           </div>
         </div>
       </div>
@@ -900,16 +900,6 @@ function InlineEditForm({
           </div>
         )}
       </div>
-
-      {/* Section: Existing Observations (read-only) */}
-      {customer.observations.length > 0 && (
-        <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
-          <p className="text-xs font-medium text-sage uppercase tracking-widest mb-2">Observations</p>
-          {customer.observations.map((obs) => (
-            <p key={obs.id} className="text-sm text-charcoal py-1 border-b border-stone/20 last:border-0">{obs.text}</p>
-          ))}
-        </div>
-      )}
 
       {/* Section: Care Schedules */}
       <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
@@ -1133,7 +1123,7 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
         )}
         {customer.garden_notes && (
           <div className="mt-3 pt-3 border-t border-stone/30">
-            <p className="text-xs font-medium text-sage mb-1">Garden Notes</p>
+            <p className="text-xs font-medium text-sage mb-1">Notes</p>
             <p className="text-sm text-charcoal leading-relaxed">{customer.garden_notes}</p>
           </div>
         )}
@@ -1174,23 +1164,6 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
           <p className="text-sm text-terra">No care schedules configured — click Edit to set up.</p>
         )}
       </Card>
-
-      {/* Observations */}
-      {customer.observations.length > 0 && (
-        <Card title="Observations">
-          {customer.observations.map((obs) => (
-            <div
-              key={obs.id}
-              className="py-2 border-b border-stone/20 last:border-0"
-            >
-              <p className="text-sm text-charcoal leading-relaxed">{obs.text}</p>
-              <p className="text-xs text-sage mt-1">
-                {new Date(obs.updated_at).toLocaleDateString()}
-              </p>
-            </div>
-          ))}
-        </Card>
-      )}
 
       {/* Deactivation info */}
       {customer.status === "INACTIVE" && customer.deactivation_reason && (
