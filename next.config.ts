@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   basePath: basePath,
   assetPrefix: basePath,
   eslint: { ignoreDuringBuilds: true },
+  experimental: {
+    staleTimes: {
+      dynamic: 0, // Don't cache dynamic layouts/pages in router cache
+    },
+  },
   // Allow remote images used in the Inspiration Gallery and Airtable attachments
   images: {
     remotePatterns: [

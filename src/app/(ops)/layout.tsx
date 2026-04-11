@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
-import { requireOpsAccess } from "@/lib/internal/authz";
+import { createServerSupabaseClient } from "@/lib/supabase/ssr";
+import { getOpsRole, requireOpsAccess } from "@/lib/internal/authz";
 import BottomNav from "./BottomNav";
 import type { OpsRole } from "@/lib/internal/authz";
 
@@ -27,6 +28,7 @@ export default async function OpsLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Try to determine the current path from headers or referer
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") || "";
 
@@ -36,13 +38,19 @@ export default async function OpsLayout({
 
   let role: OpsRole | null = null;
 
-  // If pathname header is missing, assume this is an ops route that needs auth
-  // (this layout only renders for /ops/* routes)
-  const needsAuth = !isPublicRoute;
-
-  if (needsAuth) {
+  if (!isPublicRoute) {
+    // Protected route — redirect to login if not authenticated
     const auth = await requireOpsAccess(["admin", "horticulturist", "gardener"]);
     role = auth.role;
+  } else {
+    // Public route — soft check for role (no redirect), so sidebar shows if logged in
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) role = await getOpsRole(user.id);
+    } catch {
+      // Not logged in — no sidebar
+    }
   }
 
   return (
