@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Search, ChevronRight, Pencil } from "lucide-react";
+import { Plus, Search, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -74,7 +74,7 @@ export default function CustomersPage() {
     return `/api/ops/customers${qs ? `?${qs}` : ""}`;
   }, [statusFilter, searchDebounced]);
 
-  const { data, isLoading } = useSWR(swrKey, perfFetcher);
+  const { data, isLoading, mutate } = useSWR(swrKey, perfFetcher);
   const customers: Customer[] = data?.data ?? [];
 
   const drafts = customers.filter((c) => c.status === "DRAFT");
@@ -151,7 +151,7 @@ export default function CustomersPage() {
               (statusFilter === "all" || statusFilter === "DRAFT") && (
                 <Section title="Drafts (in progress)" count={drafts.length}>
                   {drafts.map((c) => (
-                    <CustomerCard key={c.id} customer={c} />
+                    <CustomerCard key={c.id} customer={c} onDeleted={() => mutate()} />
                   ))}
                 </Section>
               )}
@@ -174,7 +174,7 @@ export default function CustomersPage() {
   );
 }
 
-function CustomerCard({ customer }: { customer: Customer }) {
+function CustomerCard({ customer, onDeleted }: { customer: Customer; onDeleted?: () => void }) {
   const router = useRouter();
   const badge = STATUS_BADGE[customer.status] ?? {
     cls: "bg-stone/30 text-charcoal",
@@ -185,6 +185,19 @@ function CustomerCard({ customer }: { customer: Customer }) {
     customer.status === "DRAFT"
       ? `/ops/customers/new?draft=${customer.id}`
       : `/ops/customers/${customer.id}`;
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete draft "${customer.name}"?`)) return;
+    const res = await fetch(`/api/ops/customers/${customer.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const json = await res.json();
+      alert(json.error ?? "Failed to delete");
+      return;
+    }
+    onDeleted?.();
+  }
 
   return (
     <div className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 hover:border-forest/40 transition-colors">
@@ -213,6 +226,15 @@ function CustomerCard({ customer }: { customer: Customer }) {
             )}
           </div>
         </div>
+        {customer.status === "DRAFT" && onDeleted && (
+          <button
+            onClick={handleDelete}
+            className="text-stone hover:text-terra p-1 flex-shrink-0"
+            title="Delete draft"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
         <ChevronRight size={18} className="text-stone flex-shrink-0" />
       </Link>
       {customer.status !== "DRAFT" && (

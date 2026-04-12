@@ -72,9 +72,9 @@ export default function InternalPage() {
     if (!dateString) return "Unknown";
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
+      return date.toLocaleDateString("en-IN", {
         day: "numeric",
+        month: "long",
         year: "numeric",
       });
     } catch {

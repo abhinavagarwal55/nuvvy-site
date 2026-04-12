@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
+import { formatDate } from "@/lib/utils/format-date";
 import {
   Users,
   Calendar,
@@ -374,7 +375,7 @@ function FollowUpRow({
   const [copied, setCopied] = useState(false);
 
   async function handleRemind() {
-    const msg = `Hi ${bill.customer_name}, this is a gentle reminder about your Nuvvy garden care payment of ₹${bill.amount_inr}. Due date: ${bill.due_date}. Please let us know once done! — Team Nuvvy`;
+    const msg = `Hi ${bill.customer_name}, this is a gentle reminder about your Nuvvy garden care payment of ₹${bill.amount_inr}. Due date: ${formatDate(bill.due_date)}. Please let us know once done! — Team Nuvvy`;
     await navigator.clipboard.writeText(msg);
     await fetch(`/api/ops/billing/${bill.id}/remind`, { method: "POST" });
     setCopied(true);
@@ -386,7 +387,7 @@ function FollowUpRow({
       <div>
         <p className="text-sm text-charcoal">{bill.customer_name}</p>
         <p className="text-xs text-sage">
-          ₹{bill.amount_inr} · Due {bill.due_date}
+          ₹{bill.amount_inr} · Due {formatDate(bill.due_date)}
           {bill.is_overdue && <span className="text-terra ml-1">(overdue)</span>}
         </p>
       </div>

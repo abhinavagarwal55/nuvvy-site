@@ -4,6 +4,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { generateServices } from "@/lib/services/scheduling";
 import { logAuditEvent } from "@/lib/services/audit";
+import { sendNotificationEmail } from "@/lib/email/send-email";
+import { customerActivatedEmail } from "@/lib/email/templates";
 
 const ActivateSchema = z.object({
   plan_id: z.string().uuid("Plan is required"),
@@ -197,6 +199,63 @@ export async function POST(
     ip,
     userAgent,
   });
+
+  // Send email notification (fire-and-forget)
+  (async () => {
+    try {
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("name, phone_number, email, address, society_id, plant_count_range, light_condition")
+        .eq("id", id)
+        .single();
+      const { data: planInfo } = await supabase
+        .from("service_plans")
+        .select("name, price")
+        .eq("id", plan_id)
+        .single();
+      let societyName = null;
+      if (cust?.society_id) {
+        const { data: soc } = await supabase.from("societies").select("name").eq("id", cust.society_id).single();
+        societyName = soc?.name ?? null;
+      }
+      let gardenerName = null;
+      let slotDay = null;
+      if (slot) {
+        const { data: g } = await supabase.from("profiles").select("full_name").eq("id", slot.gardener_id).maybeSingle();
+        if (!g) {
+          const { data: gard } = await supabase.from("gardeners").select("id, profile_id").eq("id", slot.gardener_id).single();
+          if (gard?.profile_id) {
+            const { data: gp } = await supabase.from("profiles").select("full_name").eq("id", gard.profile_id).single();
+            gardenerName = gp?.full_name ?? null;
+          }
+        } else {
+          gardenerName = g.full_name;
+        }
+        const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        slotDay = days[slot.day_of_week] ?? null;
+      }
+      const { data: actor } = await supabase.from("profiles").select("full_name").eq("id", auth.userId).single();
+
+      const email = customerActivatedEmail({
+        name: cust?.name ?? "Unknown",
+        phone: cust?.phone_number ?? "",
+        email: cust?.email,
+        address: cust?.address,
+        society: societyName,
+        plantCountRange: cust?.plant_count_range,
+        lightCondition: cust?.light_condition,
+        planName: planInfo?.name,
+        planPrice: planInfo?.price,
+        gardenerName,
+        slotDay,
+        slotTime: slot ? `${slot.time_window_start}–${slot.time_window_end}` : null,
+        activatedBy: actor?.full_name ?? auth.role,
+      });
+      await sendNotificationEmail(email.subject, email.html);
+    } catch (err) {
+      console.error("Customer activation email failed:", err);
+    }
+  })();
 
   return NextResponse.json({
     data: {

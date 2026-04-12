@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ChevronRight, Clock } from "lucide-react";
+import { formatDate } from "@/lib/utils/format-date";
 
 type Service = {
   id: string;
@@ -142,7 +143,7 @@ export default function ServiceLogPage() {
                       </span>
                     </div>
                     <div className="flex gap-3 text-xs text-sage mt-0.5">
-                      <span>{svc.scheduled_date}</span>
+                      <span>{formatDate(svc.scheduled_date)}</span>
                       {svc.time_window_start && (
                         <span className="flex items-center gap-1">
                           <Clock size={11} />

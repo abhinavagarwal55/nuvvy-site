@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { sendNotificationEmail } from "@/lib/email/send-email";
+import { serviceCompletedEmail } from "@/lib/email/templates";
 
 const IssueSchema = z.object({
   type: z.enum(["leaves_drooping", "pest_infected", "other"]),
@@ -278,6 +280,78 @@ export async function POST(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Send email notification (fire-and-forget)
+  (async () => {
+    try {
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("name")
+        .eq("id", service.customer_id)
+        .single();
+      const { data: checklistItems } = await supabase
+        .from("visit_checklist_items")
+        .select("completion_status")
+        .eq("visit_id", id);
+      const { data: careActions } = await supabase
+        .from("service_care_actions")
+        .select("care_action_type_id, marked_done")
+        .eq("service_id", id)
+        .eq("marked_done", true);
+      const { data: careTypes } = await supabase
+        .from("care_action_types")
+        .select("id, name");
+      const careTypeMap = Object.fromEntries((careTypes ?? []).map((t) => [t.id, t.name]));
+      const { data: tasks } = await supabase
+        .from("service_special_tasks")
+        .select("description, is_completed")
+        .eq("for_service_id", id)
+        .eq("is_completed", true);
+      const { count: photoCount } = await supabase
+        .from("visit_photos")
+        .select("id", { count: "exact", head: true })
+        .eq("visit_id", id)
+        .eq("tag", "general");
+      let gardenerName = null;
+      if (service.assigned_gardener_id) {
+        const { data: gard } = await supabase.from("gardeners").select("profile_id").eq("id", service.assigned_gardener_id).single();
+        if (gard?.profile_id) {
+          const { data: gp } = await supabase.from("profiles").select("full_name").eq("id", gard.profile_id).single();
+          gardenerName = gp?.full_name ?? null;
+        }
+      }
+
+      const allChecklist = checklistItems ?? [];
+      const doneCount = allChecklist.filter((c) => c.completion_status === "done").length;
+
+      // Build issue descriptions
+      const issueDescs: string[] = [];
+      if (issues && issues.length > 0) {
+        for (const iss of issues) {
+          issueDescs.push(ISSUE_LABELS[iss.type] ?? iss.type);
+        }
+      }
+
+      const email = serviceCompletedEmail({
+        customerName: cust?.name ?? "Unknown",
+        scheduledDate: updated.scheduled_date,
+        timeWindow: updated.time_window_start
+          ? `${updated.time_window_start}–${updated.time_window_end}`
+          : null,
+        gardenerName,
+        checklistDone: doneCount,
+        checklistTotal: allChecklist.length,
+        careActionsDone: (careActions ?? []).map((a) => careTypeMap[a.care_action_type_id] ?? "Unknown"),
+        specialTasksDone: (tasks ?? []).map((t) => t.description),
+        photoCount: photoCount ?? 0,
+        issuesRaised: issueDescs,
+        hasClientRequest: clientRequestRaised,
+      });
+      await sendNotificationEmail(email.subject, email.html);
+    } catch (err) {
+      console.error("Service completion email failed:", err);
+    }
+  })();
 
   return NextResponse.json({
     data: updated,

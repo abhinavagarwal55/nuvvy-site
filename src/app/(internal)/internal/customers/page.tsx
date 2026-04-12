@@ -409,7 +409,7 @@ export default function CustomersPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {new Date(customer.updated_at).toLocaleDateString()}
+                          {new Date(customer.updated_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white">
                           <button

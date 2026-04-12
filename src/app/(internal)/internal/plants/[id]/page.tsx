@@ -185,10 +185,10 @@ export default function PlantDetailPage({ params }: { params: Promise<{ id: stri
   const formatDate = (dateString?: string | null): string => {
     if (!dateString) return "-";
     try {
-      return new Date(dateString).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
+      return new Date(dateString).toLocaleDateString("en-IN", {
         day: "numeric",
+        month: "long",
+        year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
       });

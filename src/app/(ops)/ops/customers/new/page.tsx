@@ -1,7 +1,7 @@
 // NOTE: Keep fields in sync with edit form at src/app/(ops)/ops/customers/[id]/page.tsx (InlineEditForm)
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, Copy, Camera, X, Trash2 } from "lucide-react";
 import { compressImage } from "@/lib/utils/compress-image";
@@ -23,6 +23,7 @@ type Draft = {
   name: string;
   phone_number: string;
   email: string;
+  address: string;
   society_id: string;
   society_name: string; // for new society
   // Step 2
@@ -68,6 +69,7 @@ const EMPTY_DRAFT: Draft = {
   name: "",
   phone_number: "",
   email: "",
+  address: "",
   society_id: "",
   society_name: "",
   plant_count_range: "",
@@ -90,6 +92,7 @@ function OnboardingWizardInner() {
   const [error, setError] = useState<string | null>(null);
   const [activated, setActivated] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState<{ id: string; storage_path: string; url?: string | null }[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -121,6 +124,7 @@ function OnboardingWizardInner() {
           name: c.name ?? "",
           phone_number: c.phone_number ?? "",
           email: c.email ?? "",
+          address: c.address ?? "",
           society_id: c.society_id ?? "",
           plant_count_range: c.plant_count_range ?? "",
           light_condition: c.light_condition ?? "",
@@ -157,6 +161,7 @@ function OnboardingWizardInner() {
             name: draft.name,
             phone_number: draft.phone_number,
             email: draft.email || undefined,
+            address: draft.address || undefined,
             society_id: draft.society_id || undefined,
             plant_count_range: draft.plant_count_range || undefined,
             light_condition: draft.light_condition || undefined,
@@ -177,6 +182,7 @@ function OnboardingWizardInner() {
             name: draft.name,
             phone_number: draft.phone_number,
             email: draft.email || undefined,
+            address: draft.address || undefined,
             society_id: draft.society_id || undefined,
             society_name: draft.society_name || undefined,
             plant_count_range: draft.plant_count_range || undefined,
@@ -218,29 +224,31 @@ function OnboardingWizardInner() {
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !customerId) return;
+    const files = e.target.files;
+    if (!files || files.length === 0 || !customerId) return;
     setUploadingPhoto(true);
-    const compressed = await compressImage(file);
-    const formData = new FormData();
-    formData.append("photo", compressed);
-    const res = await fetch(`/api/ops/customers/${customerId}/photos`, {
-      method: "POST",
-      body: formData,
-    });
-    if (res.ok) {
-      // Reload photos to get signed URLs
-      const photosRes = await fetch(`/api/ops/customers/${customerId}/photos`);
-      const photosJson = await photosRes.json();
-      setPhotos(photosJson.data ?? []);
-    } else {
-      try {
-        const json = await res.json();
-        setError(json.error ?? "Photo upload failed");
-      } catch {
-        setError("Photo upload failed — please try again or use a different image");
+    for (const file of Array.from(files)) {
+      const compressed = await compressImage(file);
+      const formData = new FormData();
+      formData.append("photo", compressed);
+      const res = await fetch(`/api/ops/customers/${customerId}/photos`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        try {
+          const json = await res.json();
+          setError(json.error ?? "Photo upload failed");
+        } catch {
+          setError("Photo upload failed — please try again or use a different image");
+        }
+        break;
       }
     }
+    // Reload photos to get signed URLs
+    const photosRes = await fetch(`/api/ops/customers/${customerId}/photos`);
+    const photosJson = await photosRes.json();
+    setPhotos(photosJson.data ?? []);
     e.target.value = "";
     setUploadingPhoto(false);
   }
@@ -387,6 +395,7 @@ function OnboardingWizardInner() {
             onPhotoUpload={handlePhotoUpload}
             onPhotoDelete={handlePhotoDelete}
             customerId={customerId}
+            photoInputRef={photoInputRef}
           />
         )}
         {step === 3 && (
@@ -534,6 +543,17 @@ function Step1CustomerDetails({
       </div>
       <div>
         <label className="block text-sm font-medium text-charcoal mb-1">
+          Address
+        </label>
+        <input
+          className={inputCls}
+          value={draft.address}
+          onChange={(e) => update("address", e.target.value)}
+          placeholder="Flat/Tower, Building name, Area"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-charcoal mb-1">
           Society
         </label>
         <select
@@ -666,6 +686,7 @@ function Step3ObservationsAndCare({
   onPhotoUpload,
   onPhotoDelete,
   customerId,
+  photoInputRef,
 }: {
   draft: Draft;
   update: (k: keyof Draft, v: Draft[keyof Draft]) => void;
@@ -674,6 +695,7 @@ function Step3ObservationsAndCare({
   onPhotoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onPhotoDelete: (photoId: string) => void;
   customerId: string | null;
+  photoInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const lightboxPhotos = photos.filter((p) => p.url).map((p) => ({ url: p.url! }));
@@ -740,22 +762,22 @@ function Step3ObservationsAndCare({
             {photos.length < 3 && (
               <>
                 <input
+                  ref={photoInputRef}
                   type="file"
                   accept="image/*"
-    
+                  multiple
                   onChange={onPhotoUpload}
                   className="hidden"
-                  id="onboarding-photo-input"
                 />
-                <label
-                  htmlFor="onboarding-photo-input"
-                  className={`w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2 cursor-pointer ${
-                    uploadingPhoto ? "opacity-50 pointer-events-none" : ""
-                  }`}
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="w-full py-3 border-2 border-dashed border-stone rounded-xl text-sm text-sage hover:border-forest hover:text-forest flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <Camera size={16} />
-                  {uploadingPhoto ? "Uploading…" : "Add Photo"}
-                </label>
+                  {uploadingPhoto ? "Uploading…" : "Add Photos"}
+                </button>
               </>
             )}
           </>
@@ -851,6 +873,7 @@ function Step6Review({
         ["Name", draft.name],
         ["Phone", draft.phone_number],
         ["Email", draft.email || "—"],
+        ["Address", draft.address || "—"],
         ["Society", selectedSociety || "—"],
       ],
     },

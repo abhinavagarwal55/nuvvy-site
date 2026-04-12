@@ -49,6 +49,7 @@ export default function GardenerTodayPage() {
     weekday: "long",
     day: "numeric",
     month: "long",
+    year: "numeric",
   });
 
   return (

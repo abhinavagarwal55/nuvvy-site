@@ -620,10 +620,10 @@ export default function PlantsPage() {
   const formatDate = (dateString?: string): string => {
     if (!dateString) return "-";
     try {
-      return new Date(dateString).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
+      return new Date(dateString).toLocaleDateString("en-IN", {
         day: "numeric",
+        month: "long",
+        year: "numeric",
       });
     } catch {
       return "-";

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import useSWR from "swr";
+import { formatDate } from "@/lib/utils/format-date";
 import {
   ChevronLeft,
   ChevronRight,
@@ -86,7 +87,7 @@ function getWeekRange(date: Date): { from: string; to: string; label: string } {
   return {
     from: fmt(monday),
     to: fmt(sunday),
-    label: `${monday.getDate()} ${monday.toLocaleString("en", { month: "short" })} – ${sunday.getDate()} ${sunday.toLocaleString("en", { month: "short" })} ${sunday.getFullYear()}`,
+    label: `${monday.getDate()} ${monday.toLocaleString("en-IN", { month: "long" })} – ${sunday.getDate()} ${sunday.toLocaleString("en-IN", { month: "long" })} ${sunday.getFullYear()}`,
   };
 }
 
@@ -798,7 +799,7 @@ export default function SchedulePage() {
         <div className="space-y-3">
           {rescheduleTarget && (
             <p className="text-xs text-sage">
-              {rescheduleTarget.customer_name} &mdash; {rescheduleTarget.scheduled_date}
+              {rescheduleTarget.customer_name} &mdash; {formatDate(rescheduleTarget.scheduled_date)}
             </p>
           )}
           <div>
@@ -880,7 +881,7 @@ export default function SchedulePage() {
         <div className="space-y-3">
           {cancelTarget && (
             <p className="text-xs text-sage">
-              {cancelTarget.customer_name} &mdash; {cancelTarget.scheduled_date}
+              {cancelTarget.customer_name} &mdash; {formatDate(cancelTarget.scheduled_date)}
             </p>
           )}
           <div>

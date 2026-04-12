@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatDateTime } from "@/lib/utils/format-date";
 
 type Request = {
   id: string;
@@ -134,7 +135,7 @@ export default function RequestsPage() {
 
                 <div className="flex items-center justify-between border-t border-stone/30 pt-2">
                   <span className="text-xs text-sage">
-                    {new Date(req.created_at).toLocaleDateString()}
+                    {formatDateTime(req.created_at)}
                   </span>
                   {req.status !== "closed" && (
                     <select

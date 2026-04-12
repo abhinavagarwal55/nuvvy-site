@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { formatDate, formatDateTime } from "@/lib/utils/format-date";
 import {
   ArrowLeft,
   CheckCircle,
@@ -327,7 +328,7 @@ export default function ServiceDetailPage() {
               {service.customer?.name ?? "Service"}
             </h1>
             <p className="text-xs text-sage">
-              {service.scheduled_date}{" "}
+              {formatDate(service.scheduled_date)}{" "}
               {service.time_window_start &&
                 `· ${service.time_window_start}–${service.time_window_end}`}
             </p>
@@ -359,7 +360,7 @@ export default function ServiceDetailPage() {
             label="Reviewed"
             value={
               service.reviewed_at
-                ? new Date(service.reviewed_at).toLocaleDateString()
+                ? formatDateTime(service.reviewed_at)
                 : "Not yet"
             }
           />
@@ -421,7 +422,8 @@ export default function ServiceDetailPage() {
                   <span className="text-[10px] text-stone ml-auto">
                     {new Date(entry.created_at).toLocaleString("en-IN", {
                       day: "numeric",
-                      month: "short",
+                      month: "long",
+                      year: "numeric",
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
@@ -457,7 +459,7 @@ export default function ServiceDetailPage() {
                   )}
                 {entry.action === "service.created" && (
                   <p className="ml-5 text-xs text-sage">
-                    Service created for {entry.metadata?.scheduled_date}
+                    Service created for {entry.metadata?.scheduled_date ? formatDate(entry.metadata.scheduled_date) : ""}
                   </p>
                 )}
               </div>

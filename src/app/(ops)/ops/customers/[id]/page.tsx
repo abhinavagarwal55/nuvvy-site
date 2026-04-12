@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { usePerf } from "@/lib/perf/use-perf";
+import { formatDate, formatDateTime } from "@/lib/utils/format-date";
 import {
   ArrowLeft,
   Phone,
@@ -913,7 +914,7 @@ function InlineEditForm({
             {customer.care_schedules.map((cs) => (
               <div key={cs.id} className="flex justify-between text-sm py-1.5">
                 <span className="text-charcoal">{CARE_LABELS[cs.care_action_name ?? ""] ?? cs.care_action_name}</span>
-                <span className="text-sage">Anchor: {cs.cycle_anchor_date} · Next: {cs.next_due_date ?? "—"}</span>
+                <span className="text-sage">Anchor: {formatDate(cs.cycle_anchor_date)} · Next: {cs.next_due_date ? formatDate(cs.next_due_date) : "—"}</span>
               </div>
             ))}
           </div>
@@ -1156,7 +1157,7 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
                 >
                   {isOverdue && <AlertCircle size={12} className="inline mr-1" />}
                   {cs.next_due_date
-                    ? `Due ${cs.next_due_date}`
+                    ? `Due ${formatDate(cs.next_due_date)}`
                     : "Not scheduled"}
                 </span>
               </div>
@@ -1199,7 +1200,7 @@ function ServicesTab({ services }: { services: Service[] }) {
             <div>
               <p className="text-sm font-medium text-charcoal flex items-center gap-2">
                 <Calendar size={14} className="text-sage" />
-                {svc.scheduled_date}
+                {formatDate(svc.scheduled_date)}
               </p>
               {svc.time_window_start && (
                 <p className="text-xs text-sage ml-5">
@@ -1249,7 +1250,7 @@ function RequestsTab({ requests }: { requests: CustRequest[] }) {
             </span>
           </div>
           {r.description && <p className="text-sm text-charcoal line-clamp-2">{r.description}</p>}
-          <p className="text-xs text-sage mt-1">{new Date(r.created_at).toLocaleDateString()}</p>
+          <p className="text-xs text-sage mt-1">{formatDateTime(r.created_at)}</p>
         </div>
       ))}
     </div>
@@ -1274,9 +1275,9 @@ function BillingTab({ bills }: { bills: CustBill[] }) {
             </span>
           </div>
           <p className="text-xs text-sage">
-            {b.billing_period_start} → {b.billing_period_end} · Due: {b.due_date}
+            {formatDate(b.billing_period_start)} → {formatDate(b.billing_period_end)} · Due: {formatDate(b.due_date)}
           </p>
-          {b.paid_at && <p className="text-xs text-sage">Paid {new Date(b.paid_at).toLocaleDateString()}</p>}
+          {b.paid_at && <p className="text-xs text-sage">Paid {formatDateTime(b.paid_at)}</p>}
         </div>
       ))}
     </div>

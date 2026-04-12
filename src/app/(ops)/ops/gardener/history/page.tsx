@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { Calendar, CheckCircle, XCircle } from "lucide-react";
+import { formatDate } from "@/lib/utils/format-date";
 
 type HistoryService = {
   id: string;
@@ -54,10 +55,7 @@ export default function GardenerHistoryPage() {
         ) : (
           dates.map((date) => {
             const dayServices = byDate[date];
-            const dateLabel = new Date(date + "T00:00:00").toLocaleDateString(
-              "en-IN",
-              { weekday: "short", day: "numeric", month: "short" }
-            );
+            const dateLabel = `${new Date(date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short" })}, ${formatDate(date)}`;
 
             return (
               <div key={date}>

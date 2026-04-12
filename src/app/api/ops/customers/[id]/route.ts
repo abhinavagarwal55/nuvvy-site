@@ -176,3 +176,64 @@ export async function PUT(
 
   return NextResponse.json({ data });
 }
+
+// DELETE /api/ops/customers/[id] — delete a DRAFT customer only
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let auth;
+  try {
+    auth = await requireOpsAuth(request);
+  } catch (res) {
+    return res as Response;
+  }
+  if (auth.role === "gardener") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const supabase = getSupabaseAdmin();
+
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("id, status")
+    .eq("id", id)
+    .single();
+
+  if (!customer) {
+    return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+  }
+
+  if (customer.status !== "DRAFT") {
+    return NextResponse.json(
+      { error: "Only draft customers can be deleted" },
+      { status: 400 }
+    );
+  }
+
+  // Delete related data first
+  await Promise.all([
+    supabase.from("customer_observations").delete().eq("customer_id", id),
+    supabase.from("customer_photos").delete().eq("customer_id", id),
+    supabase.from("customer_care_schedules").delete().eq("customer_id", id),
+  ]);
+
+  const { error } = await supabase.from("customers").delete().eq("id", id);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  logAuditEvent({
+    actorId: auth.userId,
+    actorRole: auth.role,
+    action: "customer.deleted",
+    targetTable: "customers",
+    targetId: id,
+    metadata: { status: "DRAFT" },
+    ip: request.headers.get("x-forwarded-for") || null,
+    userAgent: request.headers.get("user-agent") || null,
+  });
+
+  return NextResponse.json({ ok: true });
+}

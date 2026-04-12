@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Copy, Check, AlertCircle } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/utils/format-date";
 
 type Bill = {
   id: string;
@@ -67,7 +68,7 @@ export default function BillingPage() {
     }
 
     // Copy reminder text
-    const msg = `Hi ${bill.customer_name}, this is a gentle reminder about your Nuvvy garden care payment of ₹${bill.amount_inr} for the period ${bill.billing_period_start} to ${bill.billing_period_end}. Due date: ${bill.due_date}. Please let us know once done! — Team Nuvvy`;
+    const msg = `Hi ${bill.customer_name}, this is a gentle reminder about your Nuvvy garden care payment of ₹${bill.amount_inr} for the period ${formatDate(bill.billing_period_start)} to ${formatDate(bill.billing_period_end)}. Due date: ${formatDate(bill.due_date)}. Please let us know once done! — Team Nuvvy`;
     await navigator.clipboard.writeText(msg);
     load();
   }
@@ -192,7 +193,7 @@ function BillCard({
         <div>
           <p className="font-medium text-charcoal text-sm">{bill.customer_name}</p>
           <p className="text-xs text-sage">
-            {bill.billing_period_start} → {bill.billing_period_end}
+            {formatDate(bill.billing_period_start)} → {formatDate(bill.billing_period_end)}
           </p>
         </div>
         <div className="text-right">
@@ -209,11 +210,11 @@ function BillCard({
       </div>
 
       <div className="flex items-center gap-2 text-xs text-sage">
-        <span>Due: {bill.due_date}</span>
+        <span>Due: {formatDate(bill.due_date)}</span>
         {bill.last_reminder_sent_at && (
           <span>
             · Reminded{" "}
-            {new Date(bill.last_reminder_sent_at).toLocaleDateString()}
+            {formatDateTime(bill.last_reminder_sent_at)}
           </span>
         )}
       </div>

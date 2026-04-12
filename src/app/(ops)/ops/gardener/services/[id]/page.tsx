@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
+import { formatDate } from "@/lib/utils/format-date";
 import {
   ArrowLeft,
   Camera,
@@ -163,9 +164,7 @@ export default function ServiceExecutionPage() {
   );
   const generalPhotoCount = generalPhotos.length;
 
-  const dayLabel = new Date(
-    service.scheduled_date + "T00:00:00"
-  ).toLocaleDateString("en-IN", { weekday: "long" });
+  const dayLabel = `${new Date(service.scheduled_date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long" })}, ${formatDate(service.scheduled_date)}`;
 
   // Checklist state helper — use draft if in_progress, otherwise use server state
   function getChecklistStatus(item: ChecklistItem) {
@@ -269,23 +268,27 @@ export default function ServiceExecutionPage() {
     e: React.ChangeEvent<HTMLInputElement>,
     tag: "general" | "issue"
   ) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setActionLoading(tag === "issue" ? "issue-photo" : "photo");
 
-    const compressed = await compressImage(file);
-    const formData = new FormData();
-    formData.append("photo", compressed);
-    formData.append("tag", tag);
+    for (const file of Array.from(files)) {
+      const compressed = await compressImage(file);
+      const formData = new FormData();
+      formData.append("photo", compressed);
+      formData.append("tag", tag);
 
-    const res = await fetch(
-      `/api/ops/gardener/services/${serviceId}/photos`,
-      { method: "POST", body: formData }
-    );
-    const json = await res.json();
+      const res = await fetch(
+        `/api/ops/gardener/services/${serviceId}/photos`,
+        { method: "POST", body: formData }
+      );
+      const json = await res.json();
 
-    if (tag === "issue" && json.data?.id) {
-      addIssuePhotoId(json.data.id);
+      if (tag === "issue" && json.data?.id) {
+        addIssuePhotoId(json.data.id);
+      }
+
+      if (!res.ok) break;
     }
 
     // Reset input
@@ -531,7 +534,7 @@ export default function ServiceExecutionPage() {
                         action.care_action_name}
                     </span>
                     <p className="text-xs text-sage">
-                      Due {action.next_due_date}
+                      Due {formatDate(action.next_due_date)}
                     </p>
                   </div>
                 </div>
@@ -606,7 +609,7 @@ export default function ServiceExecutionPage() {
 
         {/* 3. Photos — wide shots */}
         <SectionCard
-          title={`Balcony Photos (${generalPhotoCount}/5)`}
+          title={`Balcony Photos (${generalPhotoCount}/10)`}
         >
           {generalPhotoCount < 2 && (
             <p className="text-xs text-terra flex items-center gap-1 mb-2">
@@ -641,13 +644,13 @@ export default function ServiceExecutionPage() {
             </div>
           )}
 
-          {generalPhotoCount < 5 && (
+          {generalPhotoCount < 10 && (
             <>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
+                multiple
                 onChange={(e) => handlePhotoUpload(e, "general")}
                 className="hidden"
               />
@@ -1171,7 +1174,7 @@ function PreviewChecklist({ service }: { service: ServiceDetail }) {
                   {CARE_PREVIEW[action.care_action_name] ??
                     action.care_action_name}
                 </span>
-                <p className="text-xs text-sage">Due {action.next_due_date}</p>
+                <p className="text-xs text-sage">Due {formatDate(action.next_due_date)}</p>
               </div>
             </div>
           ))}
