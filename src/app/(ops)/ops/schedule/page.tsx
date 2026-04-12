@@ -314,9 +314,13 @@ function PillDropdown({
 
 function EventPillDropdown({
   event,
+  onView,
+  onReschedule,
   onCancel,
 }: {
   event: OpsEvent;
+  onView: (event: OpsEvent) => void;
+  onReschedule: (event: OpsEvent) => void;
   onCancel: (event: OpsEvent) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -347,6 +351,28 @@ function EventPillDropdown({
       </button>
       {open && (
         <div className="absolute right-0 top-6 z-30 bg-offwhite border border-stone rounded-xl shadow-lg py-1 min-w-[130px]">
+          <button
+            className="w-full text-left px-3 py-2 text-sm text-charcoal hover:bg-cream"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+              onView(event);
+            }}
+          >
+            View Details
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 text-sm text-charcoal hover:bg-cream"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+              onReschedule(event);
+            }}
+          >
+            Reschedule
+          </button>
           <button
             className="w-full text-left px-3 py-2 text-sm text-terra hover:bg-cream"
             onClick={(e) => {
@@ -382,6 +408,8 @@ export default function SchedulePage() {
   const [rescheduleTarget, setRescheduleTarget] = useState<Service | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Service | null>(null);
   const [cancelEventTarget, setCancelEventTarget] = useState<OpsEvent | null>(null);
+  const [viewEventTarget, setViewEventTarget] = useState<OpsEvent | null>(null);
+  const [rescheduleEventTarget, setRescheduleEventTarget] = useState<OpsEvent | null>(null);
 
   // Form state — create service
   const [createForm, setCreateForm] = useState({
@@ -419,6 +447,14 @@ export default function SchedulePage() {
   // Form state — cancel event
   const [cancelEventReason, setCancelEventReason] = useState("");
   const [cancelEventSubmitting, setCancelEventSubmitting] = useState(false);
+
+  // Form state — reschedule event
+  const [rescheduleEventForm, setRescheduleEventForm] = useState({
+    new_date: "",
+    new_start_time: "",
+    new_end_time: "",
+  });
+  const [rescheduleEventSubmitting, setRescheduleEventSubmitting] = useState(false);
 
   // Week calculation
   const baseDate = new Date();
@@ -631,6 +667,42 @@ export default function SchedulePage() {
     }
   }
 
+  async function handleRescheduleEvent() {
+    if (!rescheduleEventTarget) return;
+    setRescheduleEventSubmitting(true);
+    try {
+      const updates: Record<string, string | null> = {
+        event_date: rescheduleEventForm.new_date,
+      };
+      if (rescheduleEventForm.new_start_time) updates.time_start = rescheduleEventForm.new_start_time;
+      if (rescheduleEventForm.new_end_time) updates.time_end = rescheduleEventForm.new_end_time;
+
+      const res = await fetch(`/api/ops/events/${rescheduleEventTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        alert(json.error ?? "Failed to reschedule event");
+        return;
+      }
+      mutateEvents();
+      setRescheduleEventTarget(null);
+    } finally {
+      setRescheduleEventSubmitting(false);
+    }
+  }
+
+  function openRescheduleEvent(event: OpsEvent) {
+    setRescheduleEventForm({
+      new_date: event.event_date,
+      new_start_time: event.time_start?.slice(0, 5) ?? "",
+      new_end_time: event.time_end?.slice(0, 5) ?? "",
+    });
+    setRescheduleEventTarget(event);
+  }
+
   function openReschedule(svc: Service) {
     setRescheduleForm({
       new_date: svc.scheduled_date,
@@ -762,11 +834,12 @@ export default function SchedulePage() {
     return (
       <div
         key={`event-${event.id}`}
-        className={`rounded-lg border-l-[3px] px-2.5 py-2 cursor-default ${
+        className={`rounded-lg border-l-[3px] px-2.5 py-2 ${
           isCancelled
-            ? "bg-stone/10 border-l-stone opacity-60"
-            : "bg-indigo-50 border-l-indigo-500"
+            ? "bg-stone/10 border-l-stone opacity-60 cursor-default"
+            : "bg-indigo-50 border-l-indigo-500 cursor-pointer hover:shadow-sm transition-shadow"
         }`}
+        onClick={() => !isCancelled && setViewEventTarget(event)}
       >
         <div className="flex items-center justify-between gap-1">
           <p className={`font-medium truncate text-sm ${isCancelled ? "text-stone line-through" : "text-charcoal"}`}>
@@ -777,7 +850,7 @@ export default function SchedulePage() {
               Event
             </span>
             {viewMode === "active" && (
-              <EventPillDropdown event={event} onCancel={openCancelEvent} />
+              <EventPillDropdown event={event} onView={setViewEventTarget} onReschedule={openRescheduleEvent} onCancel={openCancelEvent} />
             )}
           </div>
         </div>
@@ -797,11 +870,12 @@ export default function SchedulePage() {
     return (
       <div
         key={`event-${event.id}`}
-        className={`rounded-xl border border-stone/60 border-l-4 px-3 py-2.5 cursor-default ${
+        className={`rounded-xl border border-stone/60 border-l-4 px-3 py-2.5 ${
           isCancelled
-            ? "bg-stone/10 border-l-stone opacity-60"
-            : "bg-indigo-50 border-l-indigo-500"
+            ? "bg-stone/10 border-l-stone opacity-60 cursor-default"
+            : "bg-indigo-50 border-l-indigo-500 cursor-pointer hover:shadow-sm transition-shadow"
         }`}
+        onClick={() => !isCancelled && setViewEventTarget(event)}
       >
         <div className="flex items-center justify-between">
           <p className={`text-sm font-medium ${isCancelled ? "text-stone line-through" : "text-charcoal"}`}>
@@ -809,7 +883,7 @@ export default function SchedulePage() {
           </p>
           <div className="flex items-center gap-1.5">
             {viewMode === "active" && (
-              <EventPillDropdown event={event} onCancel={openCancelEvent} />
+              <EventPillDropdown event={event} onView={setViewEventTarget} onReschedule={openRescheduleEvent} onCancel={openCancelEvent} />
             )}
             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">
               Event
@@ -1324,6 +1398,129 @@ export default function SchedulePage() {
             className="w-full bg-terra text-offwhite py-2.5 rounded-xl text-sm font-medium hover:bg-terra/80 disabled:opacity-50 transition-colors mt-2"
           >
             {cancelEventSubmitting ? "Cancelling..." : "Cancel Event"}
+          </button>
+        </div>
+      </SlideUpModal>
+
+      {/* ===== VIEW EVENT DETAILS MODAL ===== */}
+      <SlideUpModal
+        open={!!viewEventTarget}
+        onClose={() => setViewEventTarget(null)}
+        title="Event Details"
+      >
+        {viewEventTarget && (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-sage mb-0.5">Title</p>
+              <p className="text-sm font-medium text-charcoal">{viewEventTarget.title}</p>
+            </div>
+            <div>
+              <p className="text-xs text-sage mb-0.5">Date</p>
+              <p className="text-sm text-charcoal">{formatDate(viewEventTarget.event_date)}</p>
+            </div>
+            {viewEventTarget.time_start && (
+              <div>
+                <p className="text-xs text-sage mb-0.5">Time</p>
+                <p className="text-sm text-charcoal">
+                  {formatTime(viewEventTarget.time_start)}
+                  {viewEventTarget.time_end ? ` – ${formatTime(viewEventTarget.time_end)}` : ""}
+                </p>
+              </div>
+            )}
+            {viewEventTarget.notes && (
+              <div>
+                <p className="text-xs text-sage mb-0.5">Notes</p>
+                <p className="text-sm text-charcoal whitespace-pre-wrap">{viewEventTarget.notes}</p>
+              </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => {
+                  const evt = viewEventTarget;
+                  setViewEventTarget(null);
+                  openRescheduleEvent(evt);
+                }}
+                className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-cream"
+              >
+                Reschedule
+              </button>
+              <button
+                onClick={() => {
+                  const evt = viewEventTarget;
+                  setViewEventTarget(null);
+                  openCancelEvent(evt);
+                }}
+                className="flex-1 py-2.5 border border-terra/40 rounded-xl text-sm text-terra hover:bg-terra/5"
+              >
+                Cancel Event
+              </button>
+            </div>
+          </div>
+        )}
+      </SlideUpModal>
+
+      {/* ===== RESCHEDULE EVENT MODAL ===== */}
+      <SlideUpModal
+        open={!!rescheduleEventTarget}
+        onClose={() => setRescheduleEventTarget(null)}
+        title="Reschedule Event"
+      >
+        <div className="space-y-3">
+          {rescheduleEventTarget && (
+            <p className="text-xs text-sage">
+              {rescheduleEventTarget.title} &mdash; {formatDate(rescheduleEventTarget.event_date)}
+            </p>
+          )}
+          <div>
+            <label className="block text-xs text-sage mb-1">New date *</label>
+            <input
+              type="date"
+              className={INPUT_CLS}
+              value={rescheduleEventForm.new_date}
+              onChange={(e) => setRescheduleEventForm((f) => ({ ...f, new_date: e.target.value }))}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-sage mb-1">Start time</label>
+              <select
+                className={INPUT_CLS}
+                value={rescheduleEventForm.new_start_time}
+                onChange={(e) => {
+                  const start = e.target.value;
+                  setRescheduleEventForm((f) => ({
+                    ...f,
+                    new_start_time: start,
+                    new_end_time: start ? addOneHour(start) : f.new_end_time,
+                  }));
+                }}
+              >
+                <option value="">Select</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-sage mb-1">End time</label>
+              <select
+                className={INPUT_CLS}
+                value={rescheduleEventForm.new_end_time}
+                onChange={(e) => setRescheduleEventForm((f) => ({ ...f, new_end_time: e.target.value }))}
+              >
+                <option value="">Select</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button
+            onClick={handleRescheduleEvent}
+            disabled={rescheduleEventSubmitting || !rescheduleEventForm.new_date}
+            className="w-full bg-forest text-offwhite py-2.5 rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-50 transition-colors mt-2"
+          >
+            {rescheduleEventSubmitting ? "Rescheduling..." : "Reschedule"}
           </button>
         </div>
       </SlideUpModal>
