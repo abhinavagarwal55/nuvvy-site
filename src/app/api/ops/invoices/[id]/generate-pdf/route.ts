@@ -67,13 +67,19 @@ export async function POST(
   } | null;
 
   // Build PDF
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  const chunks: Buffer[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const doc = new (PDFDocument as any)({ size: "A4", margin: 50 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chunks: any[] = [];
 
-  doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  doc.on("data", (chunk: any) => chunks.push(chunk));
 
-  const pdfReady = new Promise<Buffer>((resolve) => {
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
+  const pdfReady = new Promise<ArrayBuffer>((resolve) => {
+    doc.on("end", () => {
+      const buf = Buffer.concat(chunks);
+      resolve(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+    });
   });
 
   // Brand colors
@@ -301,14 +307,14 @@ export async function POST(
 
   doc.end();
 
-  const pdfBuffer = await pdfReady;
+  const pdfArrayBuffer = await pdfReady;
 
-  return new Response(pdfBuffer, {
+  return new Response(pdfArrayBuffer, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${invoice.invoice_number}.pdf"`,
-      "Content-Length": String(pdfBuffer.length),
+      "Content-Length": String(pdfArrayBuffer.byteLength),
     },
   });
 }
