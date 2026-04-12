@@ -33,7 +33,7 @@ export default async function OpsLayout({
   const pathname = headersList.get("x-pathname") || "";
 
   const isPublicRoute = PUBLIC_OPS_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(route + "/")
+    (route) => pathname === route || pathname.startsWith(route)
   );
 
   let role: OpsRole | null = null;
