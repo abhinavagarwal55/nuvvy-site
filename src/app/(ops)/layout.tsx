@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
-import { createServerSupabaseClient } from "@/lib/supabase/ssr";
-import { getOpsRole, requireOpsAccess } from "@/lib/internal/authz";
+import { requireOpsAccess } from "@/lib/internal/authz";
 import BottomNav from "./BottomNav";
 import type { OpsRole } from "@/lib/internal/authz";
 
@@ -42,16 +41,8 @@ export default async function OpsLayout({
     // Protected route — redirect to login if not authenticated
     const auth = await requireOpsAccess(["admin", "horticulturist", "gardener"]);
     role = auth.role;
-  } else {
-    // Public route — soft check for role (no redirect), so sidebar shows if logged in
-    try {
-      const supabase = await createServerSupabaseClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) role = await getOpsRole(user.id);
-    } catch {
-      // Not logged in — no sidebar
-    }
   }
+  // Public routes (login, gardener PIN page) never show sidebar
 
   return (
     <div

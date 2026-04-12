@@ -20,6 +20,8 @@ import {
   User,
   ChevronRight,
   BarChart2,
+  Sprout,
+  Truck,
 } from "lucide-react";
 import { useState } from "react";
 import type { OpsRole } from "@/lib/internal/authz";
@@ -46,6 +48,7 @@ const primaryNav: NavItem[] = [
   { href: "/ops/services", label: "Services", icon: <ClipboardList size={20} /> },
   { href: "/ops/requests", label: "Requests", icon: <AlertCircle size={20} /> },
   { href: "/ops/billing", label: "Billing", icon: <CreditCard size={20} /> },
+  { href: "/ops/plant-orders", label: "Plant Orders", icon: <Sprout size={20} /> },
   { href: "/ops/people", label: "People", icon: <UserCog size={20} /> },
   { href: "/ops/plans", label: "Plans", icon: <LayoutGrid size={20} /> },
 ];

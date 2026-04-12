@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
@@ -18,7 +18,13 @@ import {
   Pencil,
   Camera,
   Trash2,
+  Plus,
+  X,
+  Copy,
+  Check,
 } from "lucide-react";
+import PlantSelector from "@/components/ops/PlantSelector";
+import WhatsAppDraftButton from "@/components/ops/WhatsAppDraftButton";
 import { compressImage } from "@/lib/utils/compress-image";
 import PhotoLightbox from "../../../components/PhotoLightbox";
 
@@ -158,7 +164,8 @@ export default function Customer360Page() {
   const searchParams = useSearchParams();
   const perfFetcher = usePerf(`/api/ops/customers/${customerId}`, '/ops/customers/[id]');
 
-  const [tab, setTab] = useState<"overview" | "services" | "requests" | "billing">("overview");
+  const initialTab = (searchParams.get("tab") === "plant_orders" ? "plant_orders" : "overview") as "overview" | "services" | "requests" | "billing" | "plant_orders";
+  const [tab, setTab] = useState<"overview" | "services" | "requests" | "billing" | "plant_orders">(initialTab);
   const [showDeactivate, setShowDeactivate] = useState(false);
   const [deactivateReason, setDeactivateReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -312,19 +319,22 @@ export default function Customer360Page() {
 
         {/* Tabs */}
         <div className="flex gap-1 overflow-x-auto pb-1">
-          {(["overview", "services", "requests", "billing"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
-                tab === t
-                  ? "bg-forest text-offwhite border-forest"
-                  : "bg-cream text-charcoal border-stone"
-              }`}
-            >
-              {t === "overview" ? "Overview" : t === "services" ? "Services" : t === "requests" ? "Requests" : "Billing"}
-            </button>
-          ))}
+          {(["overview", "services", "requests", "billing", "plant_orders"] as const).map((t) => {
+            const labels: Record<string, string> = { overview: "Overview", services: "Services", requests: "Requests", billing: "Billing", plant_orders: "Plant Orders" };
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                  tab === t
+                    ? "bg-forest text-offwhite border-forest"
+                    : "bg-cream text-charcoal border-stone"
+                }`}
+              >
+                {labels[t]}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -348,7 +358,10 @@ export default function Customer360Page() {
           <RequestsTab requests={requests} />
         )}
         {tab === "billing" && (
-          <BillingTab bills={bills} />
+          <BillingTab bills={bills} customerId={customerId} />
+        )}
+        {tab === "plant_orders" && customer && (
+          <PlantOrdersTab customerId={customerId} customer={customer} />
         )}
 
         {/* Admin actions */}
@@ -1257,29 +1270,88 @@ function RequestsTab({ requests }: { requests: CustRequest[] }) {
   );
 }
 
-function BillingTab({ bills }: { bills: CustBill[] }) {
-  if (bills.length === 0) {
-    return <p className="text-sm text-stone text-center py-10">No bills.</p>;
+function BillingTab({ bills, customerId }: { bills: CustBill[]; customerId: string }) {
+  const [invoices, setInvoices] = useState<{ id: string; invoice_number: string; status: string; total: number; paid_at: string | null; created_at: string }[]>([]);
+
+  useEffect(() => {
+    fetch(`/api/ops/plant-orders?customer_id=${customerId}`)
+      .then((r) => r.json())
+      .then(async (json) => {
+        const orders = json.data ?? [];
+        const allInvoices: typeof invoices = [];
+        for (const order of orders) {
+          // Check if invoice exists for this order by looking at order id
+          // We'll query invoices by customer_id instead
+        }
+        // Direct query — fetch invoices for this customer
+        const invRes = await fetch(`/api/ops/invoices?customer_id=${customerId}`);
+        if (invRes.ok) {
+          const invJson = await invRes.json();
+          setInvoices(invJson.data ?? []);
+        }
+      })
+      .catch(() => {});
+  }, [customerId]);
+
+  const hasContent = bills.length > 0 || invoices.length > 0;
+
+  if (!hasContent) {
+    return <p className="text-sm text-stone text-center py-10">No bills or invoices.</p>;
   }
 
   return (
-    <div className="space-y-2">
-      {bills.map((b) => (
-        <div key={b.id} className={`bg-offwhite rounded-2xl border px-4 py-3 ${b.is_overdue ? "border-terra/40" : "border-stone/60"}`}>
-          <div className="flex items-center justify-between mb-1">
-            <p className="font-medium text-charcoal text-sm">₹{b.amount_inr}</p>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              b.status === "paid" ? "bg-[#EAF2EC] text-sage" : b.is_overdue ? "bg-terra/10 text-terra" : "bg-cream text-charcoal"
-            }`}>
-              {b.is_overdue ? "Overdue" : b.status === "paid" ? "Paid" : "Pending"}
-            </span>
+    <div className="space-y-4">
+      {/* Maintenance Bills */}
+      {bills.length > 0 && (
+        <div>
+          <p className="text-xs text-sage uppercase tracking-widest font-medium mb-2">Maintenance Bills</p>
+          <div className="space-y-2">
+            {bills.map((b) => (
+              <div key={b.id} className={`bg-offwhite rounded-2xl border px-4 py-3 ${b.is_overdue ? "border-terra/40" : "border-stone/60"}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium text-charcoal text-sm">₹{b.amount_inr}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    b.status === "paid" ? "bg-[#EAF2EC] text-sage" : b.is_overdue ? "bg-terra/10 text-terra" : "bg-cream text-charcoal"
+                  }`}>
+                    {b.is_overdue ? "Overdue" : b.status === "paid" ? "Paid" : "Pending"}
+                  </span>
+                </div>
+                <p className="text-xs text-sage">
+                  {formatDate(b.billing_period_start)} → {formatDate(b.billing_period_end)} · Due: {formatDate(b.due_date)}
+                </p>
+                {b.paid_at && <p className="text-xs text-sage">Paid {formatDateTime(b.paid_at)}</p>}
+              </div>
+            ))}
           </div>
-          <p className="text-xs text-sage">
-            {formatDate(b.billing_period_start)} → {formatDate(b.billing_period_end)} · Due: {formatDate(b.due_date)}
-          </p>
-          {b.paid_at && <p className="text-xs text-sage">Paid {formatDateTime(b.paid_at)}</p>}
         </div>
-      ))}
+      )}
+
+      {/* Plant Order Invoices */}
+      {invoices.length > 0 && (
+        <div>
+          <p className="text-xs text-sage uppercase tracking-widest font-medium mb-2">Plant Order Invoices</p>
+          <div className="space-y-2">
+            {invoices.map((inv) => (
+              <div key={inv.id} className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium text-charcoal text-sm">{inv.invoice_number} · ₹{inv.total}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    inv.status === "paid" ? "bg-[#EAF2EC] text-sage"
+                    : inv.status === "finalized" ? "bg-blue-50 text-blue-700"
+                    : "bg-cream text-charcoal"
+                  }`}>
+                    {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                  </span>
+                </div>
+                <p className="text-xs text-sage">
+                  Created {formatDate(inv.created_at.split("T")[0])}
+                  {inv.paid_at && ` · Paid ${formatDateTime(inv.paid_at)}`}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1306,6 +1378,432 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between items-start text-sm py-1.5">
       <span className="text-sage min-w-[120px] flex-shrink-0">{label}</span>
       <span className="text-charcoal font-medium text-right">{value}</span>
+    </div>
+  );
+}
+
+// ─── Plant Orders Tab ─────────────────────────────────────────────────────────
+
+const ORDER_STATUS_CLS: Record<string, string> = {
+  requested: "bg-stone/20 text-charcoal",
+  trip_assigned: "bg-blue-50 text-blue-700",
+  procured: "bg-forest/10 text-forest",
+  installed: "bg-forest text-offwhite",
+  cancelled: "bg-stone/20 text-sage",
+};
+
+type PlantOrderSummary = {
+  id: string;
+  status: string;
+  request_source: string;
+  due_date: string;
+  notes: string | null;
+  created_at: string;
+  items: { id: string; plant_name: string; quantity: number; note: string | null; status: string }[];
+};
+
+function OrderAcknowledgementDraft({ msg, phone }: { msg: string; phone: string }) {
+  const [copied, setCopied] = useState(false);
+  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  const waLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-medium text-sage uppercase tracking-widest">Acknowledgement Message</p>
+        <button
+          onClick={async () => {
+            await navigator.clipboard.writeText(msg);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+          className="flex items-center gap-1 text-xs text-forest hover:text-garden font-medium"
+        >
+          {copied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
+        </button>
+      </div>
+      <p className="text-sm text-charcoal whitespace-pre-line bg-cream rounded-xl p-3 border border-stone/30 mb-3">{msg}</p>
+      <a
+        href={waLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#25D366] text-white rounded-xl text-sm font-medium hover:bg-[#20BD5A] transition-colors"
+      >
+        Open in WhatsApp
+      </a>
+    </div>
+  );
+}
+
+function PlantOrdersTab({
+  customerId,
+  customer,
+}: {
+  customerId: string;
+  customer: { name: string; phone_number: string | null };
+}) {
+  const [orders, setOrders] = useState<PlantOrderSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState<PlantOrderSummary | null>(null);
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch(`/api/ops/plant-orders?customer_id=${customerId}`);
+    const json = await res.json();
+    // Fetch detail for each order to get items
+    const detailed: PlantOrderSummary[] = [];
+    for (const order of json.data ?? []) {
+      const detailRes = await fetch(`/api/ops/plant-orders/${order.id}`);
+      const detailJson = await detailRes.json();
+      if (detailJson.data) {
+        detailed.push({
+          id: detailJson.data.id,
+          status: detailJson.data.status,
+          request_source: detailJson.data.request_source,
+          due_date: detailJson.data.due_date,
+          notes: detailJson.data.notes,
+          created_at: detailJson.data.created_at,
+          items: detailJson.data.items ?? [],
+        });
+      }
+    }
+    setOrders(detailed);
+    setLoading(false);
+  }, [customerId]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  if (loading) {
+    return <p className="text-sm text-sage py-4 text-center">Loading plant orders…</p>;
+  }
+
+  // Show WhatsApp draft after creation
+  if (createdOrder) {
+    const itemsList = createdOrder.items
+      .map((i) => `- ${i.quantity}x ${i.plant_name}`)
+      .join("\n");
+    const dueStr = formatDate(createdOrder.due_date);
+    const msg = `Hi ${customer.name},\n\nWe've noted your plant request for:\n\n${itemsList}\n\nWe'll source these and aim to install them by ${dueStr}.\n\nWe'll keep you updated once the plants are procured.\n\n– Team Nuvvy`;
+
+    return (
+      <div className="space-y-4">
+        <Card title="Order Created">
+          <div className="space-y-3">
+            <p className="text-sm text-charcoal">
+              Plant order with {createdOrder.items.length} item{createdOrder.items.length !== 1 ? "s" : ""} created successfully.
+            </p>
+
+            {/* WhatsApp draft message */}
+            {customer.phone_number && (
+              <OrderAcknowledgementDraft msg={msg} phone={customer.phone_number} />
+            )}
+
+            <a
+              href={`/ops/plant-orders/${createdOrder.id}`}
+              className="w-full py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden flex items-center justify-center gap-2 transition-colors"
+            >
+              View Order
+            </a>
+            <button
+              onClick={() => { setCreatedOrder(null); loadOrders(); }}
+              className="w-full py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-cream"
+            >
+              Back to Plant Orders
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-sage uppercase tracking-widest font-medium">
+          Plant Orders ({orders.length})
+        </p>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1 text-xs text-forest hover:text-garden font-medium"
+        >
+          <Plus size={14} /> Add Plant Order
+        </button>
+      </div>
+
+      {orders.length === 0 && (
+        <p className="text-sm text-stone py-4 text-center">No plant orders yet.</p>
+      )}
+
+      {orders.map((order) => {
+        const statusCls = ORDER_STATUS_CLS[order.status] ?? "bg-stone/20 text-charcoal";
+        const today = new Date().toISOString().split("T")[0];
+        const isOverdue = order.due_date < today && !["cancelled", "installed"].includes(order.status);
+
+        return (
+          <div key={order.id} className="bg-offwhite rounded-2xl border border-stone/60 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusCls}`}>
+                {order.status.replace("_", " ")}
+              </span>
+              <span className={`text-xs ${isOverdue ? "text-terra font-medium" : "text-sage"}`}>
+                Due: {formatDate(order.due_date)}
+                {isOverdue && " (overdue)"}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {order.items.map((item) => (
+                <div key={item.id} className="flex items-center justify-between text-sm">
+                  <span className="text-charcoal">
+                    {item.quantity}x {item.plant_name}
+                  </span>
+                  {item.note && (
+                    <span className="text-xs text-sage truncate max-w-[120px]">{item.note}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {order.notes && (
+              <p className="text-xs text-sage">{order.notes}</p>
+            )}
+            <p className="text-[10px] text-stone">
+              Created {formatDate(order.created_at.split("T")[0])} · {order.request_source.replace("_", " ")}
+            </p>
+          </div>
+        );
+      })}
+
+      {/* Create Order Modal */}
+      {showCreate && (
+        <PlantOrderCreateModal
+          customerId={customerId}
+          onClose={() => setShowCreate(false)}
+          onCreated={(order) => {
+            setShowCreate(false);
+            setCreatedOrder(order);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Plant Order Create Modal ─────────────────────────────────────────────────
+
+type OrderItemDraft = {
+  plant_id: string | null;
+  plant_name: string;
+  price_band: string | null;
+  quantity: number;
+  note: string;
+};
+
+function PlantOrderCreateModal({
+  customerId,
+  onClose,
+  onCreated,
+}: {
+  customerId: string;
+  onClose: () => void;
+  onCreated: (order: PlantOrderSummary) => void;
+}) {
+  const [items, setItems] = useState<OrderItemDraft[]>([
+    { plant_id: null, plant_name: "", price_band: null, quantity: 1, note: "" },
+  ]);
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 10);
+    return d.toISOString().split("T")[0];
+  });
+  const [requestSource, setRequestSource] = useState("customer_requested");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function updateItem(index: number, updates: Partial<OrderItemDraft>) {
+    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...updates } : item)));
+  }
+
+  function addItem() {
+    setItems((prev) => [...prev, { plant_id: null, plant_name: "", price_band: null, quantity: 1, note: "" }]);
+  }
+
+  function removeItem(index: number) {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const validItems = items.filter((i) => i.plant_name.trim());
+
+  async function handleSubmit() {
+    if (validItems.length === 0) {
+      setError("Add at least one plant");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+
+    const res = await fetch("/api/ops/plant-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customer_id: customerId,
+        items: validItems.map((i) => ({
+          plant_id: i.plant_id,
+          plant_name: i.plant_name,
+          quantity: i.quantity,
+          note: i.note || undefined,
+        })),
+        due_date: dueDate,
+        request_source: requestSource,
+        notes: notes || undefined,
+      }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) {
+      const errMsg = typeof json.error === "string" ? json.error : JSON.stringify(json.error);
+      setError(errMsg ?? "Failed to create order");
+      setSubmitting(false);
+      return;
+    }
+
+    // Fetch the created order detail for the WhatsApp draft
+    const detailRes = await fetch(`/api/ops/plant-orders/${json.data.id}`);
+    const detailJson = await detailRes.json();
+
+    setSubmitting(false);
+    onCreated({
+      id: json.data.id,
+      status: json.data.status,
+      request_source: json.data.request_source,
+      due_date: json.data.due_date,
+      notes: json.data.notes,
+      created_at: json.data.created_at,
+      items: detailJson.data?.items ?? [],
+    });
+  }
+
+  const inputCls = "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest placeholder:text-stone";
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
+      <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[520px] p-6 max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-charcoal">Add Plant Order</h2>
+          <button onClick={onClose} className="text-stone hover:text-charcoal">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Plant items */}
+          {items.map((item, i) => (
+            <div key={i} className="bg-cream rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-sage font-medium">Plant {i + 1}</span>
+                {items.length > 1 && (
+                  <button onClick={() => removeItem(i)} className="text-xs text-terra hover:text-terra/80">
+                    Remove
+                  </button>
+                )}
+              </div>
+              <PlantSelector
+                value={item.plant_name ? { plant_id: item.plant_id, plant_name: item.plant_name, price_band: item.price_band } : null}
+                onChange={(plant: { plant_id: string | null; plant_name: string; price_band: string | null } | null) => {
+                  if (plant) {
+                    updateItem(i, { plant_id: plant.plant_id, plant_name: plant.plant_name, price_band: plant.price_band });
+                  } else {
+                    updateItem(i, { plant_id: null, plant_name: "", price_band: null });
+                  }
+                }}
+              />
+              <div className="flex gap-2">
+                <div className="w-20">
+                  <label className="block text-[10px] text-sage mb-0.5">Qty</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className={`${inputCls} text-center`}
+                    value={item.quantity}
+                    onChange={(e) => updateItem(i, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] text-sage mb-0.5">Note (optional)</label>
+                  <input
+                    className={inputCls}
+                    value={item.note}
+                    onChange={(e) => updateItem(i, { note: e.target.value })}
+                    placeholder="Size, pot preference…"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <button
+            onClick={addItem}
+            className="text-sm text-forest hover:text-garden font-medium"
+          >
+            + Add another plant
+          </button>
+
+          {/* Due date */}
+          <div>
+            <label className="block text-xs text-sage mb-1">Due date</label>
+            <input
+              type="date"
+              className={inputCls}
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+
+          {/* Request source */}
+          <div>
+            <label className="block text-xs text-sage mb-1">Request source</label>
+            <select
+              className={inputCls}
+              value={requestSource}
+              onChange={(e) => setRequestSource(e.target.value)}
+            >
+              <option value="customer_requested">Customer Requested</option>
+              <option value="replacement">Replacement</option>
+            </select>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs text-sage mb-1">Notes (optional)</label>
+            <textarea
+              className={`${inputCls} min-h-[60px]`}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any additional notes…"
+            />
+          </div>
+
+          {error && <p className="text-sm text-terra">{error}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || validItems.length === 0}
+              className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
+            >
+              {submitting ? "Creating…" : "Create Order"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

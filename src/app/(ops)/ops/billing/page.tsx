@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Copy, Check, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Copy, Check, AlertCircle, FileText, ChevronRight } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils/format-date";
 
 type Bill = {
@@ -19,11 +20,26 @@ type Bill = {
   notes: string | null;
 };
 
+type Invoice = {
+  id: string;
+  invoice_number: string;
+  customer_id: string;
+  plant_order_id: string | null;
+  status: string;
+  total: number;
+  paid_at: string | null;
+  created_at: string;
+  customer_name: string | null;
+};
+
 const inputCls =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest placeholder:text-stone";
 
 export default function BillingPage() {
+  const router = useRouter();
+  const [tab, setTab] = useState<"bills" | "invoices">("bills");
   const [bills, setBills] = useState<Bill[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [showCreate, setShowCreate] = useState(false);
@@ -38,12 +54,19 @@ export default function BillingPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
-    const res = await fetch(`/api/ops/billing${params}`);
-    const json = await res.json();
-    setBills(json.data ?? []);
+    if (tab === "bills") {
+      const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
+      const res = await fetch(`/api/ops/billing${params}`);
+      const json = await res.json();
+      setBills(json.data ?? []);
+    } else {
+      const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
+      const res = await fetch(`/api/ops/invoices${params}`);
+      const json = await res.json();
+      setInvoices(json.data ?? []);
+    }
     setLoading(false);
-  }, [statusFilter]);
+  }, [statusFilter, tab]);
 
   useEffect(() => {
     load();
@@ -77,6 +100,10 @@ export default function BillingPage() {
   const pending = bills.filter((b) => !b.is_overdue && b.status === "pending");
   const paid = bills.filter((b) => b.status === "paid");
 
+  const invoiceStatusFilters = tab === "invoices"
+    ? ["draft", "finalized", "paid", "all"]
+    : ["pending", "paid", "all"];
+
   return (
     <div className="min-h-screen bg-cream pb-24">
       <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4 sticky top-0 z-10">
@@ -87,7 +114,7 @@ export default function BillingPage() {
           >
             Billing
           </h1>
-          {isAdmin && (
+          {isAdmin && tab === "bills" && (
             <button
               onClick={() => setShowCreate(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden"
@@ -96,18 +123,37 @@ export default function BillingPage() {
             </button>
           )}
         </div>
+
+        {/* Tab switcher */}
+        <div className="flex gap-2 mb-3">
+          {(["bills", "invoices"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setTab(t); setStatusFilter(t === "invoices" ? "draft" : "pending"); }}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                tab === t
+                  ? "bg-forest text-offwhite border-forest"
+                  : "bg-offwhite text-charcoal border-stone"
+              }`}
+            >
+              {t === "bills" ? "Subscription Bills" : "Plant Invoices"}
+            </button>
+          ))}
+        </div>
+
+        {/* Status filters */}
         <div className="flex gap-2">
-          {["pending", "paid", "all"].map((s) => (
+          {(tab === "invoices" ? invoiceStatusFilters : ["pending", "paid", "all"]).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
                 statusFilter === s
-                  ? "bg-forest text-offwhite border-forest"
+                  ? "bg-charcoal text-offwhite border-charcoal"
                   : "bg-cream text-charcoal border-stone"
               }`}
             >
-              {s === "all" ? "All" : s === "pending" ? "Pending" : "Paid"}
+              {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
         </div>
@@ -116,50 +162,64 @@ export default function BillingPage() {
       <div className="px-4 pt-4 space-y-5">
         {loading ? (
           <p className="text-sm text-sage text-center py-10">Loading…</p>
-        ) : bills.length === 0 ? (
-          <p className="text-sm text-stone text-center py-10">No bills found.</p>
+        ) : tab === "bills" ? (
+          /* Bills view */
+          bills.length === 0 ? (
+            <p className="text-sm text-stone text-center py-10">No bills found.</p>
+          ) : (
+            <>
+              {overdue.length > 0 && statusFilter !== "paid" && (
+                <Section title="Overdue" count={overdue.length}>
+                  {overdue.map((b) => (
+                    <BillCard
+                      key={b.id}
+                      bill={b}
+                      isAdmin={isAdmin}
+                      onMarkPaid={handleMarkPaid}
+                      onRemind={handleRemind}
+                    />
+                  ))}
+                </Section>
+              )}
+              {pending.length > 0 && statusFilter !== "paid" && (
+                <Section title="Pending" count={pending.length}>
+                  {pending.map((b) => (
+                    <BillCard
+                      key={b.id}
+                      bill={b}
+                      isAdmin={isAdmin}
+                      onMarkPaid={handleMarkPaid}
+                      onRemind={handleRemind}
+                    />
+                  ))}
+                </Section>
+              )}
+              {paid.length > 0 && statusFilter !== "pending" && (
+                <Section title="Paid" count={paid.length}>
+                  {paid.map((b) => (
+                    <BillCard
+                      key={b.id}
+                      bill={b}
+                      isAdmin={isAdmin}
+                      onMarkPaid={handleMarkPaid}
+                      onRemind={handleRemind}
+                    />
+                  ))}
+                </Section>
+              )}
+            </>
+          )
         ) : (
-          <>
-            {overdue.length > 0 && statusFilter !== "paid" && (
-              <Section title="Overdue" count={overdue.length}>
-                {overdue.map((b) => (
-                  <BillCard
-                    key={b.id}
-                    bill={b}
-                    isAdmin={isAdmin}
-                    onMarkPaid={handleMarkPaid}
-                    onRemind={handleRemind}
-                  />
-                ))}
-              </Section>
-            )}
-            {pending.length > 0 && statusFilter !== "paid" && (
-              <Section title="Pending" count={pending.length}>
-                {pending.map((b) => (
-                  <BillCard
-                    key={b.id}
-                    bill={b}
-                    isAdmin={isAdmin}
-                    onMarkPaid={handleMarkPaid}
-                    onRemind={handleRemind}
-                  />
-                ))}
-              </Section>
-            )}
-            {paid.length > 0 && statusFilter !== "pending" && (
-              <Section title="Paid" count={paid.length}>
-                {paid.map((b) => (
-                  <BillCard
-                    key={b.id}
-                    bill={b}
-                    isAdmin={isAdmin}
-                    onMarkPaid={handleMarkPaid}
-                    onRemind={handleRemind}
-                  />
-                ))}
-              </Section>
-            )}
-          </>
+          /* Invoices view */
+          invoices.length === 0 ? (
+            <p className="text-sm text-stone text-center py-10">No invoices found.</p>
+          ) : (
+            <div className="space-y-2">
+              {invoices.map((inv) => (
+                <InvoiceCard key={inv.id} invoice={inv} onClick={() => router.push(`/ops/invoices/${inv.id}`)} />
+              ))}
+            </div>
+          )
         )}
       </div>
 
@@ -391,6 +451,47 @@ function CreateBillModal({
         </form>
       </div>
     </div>
+  );
+}
+
+const INVOICE_STATUS: Record<string, { cls: string; label: string }> = {
+  draft: { cls: "bg-amber-50 text-amber-700", label: "Draft" },
+  finalized: { cls: "bg-blue-50 text-blue-700", label: "Finalized" },
+  paid: { cls: "bg-forest/10 text-forest", label: "Paid" },
+};
+
+function InvoiceCard({
+  invoice,
+  onClick,
+}: {
+  invoice: Invoice;
+  onClick: () => void;
+}) {
+  const badge = INVOICE_STATUS[invoice.status] ?? { cls: "bg-stone/20 text-charcoal", label: invoice.status };
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 hover:border-forest/40 transition-colors"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-forest/10 rounded-xl flex items-center justify-center flex-shrink-0">
+            <FileText size={18} className="text-forest" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-charcoal">{invoice.customer_name ?? "Customer"}</p>
+            <p className="text-xs text-sage">{invoice.invoice_number} · {formatDate(invoice.created_at.split("T")[0])}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <p className="text-sm font-semibold text-charcoal">₹{invoice.total.toLocaleString("en-IN")}</p>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${badge.cls}`}>{badge.label}</span>
+          </div>
+          <ChevronRight size={16} className="text-stone" />
+        </div>
+      </div>
+    </button>
   );
 }
 
