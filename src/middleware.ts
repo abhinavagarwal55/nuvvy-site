@@ -61,7 +61,11 @@ export async function middleware(request: NextRequest) {
     }
     let response = NextResponse.next();
     response.headers.set("x-pathname", url.pathname);
-    response = await refreshSession(request, response);
+    // Skip session refresh on auth endpoints to avoid interfering with OTP/login
+    const isAuthApi = url.pathname.startsWith("/api/ops/auth");
+    if (!isAuthApi) {
+      response = await refreshSession(request, response);
+    }
     return response;
   }
 
@@ -80,8 +84,10 @@ export async function middleware(request: NextRequest) {
   let response = NextResponse.next();
   response.headers.set("x-pathname", url.pathname);
 
-  // Refresh session for all ops/internal pages
-  if (url.pathname.startsWith("/ops") || url.pathname.startsWith("/internal")) {
+  // Refresh session for all ops/internal pages — but skip login/public pages
+  // where there's no session to refresh (avoids interfering with OTP flow)
+  const isAuthPage = url.pathname.startsWith("/ops/login") || url.pathname.startsWith("/ops/g/");
+  if (!isAuthPage && (url.pathname.startsWith("/ops") || url.pathname.startsWith("/internal"))) {
     response = await refreshSession(request, response);
   }
 
