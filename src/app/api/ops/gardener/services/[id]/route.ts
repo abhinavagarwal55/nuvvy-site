@@ -35,15 +35,24 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Fetch gardener name if assigned
+  // Fetch gardener name if assigned (name lives in profiles, not gardeners)
   let gardener: { id: string; name: string } | null = null;
   if (service.assigned_gardener_id) {
-    const { data: g, error: gErr } = await supabase
+    const { data: g } = await supabase
       .from("gardeners")
-      .select("id, name")
+      .select("id, profile_id")
       .eq("id", service.assigned_gardener_id)
       .single();
-    if (!gErr && g) gardener = g;
+    if (g?.profile_id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", g.profile_id)
+        .single();
+      gardener = { id: g.id, name: profile?.full_name ?? "Unknown" };
+    } else if (g) {
+      gardener = { id: g.id, name: "Unknown" };
+    }
   }
 
   // Fetch related data in parallel
@@ -122,11 +131,10 @@ export async function GET(
     }));
   }
 
-  return NextResponse.json({
-    data: {
-      ...service,
-      gardener: gardener,
-      customer: customer ?? null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const responseData: Record<string, any> = {
+    ...service,
+    customer: customer ?? null,
       checklist_items: finalChecklist,
       special_tasks: specialTasks ?? [],
       photo_count: (photos ?? []).length,
@@ -162,6 +170,8 @@ export async function GET(
           marked_done: a.marked_done,
         }));
       })(),
-    },
-  });
+    };
+  responseData.gardener = gardener;
+
+  return NextResponse.json({ data: responseData });
 }

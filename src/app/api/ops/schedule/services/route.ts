@@ -66,11 +66,26 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
   if (gardenerIds.length > 0) {
     const { data: gardeners } = await ctx.trackQuery(async () => supabase
       .from("gardeners")
-      .select("id, name")
+      .select("id, profile_id")
       .in("id", gardenerIds));
-    gardenerNames = Object.fromEntries(
-      (gardeners ?? []).map((g) => [g.id, g.name ?? "Unknown"])
-    );
+    const profileIds = (gardeners ?? [])
+      .map((g) => g.profile_id)
+      .filter(Boolean);
+    if (profileIds.length > 0) {
+      const { data: profiles } = await ctx.trackQuery(async () => supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", profileIds));
+      const profileMap = Object.fromEntries(
+        (profiles ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
+      );
+      gardenerNames = Object.fromEntries(
+        (gardeners ?? []).map((g) => [
+          g.id,
+          g.profile_id ? profileMap[g.profile_id] ?? "Unknown" : "Unknown",
+        ])
+      );
+    }
   }
 
   const services = (data ?? []).map((s) => ({
