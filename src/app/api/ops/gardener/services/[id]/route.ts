@@ -19,31 +19,25 @@ export async function GET(
   const supabase = getSupabaseAdmin();
   const today = new Date().toISOString().split("T")[0];
 
-  // Fetch service
-  const { data: service, error } = await supabase
+  // Fetch service with gardener join
+  const { data: serviceRaw, error } = await supabase
     .from("service_visits")
-    .select("*")
+    .select("*, gardeners(id, name)")
     .eq("id", id)
     .single();
 
-  if (error || !service) {
+  if (error || !serviceRaw) {
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
+
+  // Extract gardener from join, then remove the joined field
+  const gardener = (serviceRaw.gardeners as unknown as { id: string; name: string } | null) ?? null;
+  const { gardeners: _g, ...service } = serviceRaw;
+  void _g;
 
   // Access check for gardeners
   if (auth.role === "gardener" && service.assigned_gardener_id !== auth.gardener_id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  // Fetch gardener name if assigned
-  let gardener: { id: string; name: string } | null = null;
-  if (service.assigned_gardener_id) {
-    const { data: g } = await supabase
-      .from("gardeners")
-      .select("id, name")
-      .eq("id", service.assigned_gardener_id)
-      .single();
-    gardener = g ?? null;
   }
 
   // Fetch related data in parallel

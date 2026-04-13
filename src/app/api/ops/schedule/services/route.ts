@@ -64,29 +64,13 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
   }
 
   if (gardenerIds.length > 0) {
-    // gardener_id is from gardeners table, need to join to profiles for name
     const { data: gardeners } = await ctx.trackQuery(async () => supabase
       .from("gardeners")
-      .select("id, profile_id")
+      .select("id, name")
       .in("id", gardenerIds));
-    const profileIds = (gardeners ?? [])
-      .map((g) => g.profile_id)
-      .filter(Boolean);
-    if (profileIds.length > 0) {
-      const { data: profiles } = await ctx.trackQuery(async () => supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", profileIds));
-      const profileMap = Object.fromEntries(
-        (profiles ?? []).map((p) => [p.id, p.full_name ?? "Unknown"])
-      );
-      gardenerNames = Object.fromEntries(
-        (gardeners ?? []).map((g) => [
-          g.id,
-          g.profile_id ? profileMap[g.profile_id] ?? "Unknown" : "Unknown",
-        ])
-      );
-    }
+    gardenerNames = Object.fromEntries(
+      (gardeners ?? []).map((g) => [g.id, g.name ?? "Unknown"])
+    );
   }
 
   const services = (data ?? []).map((s) => ({
