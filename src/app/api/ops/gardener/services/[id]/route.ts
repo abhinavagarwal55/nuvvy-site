@@ -35,6 +35,17 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Fetch gardener name if assigned
+  let gardener: { id: string; name: string } | null = null;
+  if (service.assigned_gardener_id) {
+    const { data: g } = await supabase
+      .from("gardeners")
+      .select("id, name")
+      .eq("id", service.assigned_gardener_id)
+      .single();
+    gardener = g ?? null;
+  }
+
   // Fetch related data in parallel
   const [
     { data: customer },
@@ -114,6 +125,7 @@ export async function GET(
   return NextResponse.json({
     data: {
       ...service,
+      gardener: gardener,
       customer: customer ?? null,
       checklist_items: finalChecklist,
       special_tasks: specialTasks ?? [],

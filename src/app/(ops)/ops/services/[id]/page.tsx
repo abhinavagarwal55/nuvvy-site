@@ -14,6 +14,7 @@ import {
   CalendarClock,
   Ban,
   History,
+  UserCheck,
 } from "lucide-react";
 import PhotoLightbox from "../../../components/PhotoLightbox";
 
@@ -29,6 +30,8 @@ type ServiceDetail = {
   not_completed_reason: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  assigned_gardener_id: string | null;
+  gardener: { id: string; name: string } | null;
   customer: { name: string } | null;
   checklist_items: { id: string; label: string; completion_status: string }[];
   special_tasks: { id: string; description: string; is_completed: boolean }[];
@@ -132,6 +135,12 @@ export default function ServiceDetailPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
+
+  // Reassign gardener modal state
+  const [showReassign, setShowReassign] = useState(false);
+  const [gardenersList, setGardenersList] = useState<{ id: string; name: string }[]>([]);
+  const [selectedGardenerId, setSelectedGardenerId] = useState("");
+  const [reassignSubmitting, setReassignSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -262,6 +271,34 @@ export default function ServiceDetailPage() {
     load();
   }
 
+  async function openReassign() {
+    // Fetch gardeners list
+    const res = await fetch("/api/ops/gardeners");
+    const json = await res.json();
+    setGardenersList(json.data ?? []);
+    setSelectedGardenerId(service?.assigned_gardener_id ?? "");
+    setShowReassign(true);
+  }
+
+  async function handleReassign() {
+    if (!selectedGardenerId) return;
+    setReassignSubmitting(true);
+    const res = await fetch(`/api/ops/services/${serviceId}/reassign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gardener_id: selectedGardenerId }),
+    });
+    if (!res.ok) {
+      const json = await res.json();
+      alert(json.error ?? "Failed to reassign");
+      setReassignSubmitting(false);
+      return;
+    }
+    setShowReassign(false);
+    setReassignSubmitting(false);
+    load();
+  }
+
   function handleStart() {
     // Redirect to execution page — it shows guidelines first, then handles start
     router.push(`/ops/gardener/services/${serviceId}`);
@@ -342,6 +379,10 @@ export default function ServiceDetailPage() {
         {/* Timing */}
         <Card title="Timing">
           <Row label="Status" value={service.status.replace("_", " ")} />
+          <Row
+            label="Gardener"
+            value={service.gardener?.name ?? "Unassigned"}
+          />
           {service.started_at && (
             <Row
               label="Started"
@@ -385,15 +426,23 @@ export default function ServiceDetailPage() {
           </button>
         )}
 
-        {/* Reschedule / Cancel actions */}
+        {/* Reschedule / Reassign / Cancel actions */}
         {(canReschedule || canCancel) && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {canReschedule && (
               <button
                 onClick={openReschedule}
                 className="flex-1 py-2 border border-stone rounded-xl text-sm text-charcoal hover:bg-offwhite flex items-center justify-center gap-1.5"
               >
                 <CalendarClock size={14} /> Reschedule
+              </button>
+            )}
+            {["scheduled", "in_progress"].includes(service.status) && (
+              <button
+                onClick={openReassign}
+                className="flex-1 py-2 border border-stone rounded-xl text-sm text-charcoal hover:bg-offwhite flex items-center justify-center gap-1.5"
+              >
+                <UserCheck size={14} /> Reassign
               </button>
             )}
             {canCancel && (
@@ -451,6 +500,12 @@ export default function ServiceDetailPage() {
                         </p>
                       )}
                     </div>
+                  )}
+                {entry.action === "service.reassigned" &&
+                  entry.metadata && (
+                    <p className="ml-5 text-xs text-sage">
+                      Reassigned to: <span className="text-charcoal font-medium">{entry.metadata.new_gardener_name}</span>
+                    </p>
                   )}
                 {entry.action === "service.cancelled" &&
                   entry.metadata?.reason && (
@@ -861,6 +916,61 @@ export default function ServiceDetailPage() {
         </div>
       )}
 
+      {/* Reassign gardener modal */}
+      {showReassign && (
+        <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
+          <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6">
+            <h2 className="font-semibold text-charcoal mb-3">
+              Reassign Gardener
+            </h2>
+            <p className="text-sm text-sage mb-3">
+              Select a gardener to assign this service to.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-sage mb-1">
+                  Gardener
+                </label>
+                <select
+                  className={inputCls}
+                  value={selectedGardenerId}
+                  onChange={(e) => setSelectedGardenerId(e.target.value)}
+                >
+                  <option value="">Select gardener…</option>
+                  {gardenersList.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                      {g.id === service?.assigned_gardener_id
+                        ? " (current)"
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setShowReassign(false)}
+                  className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReassign}
+                  disabled={
+                    reassignSubmitting ||
+                    !selectedGardenerId ||
+                    selectedGardenerId === service?.assigned_gardener_id
+                  }
+                  className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
+                >
+                  {reassignSubmitting ? "Saving…" : "Reassign"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cancel modal */}
       {showCancel && (
         <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
@@ -913,6 +1023,7 @@ export default function ServiceDetailPage() {
 function formatAuditAction(action: string): string {
   const map: Record<string, string> = {
     "schedule.rescheduled": "Rescheduled",
+    "service.reassigned": "Gardener Reassigned",
     "service.cancelled": "Cancelled",
     "service.created": "Created",
     "service.completed": "Completed",
