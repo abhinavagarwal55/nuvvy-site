@@ -17,7 +17,11 @@ export async function sendOtp(
     email,
     options: { shouldCreateUser: false },
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("[sendOtp] Supabase error:", error.message, error.status, JSON.stringify(error));
+    return { ok: false, error: error.message };
+  }
+  console.log("[sendOtp] OTP sent successfully to:", email);
   return { ok: true, message: "Check your email for a 6-digit code." };
 }
 

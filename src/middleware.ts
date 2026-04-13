@@ -15,6 +15,13 @@ async function refreshSession(request: NextRequest, response: NextResponse) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return response;
 
+  // Only refresh if there's an existing auth cookie — no point calling getUser()
+  // for unauthenticated requests (wastes Supabase rate limit)
+  const hasAuthCookie = request.cookies.getAll().some(
+    (c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token")
+  );
+  if (!hasAuthCookie) return response;
+
   const supabase = createServerClient(url, key, {
     cookies: {
       getAll() {
