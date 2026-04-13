@@ -105,6 +105,7 @@ export default function ServiceDetailPage() {
   const [photos, setPhotos] = useState<MediaPhoto[]>([]);
   const [voiceNote, setVoiceNote] = useState<MediaVoice | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [issueLightboxIndex, setIssueLightboxIndex] = useState<number | null>(null);
   const [serviceRequests, setServiceRequests] = useState<
     {
       id: string;
@@ -684,19 +685,32 @@ export default function ServiceDetailPage() {
                 <div className="grid grid-cols-3 gap-2">
                   {photos
                     .filter((p) => p.tag === "issue" && p.signed_url)
-                    .map((p) => (
-                      <div
+                    .map((p, i) => (
+                      <button
                         key={p.id}
-                        className="aspect-square rounded-xl overflow-hidden border border-terra/40"
+                        onClick={() => setIssueLightboxIndex(i)}
+                        className="aspect-square rounded-xl overflow-hidden border border-terra/40 hover:border-terra/60"
                       >
                         <img
                           src={p.signed_url!}
                           alt="Issue photo"
                           className="w-full h-full object-cover"
                         />
-                      </div>
+                      </button>
                     ))}
                 </div>
+                {issueLightboxIndex !== null && (
+                  <PhotoLightbox
+                    photos={photos
+                      .filter((p) => p.tag === "issue" && p.signed_url)
+                      .map((p) => ({
+                        url: p.signed_url!,
+                        alt: "Issue photo",
+                      }))}
+                    initialIndex={issueLightboxIndex}
+                    onClose={() => setIssueLightboxIndex(null)}
+                  />
+                )}
               </div>
             )}
           </Card>
