@@ -805,7 +805,6 @@ export default function ServiceExecutionPage() {
                       ref={issueFileInputRef}
                       type="file"
                       accept="image/*"
-                      capture="environment"
                       onChange={(e) => handlePhotoUpload(e, "issue")}
                       className="hidden"
                     />
