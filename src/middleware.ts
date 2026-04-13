@@ -1,5 +1,47 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+
+/**
+ * Refresh the Supabase session on every request.
+ * This is CRITICAL — without it, the JWT expires and users get logged out,
+ * especially on mobile Safari which aggressively suspends background tabs.
+ *
+ * The middleware reads the auth cookies, calls getUser() to trigger a token
+ * refresh if needed, and writes any updated cookies back to the response.
+ */
+async function refreshSession(request: NextRequest, response: NextResponse) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return response;
+
+  const supabase = createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+        // Re-create the response so updated request cookies are forwarded
+        const newResponse = NextResponse.next({
+          request: { headers: request.headers },
+        });
+        // Copy over any headers we already set
+        response.headers.forEach((v, k) => newResponse.headers.set(k, v));
+        cookiesToSet.forEach(({ name, value, options }) => {
+          newResponse.cookies.set(name, value, options);
+        });
+        response = newResponse;
+      },
+    },
+  });
+
+  // getUser() triggers token refresh if the access token is near expiry
+  await supabase.auth.getUser();
+  return response;
+}
 
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
@@ -10,16 +52,16 @@ export async function middleware(request: NextRequest) {
     hostname.includes("localhost") ||
     hostname.includes("127.0.0.1") ||
     process.env.NODE_ENV !== "production";
-  
+
   // Protect /api/ops/* routes — same domain restriction as /api/internal/*
   // Auth is handled in each route handler; middleware only enforces domain
   if (url.pathname.startsWith("/api/ops")) {
     if (!isDevelopment && !hostname.startsWith("internal.") && hostname !== "internal.nuvvy.in") {
       return new NextResponse(null, { status: 404 });
     }
-    // No auth check in middleware for ops routes — route handlers use requireOpsAuth()
-    const response = NextResponse.next();
+    let response = NextResponse.next();
     response.headers.set("x-pathname", url.pathname);
+    response = await refreshSession(request, response);
     return response;
   }
 
@@ -28,14 +70,20 @@ export async function middleware(request: NextRequest) {
     if (!isDevelopment && !hostname.startsWith("internal.") && hostname !== "internal.nuvvy.in") {
       return new NextResponse(null, { status: 404 });
     }
-    const response = NextResponse.next();
+    let response = NextResponse.next();
     response.headers.set("x-pathname", url.pathname);
+    response = await refreshSession(request, response);
     return response;
   }
-  
+
   // Add pathname to headers for layout to check
-  const response = NextResponse.next();
+  let response = NextResponse.next();
   response.headers.set("x-pathname", url.pathname);
+
+  // Refresh session for all ops/internal pages
+  if (url.pathname.startsWith("/ops") || url.pathname.startsWith("/internal")) {
+    response = await refreshSession(request, response);
+  }
 
   // In development: allow direct access to /internal routes
   if (isDevelopment) {
