@@ -61,15 +61,25 @@ export async function POST(
     );
   }
 
-  // Verify the new gardener exists
-  const { data: gardener, error: gErr } = await supabase
+  // Verify the new gardener exists and get name from profiles
+  const { data: gardenerRow, error: gErr } = await supabase
     .from("gardeners")
-    .select("id, name")
+    .select("id, profile_id")
     .eq("id", parsed.data.gardener_id)
     .single();
 
-  if (gErr || !gardener) {
+  if (gErr || !gardenerRow) {
     return NextResponse.json({ error: "Gardener not found" }, { status: 404 });
+  }
+
+  let gardenerName = "Unknown";
+  if (gardenerRow.profile_id) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", gardenerRow.profile_id)
+      .single();
+    gardenerName = profile?.full_name ?? "Unknown";
   }
 
   const oldGardenerId = service.assigned_gardener_id;
@@ -94,7 +104,7 @@ export async function POST(
     metadata: {
       old_gardener_id: oldGardenerId,
       new_gardener_id: parsed.data.gardener_id,
-      new_gardener_name: gardener.name,
+      new_gardener_name: gardenerName,
     },
     ip: request.headers.get("x-forwarded-for"),
     userAgent: request.headers.get("user-agent"),
