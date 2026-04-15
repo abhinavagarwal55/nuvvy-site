@@ -71,7 +71,9 @@ export async function middleware(request: NextRequest) {
     // Skip session refresh on auth endpoints to avoid interfering with OTP/login
     const isAuthApi = url.pathname.startsWith("/api/ops/auth");
     if (!isAuthApi) {
+      const mwAuthStart = Date.now();
       response = await refreshSession(request, response);
+      response.headers.set("x-mw-auth-ms", String(Date.now() - mwAuthStart));
     }
     return response;
   }
@@ -83,7 +85,9 @@ export async function middleware(request: NextRequest) {
     }
     let response = NextResponse.next();
     response.headers.set("x-pathname", url.pathname);
+    const mwAuthStart = Date.now();
     response = await refreshSession(request, response);
+    response.headers.set("x-mw-auth-ms", String(Date.now() - mwAuthStart));
     return response;
   }
 
@@ -95,7 +99,9 @@ export async function middleware(request: NextRequest) {
   // where there's no session to refresh (avoids interfering with OTP flow)
   const isAuthPage = url.pathname.startsWith("/ops/login") || url.pathname.startsWith("/ops/g/");
   if (!isAuthPage && (url.pathname.startsWith("/ops") || url.pathname.startsWith("/internal"))) {
+    const mwAuthStart = Date.now();
     response = await refreshSession(request, response);
+    response.headers.set("x-mw-auth-ms", String(Date.now() - mwAuthStart));
   }
 
   // In development: allow direct access to /internal routes

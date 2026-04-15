@@ -36,17 +36,22 @@ export async function requireOpsAuth(request: NextRequest): Promise<OpsAuthConte
     },
   });
 
+  // Use getSession() instead of getUser() — reads the JWT locally from cookies
+  // with no network round-trip (~1ms vs ~200ms+). This is safe because middleware
+  // already called getUser() to verify the token and refresh it if needed.
   const {
-    data: { user },
+    data: { session },
     error,
-  } = await supabase.auth.getUser();
+  } = await supabase.auth.getSession();
 
-  if (error || !user) {
+  if (error || !session?.user) {
     throw new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
+
+  const user = session.user;
 
   const adminSupabase = getSupabaseAdmin();
 

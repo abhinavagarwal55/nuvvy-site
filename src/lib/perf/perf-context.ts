@@ -3,12 +3,18 @@
  * Passed into route handlers wrapped with withPerfLog.
  */
 export class PerfContext {
+  private middlewareAuthMs = 0;
   private authMs = 0;
   private queryMs = 0;
   private queryCount = 0;
   private userId: string | null = null;
   private role: string | null = null;
   private meta: Record<string, unknown> = {};
+
+  /** Set middleware auth time (read from x-mw-auth-ms header) */
+  setMiddlewareAuthMs(ms: number): void {
+    this.middlewareAuthMs = ms;
+  }
 
   /** Wrap an async operation and accumulate its time into auth_ms */
   async trackAuth<T>(fn: () => Promise<T>): Promise<T> {
@@ -43,6 +49,9 @@ export class PerfContext {
   }
 
   // ─── Getters ────────────────────────────────────────────────────────
+  getMiddlewareAuthMs(): number { return this.middlewareAuthMs; }
+  /** Total auth time: middleware refresh + route-handler auth */
+  getTotalAuthMs(): number { return this.middlewareAuthMs + this.authMs; }
   getAuthMs(): number { return this.authMs; }
   getQueryMs(): number { return this.queryMs; }
   getQueryCount(): number { return this.queryCount; }

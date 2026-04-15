@@ -33,6 +33,14 @@ export function withPerfLog(routeName: string, handler: RouteHandler) {
     }
 
     const ctx = new PerfContext();
+
+    // Read middleware auth timing (set by middleware via x-mw-auth-ms header)
+    const mwAuthHeader = request.headers.get("x-mw-auth-ms");
+    if (mwAuthHeader) {
+      const mwAuthMs = parseInt(mwAuthHeader, 10);
+      if (!isNaN(mwAuthMs)) ctx.setMiddlewareAuthMs(mwAuthMs);
+    }
+
     const start = Date.now();
     let response: Response;
     let statusCode = 200;
@@ -67,12 +75,20 @@ export function withPerfLog(routeName: string, handler: RouteHandler) {
           method: request.method,
           status_code: statusCode,
           total_ms: totalMs,
-          auth_ms: ctx.getAuthMs() || null,
+          auth_ms: ctx.getTotalAuthMs() || null,
           query_ms: ctx.getQueryMs() || null,
           query_count: ctx.getQueryCount() || null,
           user_id: ctx.getUserId(),
           role: ctx.getRole(),
-          metadata: Object.keys(ctx.getMeta()).length > 0 ? ctx.getMeta() : null,
+          metadata: {
+            ...(Object.keys(ctx.getMeta()).length > 0 ? ctx.getMeta() : {}),
+            ...(ctx.getMiddlewareAuthMs() > 0
+              ? {
+                  middleware_auth_ms: ctx.getMiddlewareAuthMs(),
+                  route_auth_ms: ctx.getAuthMs(),
+                }
+              : {}),
+          },
         });
       })
       .catch((err) => {
