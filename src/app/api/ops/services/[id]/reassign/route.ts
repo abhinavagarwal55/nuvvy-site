@@ -95,6 +95,14 @@ export async function POST(
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
+  // Keep junction table in sync: ensure new gardener is in service_visit_gardeners
+  await supabase
+    .from("service_visit_gardeners")
+    .upsert(
+      { service_id: id, gardener_id: parsed.data.gardener_id, assigned_by: auth.userId },
+      { onConflict: "service_id,gardener_id" }
+    );
+
   logAuditEvent({
     actorId: auth.userId,
     actorRole: auth.role,

@@ -1152,20 +1152,25 @@ function CreateOrderForm({
                   </button>
                 )}
               </div>
-              <div className="flex gap-2">
-                <div className="w-20">
-                  <input
-                    type="number"
-                    min={1}
-                    className={INPUT_CLS}
-                    placeholder="Qty"
-                    value={row.quantity}
-                    onChange={(e) =>
-                      updateRow(row.key, {
-                        quantity: Math.max(1, parseInt(e.target.value) || 1),
-                      })
-                    }
-                  />
+              <div className="flex gap-2 items-end">
+                <div>
+                  <div className="flex items-center border border-stone rounded-xl overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => updateRow(row.key, { quantity: Math.max(1, row.quantity - 1) })}
+                      className="w-10 h-10 flex items-center justify-center text-lg text-charcoal hover:bg-cream active:bg-stone/20"
+                    >
+                      −
+                    </button>
+                    <span className="w-10 text-center text-sm font-medium text-charcoal">{row.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => updateRow(row.key, { quantity: row.quantity + 1 })}
+                      className="w-10 h-10 flex items-center justify-center text-lg text-charcoal hover:bg-cream active:bg-stone/20"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
                 <div className="flex-1">
                   <input
@@ -1386,20 +1391,25 @@ function EditOrderForm({
                   </button>
                 )}
               </div>
-              <div className="flex gap-2">
-                <div className="w-20">
-                  <input
-                    type="number"
-                    min={1}
-                    className={INPUT_CLS}
-                    placeholder="Qty"
-                    value={row.quantity}
-                    onChange={(e) =>
-                      updateRow(row.key, {
-                        quantity: Math.max(1, parseInt(e.target.value) || 1),
-                      })
-                    }
-                  />
+              <div className="flex gap-2 items-end">
+                <div>
+                  <div className="flex items-center border border-stone rounded-xl overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => updateRow(row.key, { quantity: Math.max(1, row.quantity - 1) })}
+                      className="w-10 h-10 flex items-center justify-center text-lg text-charcoal hover:bg-cream active:bg-stone/20"
+                    >
+                      −
+                    </button>
+                    <span className="w-10 text-center text-sm font-medium text-charcoal">{row.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => updateRow(row.key, { quantity: row.quantity + 1 })}
+                      className="w-10 h-10 flex items-center justify-center text-lg text-charcoal hover:bg-cream active:bg-stone/20"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
                 <div className="flex-1">
                   <input

@@ -51,3 +51,87 @@ export async function POST(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data }, { status: 201 });
 }
+
+const UpdateTaskSchema = z.object({
+  task_id: z.string().uuid(),
+  description: z.string().min(1, "Description is required"),
+});
+
+// PATCH /api/ops/services/[id]/tasks — update a special task's description
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let auth;
+  try {
+    auth = await requireOpsAuth(request);
+  } catch (res) {
+    return res as Response;
+  }
+  if (auth.role === "gardener") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  await params; // consume params (unused but required by Next.js)
+  const body = await request.json();
+  const parsed = UpdateTaskSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0].message },
+      { status: 400 }
+    );
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  // Only allow editing tasks that haven't been completed
+  const { data, error } = await supabase
+    .from("service_special_tasks")
+    .update({ description: parsed.data.description })
+    .eq("id", parsed.data.task_id)
+    .eq("is_completed", false)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Task not found or already completed" }, { status: 404 });
+  return NextResponse.json({ data });
+}
+
+// DELETE /api/ops/services/[id]/tasks?task_id=xxx — delete a special task
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let auth;
+  try {
+    auth = await requireOpsAuth(request);
+  } catch (res) {
+    return res as Response;
+  }
+  if (auth.role === "gardener") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  await params;
+  const { searchParams } = new URL(request.url);
+  const taskId = searchParams.get("task_id");
+  if (!taskId) {
+    return NextResponse.json({ error: "task_id is required" }, { status: 400 });
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  // Only allow deleting tasks that haven't been completed
+  const { data, error } = await supabase
+    .from("service_special_tasks")
+    .delete()
+    .eq("id", taskId)
+    .eq("is_completed", false)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Task not found or already completed" }, { status: 404 });
+  return NextResponse.json({ data });
+}

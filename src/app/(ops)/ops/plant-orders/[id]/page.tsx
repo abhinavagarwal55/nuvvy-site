@@ -619,9 +619,25 @@ function EditOrderView({
               }}
             />
             <div className="flex gap-2">
-              <div className="w-20">
+              <div>
                 <label className="block text-[10px] text-sage mb-0.5">Qty</label>
-                <input type="number" min={1} className={`${INPUT_CLS} text-center`} value={item.quantity} onChange={(e) => updateItem(i, { quantity: Math.max(1, parseInt(e.target.value) || 1) })} />
+                <div className="flex items-center border border-stone rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => updateItem(i, { quantity: Math.max(1, item.quantity - 1) })}
+                    className="w-10 h-10 flex items-center justify-center text-lg text-charcoal hover:bg-cream active:bg-stone/20"
+                  >
+                    −
+                  </button>
+                  <span className="w-10 text-center text-sm font-medium text-charcoal">{item.quantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => updateItem(i, { quantity: item.quantity + 1 })}
+                    className="w-10 h-10 flex items-center justify-center text-lg text-charcoal hover:bg-cream active:bg-stone/20"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               <div className="flex-1">
                 <label className="block text-[10px] text-sage mb-0.5">Note</label>

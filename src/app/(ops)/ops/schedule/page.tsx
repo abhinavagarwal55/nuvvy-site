@@ -22,6 +22,7 @@ type Service = {
   customer_name: string;
   gardener_name: string | null;
   assigned_gardener_id: string | null;
+  gardener_ids: string[];
   scheduled_date: string;
   time_window_start: string | null;
   time_window_end: string | null;
@@ -415,6 +416,7 @@ export default function SchedulePage() {
   const [createForm, setCreateForm] = useState({
     customer_id: "",
     gardener_id: "",
+    additional_gardener_ids: [] as string[],
     date: "",
     start_time: "",
     end_time: "",
@@ -495,7 +497,7 @@ export default function SchedulePage() {
     const statusMatch = viewMode === "active"
       ? svc.status !== "cancelled"
       : svc.status === "cancelled";
-    const gardenerMatch = !gardenerFilter || svc.assigned_gardener_id === gardenerFilter;
+    const gardenerMatch = !gardenerFilter || (svc.gardener_ids ?? []).includes(gardenerFilter);
     return statusMatch && gardenerMatch;
   });
 
@@ -551,6 +553,7 @@ export default function SchedulePage() {
         body: JSON.stringify({
           customer_id: createForm.customer_id,
           assigned_gardener_id: createForm.gardener_id || null,
+          additional_gardener_ids: createForm.additional_gardener_ids,
           scheduled_date: createForm.date,
           time_window_start: createForm.start_time || null,
           time_window_end: createForm.end_time || null,
@@ -563,7 +566,7 @@ export default function SchedulePage() {
       }
       mutate();
       setCreateOpen(false);
-      setCreateForm({ customer_id: "", gardener_id: "", date: "", start_time: "", end_time: "" });
+      setCreateForm({ customer_id: "", gardener_id: "", additional_gardener_ids: [], date: "", start_time: "", end_time: "" });
     } finally {
       setCreateSubmitting(false);
     }
@@ -1111,11 +1114,15 @@ export default function SchedulePage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-sage mb-1">Gardener</label>
+            <label className="block text-xs text-sage mb-1">Primary Gardener</label>
             <select
               className={INPUT_CLS}
               value={createForm.gardener_id}
-              onChange={(e) => setCreateForm((f) => ({ ...f, gardener_id: e.target.value }))}
+              onChange={(e) => setCreateForm((f) => ({
+                ...f,
+                gardener_id: e.target.value,
+                additional_gardener_ids: f.additional_gardener_ids.filter((id) => id !== e.target.value),
+              }))}
             >
               <option value="">Select gardener</option>
               {gardeners.map((g) => (
@@ -1123,6 +1130,49 @@ export default function SchedulePage() {
                   {g.name}
                 </option>
               ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-sage mb-1">Additional Gardeners</label>
+            {createForm.additional_gardener_ids.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {createForm.additional_gardener_ids.map((gid) => {
+                  const g = gardeners.find((g) => g.id === gid);
+                  return (
+                    <span key={gid} className="inline-flex items-center gap-1 bg-cream text-charcoal text-xs px-2.5 py-1 rounded-full">
+                      {g?.name ?? "Unknown"}
+                      <button
+                        type="button"
+                        onClick={() => setCreateForm((f) => ({
+                          ...f,
+                          additional_gardener_ids: f.additional_gardener_ids.filter((id) => id !== gid),
+                        }))}
+                        className="text-stone hover:text-terra"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <select
+              className={INPUT_CLS}
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setCreateForm((f) => ({
+                  ...f,
+                  additional_gardener_ids: [...f.additional_gardener_ids, e.target.value],
+                }));
+              }}
+            >
+              <option value="">Add gardener…</option>
+              {gardeners
+                .filter((g) => g.id !== createForm.gardener_id && !createForm.additional_gardener_ids.includes(g.id))
+                .map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
             </select>
           </div>
           <div>

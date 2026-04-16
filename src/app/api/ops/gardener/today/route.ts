@@ -30,12 +30,19 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
   const today = new Date().toISOString().split("T")[0];
   const supabase = getSupabaseAdmin();
 
+  // Find all service IDs where this gardener is assigned (primary or secondary)
+  const { data: junctionRows } = await ctx.trackQuery(async () => supabase
+    .from("service_visit_gardeners")
+    .select("service_id")
+    .eq("gardener_id", gardenerId));
+  const assignedServiceIds = (junctionRows ?? []).map((r) => r.service_id);
+
   const { data: services, error } = await ctx.trackQuery(async () => supabase
     .from("service_visits")
     .select(
       "id, customer_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off"
     )
-    .eq("assigned_gardener_id", gardenerId)
+    .in("id", assignedServiceIds.length > 0 ? assignedServiceIds : ["00000000-0000-0000-0000-000000000000"])
     .eq("scheduled_date", today)
     .order("time_window_start", { ascending: true }));
 

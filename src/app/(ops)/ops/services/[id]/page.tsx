@@ -15,6 +15,10 @@ import {
   Ban,
   History,
   UserCheck,
+  Pencil,
+  Trash2,
+  Check,
+  X,
 } from "lucide-react";
 import PhotoLightbox from "../../../components/PhotoLightbox";
 
@@ -104,6 +108,8 @@ export default function ServiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskText, setEditingTaskText] = useState("");
   const [nextServiceId, setNextServiceId] = useState<string | null>(null);
   const [photos, setPhotos] = useState<MediaPhoto[]>([]);
   const [voiceNote, setVoiceNote] = useState<MediaVoice | null>(null);
@@ -136,11 +142,14 @@ export default function ServiceDetailPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
 
-  // Reassign gardener modal state
+  // Manage gardeners modal state
   const [showReassign, setShowReassign] = useState(false);
   const [gardenersList, setGardenersList] = useState<{ id: string; name: string }[]>([]);
   const [selectedGardenerId, setSelectedGardenerId] = useState("");
   const [reassignSubmitting, setReassignSubmitting] = useState(false);
+  const [assignedGardeners, setAssignedGardeners] = useState<
+    { id: string; gardener_id: string; gardener_name: string; is_primary: boolean }[]
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -189,6 +198,14 @@ export default function ServiceDetailPage() {
       })
       .catch(() => {});
 
+    // Fetch assigned gardeners
+    fetch(`/api/ops/services/${serviceId}/gardeners`)
+      .then((r) => r.json())
+      .then((gJson) => {
+        setAssignedGardeners(gJson.data ?? []);
+      })
+      .catch(() => {});
+
     setLoading(false);
   }, [serviceId]);
 
@@ -216,6 +233,23 @@ export default function ServiceDetailPage() {
       });
     }
     setShowTaskModal(false);
+    load();
+  }
+
+  async function handleUpdateTask(taskId: string, description: string) {
+    await fetch(`/api/ops/services/${serviceId}/tasks`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: taskId, description }),
+    });
+    setEditingTaskId(null);
+    load();
+  }
+
+  async function handleDeleteTask(taskId: string) {
+    await fetch(`/api/ops/services/${serviceId}/tasks?task_id=${taskId}`, {
+      method: "DELETE",
+    });
     load();
   }
 
@@ -276,25 +310,50 @@ export default function ServiceDetailPage() {
     const res = await fetch("/api/ops/gardeners");
     const json = await res.json();
     setGardenersList(json.data ?? []);
-    setSelectedGardenerId(service?.assigned_gardener_id ?? "");
+    setSelectedGardenerId("");
     setShowReassign(true);
   }
 
-  async function handleReassign() {
+  async function handleAddGardener() {
     if (!selectedGardenerId) return;
     setReassignSubmitting(true);
-    const res = await fetch(`/api/ops/services/${serviceId}/reassign`, {
+    const res = await fetch(`/api/ops/services/${serviceId}/gardeners`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ gardener_id: selectedGardenerId }),
     });
     if (!res.ok) {
       const json = await res.json();
-      alert(json.error ?? "Failed to reassign");
-      setReassignSubmitting(false);
-      return;
+      alert(json.error ?? "Failed to add gardener");
     }
-    setShowReassign(false);
+    setSelectedGardenerId("");
+    setReassignSubmitting(false);
+    load();
+  }
+
+  async function handleRemoveGardener(gardenerId: string) {
+    const res = await fetch(
+      `/api/ops/services/${serviceId}/gardeners?gardener_id=${gardenerId}`,
+      { method: "DELETE" }
+    );
+    if (!res.ok) {
+      const json = await res.json();
+      alert(json.error ?? "Failed to remove gardener");
+    }
+    load();
+  }
+
+  async function handleMakePrimary(gardenerId: string) {
+    setReassignSubmitting(true);
+    const res = await fetch(`/api/ops/services/${serviceId}/reassign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gardener_id: gardenerId }),
+    });
+    if (!res.ok) {
+      const json = await res.json();
+      alert(json.error ?? "Failed to reassign");
+    }
     setReassignSubmitting(false);
     load();
   }
@@ -379,10 +438,14 @@ export default function ServiceDetailPage() {
         {/* Timing */}
         <Card title="Timing">
           <Row label="Status" value={service.status.replace("_", " ")} />
-          <Row
-            label="Gardener"
-            value={service.gardener?.name ?? "Unassigned"}
-          />
+          <div className="flex items-start justify-between py-1.5 text-sm">
+            <span className="text-sage">Gardener{assignedGardeners.length > 1 ? "s" : ""}</span>
+            <span className="text-charcoal text-right">
+              {assignedGardeners.length > 0
+                ? assignedGardeners.map((g) => g.gardener_name).join(", ")
+                : service.gardener?.name ?? "Unassigned"}
+            </span>
+          </div>
           {service.started_at && (
             <Row
               label="Started"
@@ -605,14 +668,55 @@ export default function ServiceDetailPage() {
             {service.special_tasks.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center gap-2 py-1 text-sm"
+                className="flex items-center gap-2 py-1.5 text-sm"
               >
                 {task.is_completed ? (
-                  <CheckCircle size={14} className="text-forest" />
+                  <CheckCircle size={14} className="text-forest flex-shrink-0" />
                 ) : (
-                  <Clock size={14} className="text-sage" />
+                  <Clock size={14} className="text-sage flex-shrink-0" />
                 )}
-                <span className="text-charcoal">{task.description}</span>
+                {editingTaskId === task.id ? (
+                  <form
+                    className="flex items-center gap-1.5 flex-1"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (editingTaskText.trim()) handleUpdateTask(task.id, editingTaskText.trim());
+                    }}
+                  >
+                    <input
+                      className="flex-1 px-2 py-1 border border-stone rounded-lg text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest"
+                      value={editingTaskText}
+                      onChange={(e) => setEditingTaskText(e.target.value)}
+                      autoFocus
+                    />
+                    <button type="submit" className="text-forest hover:text-garden p-1">
+                      <Check size={14} />
+                    </button>
+                    <button type="button" onClick={() => setEditingTaskId(null)} className="text-stone hover:text-terra p-1">
+                      <X size={14} />
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <span className="text-charcoal flex-1">{task.description}</span>
+                    {!task.is_completed && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => { setEditingTaskId(task.id); setEditingTaskText(task.description); }}
+                          className="text-sage hover:text-forest p-1"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="text-sage hover:text-terra p-1"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             ))}
           </Card>
@@ -921,51 +1025,83 @@ export default function ServiceDetailPage() {
         <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
           <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6">
             <h2 className="font-semibold text-charcoal mb-3">
-              Reassign Gardener
+              Manage Gardeners
             </h2>
-            <p className="text-sm text-sage mb-3">
-              Select a gardener to assign this service to.
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-sage mb-1">
-                  Gardener
-                </label>
+
+            {/* Currently assigned gardeners */}
+            {assignedGardeners.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-xs text-sage mb-1.5">Assigned</label>
+                <div className="space-y-1.5">
+                  {assignedGardeners.map((g) => (
+                    <div
+                      key={g.gardener_id}
+                      className="flex items-center justify-between bg-cream rounded-xl px-3 py-2"
+                    >
+                      <span className="text-sm text-charcoal">
+                        {g.gardener_name}
+                        {g.is_primary && (
+                          <span className="ml-1.5 text-[10px] text-sage">(primary)</span>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {!g.is_primary && (
+                          <button
+                            onClick={() => handleMakePrimary(g.gardener_id)}
+                            disabled={reassignSubmitting}
+                            className="text-xs text-forest hover:text-garden px-2 py-1 rounded-lg hover:bg-forest/5"
+                          >
+                            Make primary
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleRemoveGardener(g.gardener_id)}
+                          className="text-stone hover:text-terra p-1"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add gardener */}
+            <div>
+              <label className="block text-xs text-sage mb-1">Add gardener</label>
+              <div className="flex gap-2">
                 <select
-                  className={inputCls}
+                  className={`${inputCls} flex-1`}
                   value={selectedGardenerId}
                   onChange={(e) => setSelectedGardenerId(e.target.value)}
                 >
                   <option value="">Select gardener…</option>
-                  {gardenersList.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                      {g.id === service?.assigned_gardener_id
-                        ? " (current)"
-                        : ""}
-                    </option>
-                  ))}
+                  {gardenersList
+                    .filter((g) => !assignedGardeners.some((ag) => ag.gardener_id === g.id))
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
                 </select>
-              </div>
-              <div className="flex gap-3 pt-1">
                 <button
-                  onClick={() => setShowReassign(false)}
-                  className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal"
+                  onClick={handleAddGardener}
+                  disabled={reassignSubmitting || !selectedGardenerId}
+                  className="px-4 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleReassign}
-                  disabled={
-                    reassignSubmitting ||
-                    !selectedGardenerId ||
-                    selectedGardenerId === service?.assigned_gardener_id
-                  }
-                  className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
-                >
-                  {reassignSubmitting ? "Saving…" : "Reassign"}
+                  {reassignSubmitting ? "…" : "Add"}
                 </button>
               </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={() => setShowReassign(false)}
+                className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

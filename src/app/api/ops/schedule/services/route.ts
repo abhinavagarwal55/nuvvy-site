@@ -26,6 +26,16 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
 
   const supabase = getSupabaseAdmin();
 
+  // When filtering by gardener, include services where they are primary OR secondary
+  let gardenerServiceIds: string[] | null = null;
+  if (gardenerId) {
+    const { data: junctionRows } = await ctx.trackQuery(async () => supabase
+      .from("service_visit_gardeners")
+      .select("service_id")
+      .eq("gardener_id", gardenerId));
+    gardenerServiceIds = (junctionRows ?? []).map((r) => r.service_id);
+  }
+
   let query = supabase
     .from("service_visits")
     .select(
@@ -34,7 +44,10 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
     .order("scheduled_date", { ascending: true });
 
   if (customerId) query = query.eq("customer_id", customerId);
-  if (gardenerId) query = query.eq("assigned_gardener_id", gardenerId);
+  if (gardenerId && gardenerServiceIds) {
+    // Filter to services where this gardener is assigned (primary or secondary)
+    query = query.in("id", gardenerServiceIds.length > 0 ? gardenerServiceIds : ["00000000-0000-0000-0000-000000000000"]);
+  }
   if (dateFrom) query = query.gte("scheduled_date", dateFrom);
   if (dateTo) query = query.lte("scheduled_date", dateTo);
   if (status) query = query.eq("status", status);
@@ -88,12 +101,27 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
     }
   }
 
+  // Fetch all gardener assignments from junction table for these services
+  const serviceIds = (data ?? []).map((s) => s.id);
+  let gardenersByService: Record<string, string[]> = {};
+  if (serviceIds.length > 0) {
+    const { data: junctionAll } = await ctx.trackQuery(async () => supabase
+      .from("service_visit_gardeners")
+      .select("service_id, gardener_id")
+      .in("service_id", serviceIds));
+    for (const row of junctionAll ?? []) {
+      if (!gardenersByService[row.service_id]) gardenersByService[row.service_id] = [];
+      gardenersByService[row.service_id].push(row.gardener_id);
+    }
+  }
+
   const services = (data ?? []).map((s) => ({
     ...s,
     customer_name: customerNames[s.customer_id] ?? "Unknown",
     gardener_name: s.assigned_gardener_id
       ? gardenerNames[s.assigned_gardener_id] ?? "Unknown"
       : null,
+    gardener_ids: gardenersByService[s.id] ?? (s.assigned_gardener_id ? [s.assigned_gardener_id] : []),
   }));
 
   return NextResponse.json({ data: services });

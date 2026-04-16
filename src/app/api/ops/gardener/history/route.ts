@@ -18,12 +18,19 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseAdmin();
   const today = new Date().toISOString().split("T")[0];
 
+  // Find all services where this gardener is assigned (primary or secondary)
+  const { data: junctionRows } = await supabase
+    .from("service_visit_gardeners")
+    .select("service_id")
+    .eq("gardener_id", auth.gardener_id);
+  const assignedServiceIds = (junctionRows ?? []).map((r) => r.service_id);
+
   const { data, error } = await supabase
     .from("service_visits")
     .select(
       "id, customer_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, not_completed_reason"
     )
-    .eq("assigned_gardener_id", auth.gardener_id)
+    .in("id", assignedServiceIds.length > 0 ? assignedServiceIds : ["00000000-0000-0000-0000-000000000000"])
     .in("status", ["completed", "not_completed"])
     .lt("scheduled_date", today)
     .order("scheduled_date", { ascending: false })

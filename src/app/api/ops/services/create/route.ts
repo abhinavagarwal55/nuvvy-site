@@ -7,6 +7,7 @@ import { logAuditEvent } from "@/lib/services/audit";
 const CreateServiceSchema = z.object({
   customer_id: z.string().uuid(),
   assigned_gardener_id: z.string().uuid().nullable().optional(),
+  additional_gardener_ids: z.array(z.string().uuid()).optional().default([]),
   scheduled_date: z.string(), // YYYY-MM-DD
   time_window_start: z.string().nullable().optional(), // HH:MM
   time_window_end: z.string().nullable().optional(),
@@ -82,6 +83,21 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Sync junction table: primary gardener + additional gardeners
+  const allGardenerIds = [
+    ...(d.assigned_gardener_id ? [d.assigned_gardener_id] : []),
+    ...d.additional_gardener_ids,
+  ];
+  if (allGardenerIds.length > 0) {
+    await supabase.from("service_visit_gardeners").insert(
+      [...new Set(allGardenerIds)].map((gid) => ({
+        service_id: data.id,
+        gardener_id: gid,
+        assigned_by: auth.userId,
+      }))
+    );
+  }
 
   const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || null;
   const userAgent = request.headers.get("user-agent") || null;
