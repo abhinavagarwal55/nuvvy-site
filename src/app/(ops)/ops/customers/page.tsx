@@ -56,7 +56,7 @@ function SkeletonCard() {
 
 export default function CustomersPage() {
   const perfFetcher = usePerf('/api/ops/customers', '/ops/customers');
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("ACTIVE");
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
 

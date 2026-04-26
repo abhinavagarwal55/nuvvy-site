@@ -22,6 +22,7 @@ import {
   BarChart2,
   Sprout,
   Truck,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 import type { OpsRole } from "@/lib/internal/authz";
@@ -143,7 +144,7 @@ function DesktopSidebar({ role }: { role: OpsRole }) {
           );
         })}
 
-        {/* Admin-only: Metrics */}
+        {/* Admin-only: Metrics + Settings */}
         {role === "admin" && (
           <>
             <div className="border-t border-stone/40 my-3" />
@@ -157,6 +158,17 @@ function DesktopSidebar({ role }: { role: OpsRole }) {
             >
               <BarChart2 size={16} />
               Metrics
+            </Link>
+            <Link
+              href="/ops/settings"
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-colors ${
+                pathname === "/ops/settings" || pathname.startsWith("/ops/settings/")
+                  ? "bg-forest text-offwhite"
+                  : "text-sage hover:bg-cream hover:text-charcoal"
+              }`}
+            >
+              <Settings size={16} />
+              Settings
             </Link>
           </>
         )}
@@ -219,19 +231,32 @@ function MobileNav({
             </Link>
           ))}
 
-          {/* Admin-only: Metrics */}
+          {/* Admin-only: Metrics + Settings */}
           {role === "admin" && (
-            <Link
-              href="/ops/metrics"
-              onClick={() => setMoreOpen(false)}
-              className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-charcoal hover:bg-cream"
-            >
-              <span className="flex items-center gap-3">
-                <BarChart2 size={20} />
-                Metrics
-              </span>
-              <ChevronRight size={16} className="text-stone" />
-            </Link>
+            <>
+              <Link
+                href="/ops/metrics"
+                onClick={() => setMoreOpen(false)}
+                className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-charcoal hover:bg-cream"
+              >
+                <span className="flex items-center gap-3">
+                  <BarChart2 size={20} />
+                  Metrics
+                </span>
+                <ChevronRight size={16} className="text-stone" />
+              </Link>
+              <Link
+                href="/ops/settings"
+                onClick={() => setMoreOpen(false)}
+                className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-charcoal hover:bg-cream"
+              >
+                <span className="flex items-center gap-3">
+                  <Settings size={20} />
+                  Settings
+                </span>
+                <ChevronRight size={16} className="text-stone" />
+              </Link>
+            </>
           )}
 
           {/* Divider + Profile & Logout */}
