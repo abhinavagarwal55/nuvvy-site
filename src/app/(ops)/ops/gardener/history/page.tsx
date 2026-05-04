@@ -8,12 +8,24 @@ type HistoryService = {
   id: string;
   customer_name: string;
   customer_address: string | null;
+  customer_society: string | null;
   scheduled_date: string;
   time_window_start: string | null;
   time_window_end: string | null;
   status: string;
   not_completed_reason: string | null;
 };
+
+function buildAddressLine(
+  address: string | null,
+  society: string | null
+): string | null {
+  if (!address && !society) return null;
+  if (!society) return address;
+  if (!address) return society;
+  if (address.toLowerCase().includes(society.toLowerCase())) return address;
+  return `${address}, ${society}`;
+}
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -86,12 +98,15 @@ export default function GardenerHistoryPage() {
                         <p className="font-medium text-charcoal text-sm truncate">
                           {svc.customer_name}
                         </p>
-                        {svc.customer_address && (
-                          <p className="flex items-start gap-1 text-xs text-sage mt-0.5 truncate">
-                            <MapPin size={10} className="mt-0.5 flex-shrink-0" />
-                            <span className="truncate">{svc.customer_address}</span>
-                          </p>
-                        )}
+                        {(() => {
+                          const line = buildAddressLine(svc.customer_address, svc.customer_society);
+                          return line ? (
+                            <p className="flex items-start gap-1 text-xs text-sage mt-0.5 truncate">
+                              <MapPin size={10} className="mt-0.5 flex-shrink-0" />
+                              <span className="truncate">{line}</span>
+                            </p>
+                          ) : null;
+                        })()}
                         <div className="flex items-center gap-2 text-xs text-sage mt-0.5">
                           {svc.time_window_start && (
                             <span className="flex items-center gap-1">

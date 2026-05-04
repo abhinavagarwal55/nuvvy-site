@@ -10,6 +10,7 @@ type WeekService = {
   customer_id: string;
   customer_name: string;
   customer_address: string | null;
+  customer_society: string | null;
   scheduled_date: string;
   time_window_start: string | null;
   time_window_end: string | null;
@@ -17,6 +18,18 @@ type WeekService = {
   started_at: string | null;
   completed_at: string | null;
 };
+
+function buildAddressLine(
+  address: string | null,
+  society: string | null
+): string | null {
+  if (!address && !society) return null;
+  if (!society) return address;
+  if (!address) return society;
+  // Avoid duplicating society if it's already mentioned in the address
+  if (address.toLowerCase().includes(society.toLowerCase())) return address;
+  return `${address}, ${society}`;
+}
 
 const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
   scheduled: { cls: "bg-cream text-charcoal border-stone", label: "Scheduled" },
@@ -146,12 +159,15 @@ function ServiceCard({ service }: { service: WeekService }) {
           <p className="font-medium text-charcoal truncate">
             {service.customer_name}
           </p>
-          {service.customer_address && (
-            <p className="flex items-start gap-1 text-xs text-sage mt-0.5 truncate">
-              <MapPin size={11} className="mt-0.5 flex-shrink-0" />
-              <span className="truncate">{service.customer_address}</span>
-            </p>
-          )}
+          {(() => {
+            const line = buildAddressLine(service.customer_address, service.customer_society);
+            return line ? (
+              <p className="flex items-start gap-1 text-xs text-sage mt-0.5 truncate">
+                <MapPin size={11} className="mt-0.5 flex-shrink-0" />
+                <span className="truncate">{line}</span>
+              </p>
+            ) : null;
+          })()}
           <div className="flex items-center gap-2 text-xs text-sage mt-0.5">
             {service.time_window_start && (
               <span>

@@ -36,22 +36,29 @@ export async function GET(request: NextRequest) {
       "id, customer_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, not_completed_reason"
     )
     .in("id", assignedServiceIds.length > 0 ? assignedServiceIds : ["00000000-0000-0000-0000-000000000000"])
+    .neq("status", "cancelled")
     .gte("scheduled_date", weekAgoStr)
     .lt("scheduled_date", todayStr)
     .order("scheduled_date", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Join customer name + address
+  // Join customer name + address + society
   const customerIds = [...new Set((data ?? []).map((s) => s.customer_id))];
-  let customerInfo: Record<string, { name: string; address: string | null }> = {};
+  let customerInfo: Record<
+    string,
+    { name: string; address: string | null; society: string | null }
+  > = {};
   if (customerIds.length > 0) {
     const { data: customers } = await supabase
       .from("customers")
-      .select("id, name, address")
+      .select("id, name, address, societies(name)")
       .in("id", customerIds);
     customerInfo = Object.fromEntries(
-      (customers ?? []).map((c) => [c.id, { name: c.name, address: c.address }])
+      (customers ?? []).map((c) => {
+        const society = (c as unknown as { societies: { name: string } | null }).societies;
+        return [c.id, { name: c.name, address: c.address, society: society?.name ?? null }];
+      })
     );
   }
 
@@ -59,6 +66,7 @@ export async function GET(request: NextRequest) {
     ...s,
     customer_name: customerInfo[s.customer_id]?.name ?? "Unknown",
     customer_address: customerInfo[s.customer_id]?.address ?? null,
+    customer_society: customerInfo[s.customer_id]?.society ?? null,
   }));
 
   return NextResponse.json({ data: result });

@@ -49,6 +49,7 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
       "id, customer_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off"
     )
     .in("id", assignedServiceIds.length > 0 ? assignedServiceIds : ["00000000-0000-0000-0000-000000000000"])
+    .neq("status", "cancelled")
     .gte("scheduled_date", todayStr)
     .lte("scheduled_date", weekEndStr)
     .order("scheduled_date", { ascending: true })
@@ -56,16 +57,22 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Join customer name + address
+  // Join customer name + address + society
   const customerIds = [...new Set((services ?? []).map((s) => s.customer_id))];
-  let customerInfo: Record<string, { name: string; address: string | null }> = {};
+  let customerInfo: Record<
+    string,
+    { name: string; address: string | null; society: string | null }
+  > = {};
   if (customerIds.length > 0) {
     const { data: customers } = await ctx.trackQuery(async () => supabase
       .from("customers")
-      .select("id, name, address")
+      .select("id, name, address, societies(name)")
       .in("id", customerIds));
     customerInfo = Object.fromEntries(
-      (customers ?? []).map((c) => [c.id, { name: c.name, address: c.address }])
+      (customers ?? []).map((c) => {
+        const society = (c as unknown as { societies: { name: string } | null }).societies;
+        return [c.id, { name: c.name, address: c.address, society: society?.name ?? null }];
+      })
     );
   }
 
@@ -73,6 +80,7 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
     ...s,
     customer_name: customerInfo[s.customer_id]?.name ?? "Unknown",
     customer_address: customerInfo[s.customer_id]?.address ?? null,
+    customer_society: customerInfo[s.customer_id]?.society ?? null,
   }));
 
   return NextResponse.json({ data: result });
