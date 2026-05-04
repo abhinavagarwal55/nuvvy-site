@@ -4,7 +4,7 @@ import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { withPerfLog } from "@/lib/perf/with-perf-log";
 import { PerfContext } from "@/lib/perf/perf-context";
 
-// GET /api/ops/gardener/today — all services for this gardener today
+// GET /api/ops/gardener/today — services for this gardener for today + next 6 days
 export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRequest, ctx: PerfContext) => {
   let auth;
   try {
@@ -27,7 +27,13 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
     }
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().split("T")[0];
+  const weekEnd = new Date(today);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+  const weekEndStr = weekEnd.toISOString().split("T")[0];
+
   const supabase = getSupabaseAdmin();
 
   // Find all service IDs where this gardener is assigned (primary or secondary)
@@ -43,27 +49,30 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
       "id, customer_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off"
     )
     .in("id", assignedServiceIds.length > 0 ? assignedServiceIds : ["00000000-0000-0000-0000-000000000000"])
-    .eq("scheduled_date", today)
+    .gte("scheduled_date", todayStr)
+    .lte("scheduled_date", weekEndStr)
+    .order("scheduled_date", { ascending: true })
     .order("time_window_start", { ascending: true }));
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Join customer names
+  // Join customer name + address
   const customerIds = [...new Set((services ?? []).map((s) => s.customer_id))];
-  let customerNames: Record<string, string> = {};
+  let customerInfo: Record<string, { name: string; address: string | null }> = {};
   if (customerIds.length > 0) {
     const { data: customers } = await ctx.trackQuery(async () => supabase
       .from("customers")
-      .select("id, name")
+      .select("id, name, address")
       .in("id", customerIds));
-    customerNames = Object.fromEntries(
-      (customers ?? []).map((c) => [c.id, c.name])
+    customerInfo = Object.fromEntries(
+      (customers ?? []).map((c) => [c.id, { name: c.name, address: c.address }])
     );
   }
 
   const result = (services ?? []).map((s) => ({
     ...s,
-    customer_name: customerNames[s.customer_id] ?? "Unknown",
+    customer_name: customerInfo[s.customer_id]?.name ?? "Unknown",
+    customer_address: customerInfo[s.customer_id]?.address ?? null,
   }));
 
   return NextResponse.json({ data: result });

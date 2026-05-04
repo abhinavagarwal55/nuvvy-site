@@ -1,12 +1,13 @@
 "use client";
 
 import useSWR from "swr";
-import { Calendar, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, CheckCircle, XCircle, MapPin } from "lucide-react";
 import { formatDate } from "@/lib/utils/format-date";
 
 type HistoryService = {
   id: string;
   customer_name: string;
+  customer_address: string | null;
   scheduled_date: string;
   time_window_start: string | null;
   time_window_end: string | null;
@@ -38,7 +39,7 @@ export default function GardenerHistoryPage() {
           History
         </h1>
         <p className="text-xs text-sage mt-1">
-          {services.length} past visit{services.length !== 1 ? "s" : ""}
+          {services.length} visit{services.length !== 1 ? "s" : ""} in the past 7 days
         </p>
       </div>
 
@@ -85,7 +86,13 @@ export default function GardenerHistoryPage() {
                         <p className="font-medium text-charcoal text-sm truncate">
                           {svc.customer_name}
                         </p>
-                        <div className="flex items-center gap-2 text-xs text-sage">
+                        {svc.customer_address && (
+                          <p className="flex items-start gap-1 text-xs text-sage mt-0.5 truncate">
+                            <MapPin size={10} className="mt-0.5 flex-shrink-0" />
+                            <span className="truncate">{svc.customer_address}</span>
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-sage mt-0.5">
                           {svc.time_window_start && (
                             <span className="flex items-center gap-1">
                               <Calendar size={10} />

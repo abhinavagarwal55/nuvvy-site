@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { Clock, ChevronRight, Play } from "lucide-react";
+import { Clock, ChevronRight, Play, MapPin } from "lucide-react";
 import { usePerf } from "@/lib/perf/use-perf";
 
-type TodayService = {
+type WeekService = {
   id: string;
   customer_id: string;
   customer_name: string;
+  customer_address: string | null;
   scheduled_date: string;
   time_window_start: string | null;
   time_window_end: string | null;
@@ -26,24 +26,44 @@ const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
   cancelled: { cls: "bg-stone/20 text-sage border-stone/40", label: "Cancelled" },
 };
 
-const fallbackFetcher = (url: string) => fetch(url).then((r) => r.json());
+function todayStr(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+function formatDayLabel(dateStr: string, today: string): string {
+  if (dateStr === today) return "Today";
+  const d = new Date(dateStr + "T00:00:00");
+  const t = new Date(today + "T00:00:00");
+  const diffDays = Math.round((d.getTime() - t.getTime()) / 86400000);
+  if (diffDays === 1) return "Tomorrow";
+  return d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
+}
 
 export default function GardenerTodayPage() {
   const perfFetcher = usePerf('/api/ops/gardener/today', '/ops/gardener/today');
 
-  const { data, error, isLoading, mutate } = useSWR(
+  const { data, error, isLoading } = useSWR(
     "/api/ops/gardener/today",
     perfFetcher,
     { refreshInterval: 30000 } // poll every 30s
   );
 
-  const services: TodayService[] = data?.data ?? [];
+  const services: WeekService[] = data?.data ?? [];
+  const today = todayStr();
 
-  const pending = services.filter((s) => s.status === "scheduled");
-  const inProgress = services.filter((s) => s.status === "in_progress");
-  const done = services.filter(
+  // Group services by date
+  const byDate: Record<string, WeekService[]> = {};
+  for (const svc of services) {
+    if (!byDate[svc.scheduled_date]) byDate[svc.scheduled_date] = [];
+    byDate[svc.scheduled_date].push(svc);
+  }
+  const dates = Object.keys(byDate).sort();
+
+  // Today's stats
+  const todayServices = byDate[today] ?? [];
+  const todayDone = todayServices.filter(
     (s) => s.status === "completed" || s.status === "not_completed"
-  );
+  ).length;
 
   const todayLabel = new Date().toLocaleDateString("en-IN", {
     weekday: "long",
@@ -57,7 +77,7 @@ export default function GardenerTodayPage() {
       {/* Header */}
       <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4">
         <p className="text-xs text-sage uppercase tracking-widest mb-1">
-          Today
+          This Week
         </p>
         <h1
           className="text-2xl text-charcoal"
@@ -66,8 +86,8 @@ export default function GardenerTodayPage() {
           {todayLabel}
         </h1>
         <p className="text-sm text-sage mt-1">
-          {services.length} visit{services.length !== 1 ? "s" : ""} today
-          {done.length > 0 && ` · ${done.length} done`}
+          {todayServices.length} visit{todayServices.length !== 1 ? "s" : ""} today
+          {todayDone > 0 && ` · ${todayDone} done`}
         </p>
       </div>
 
@@ -80,45 +100,24 @@ export default function GardenerTodayPage() {
           </p>
         ) : services.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-charcoal font-medium">No visits today</p>
-            <p className="text-sm text-sage mt-1">Enjoy the day off!</p>
+            <p className="text-charcoal font-medium">No upcoming visits</p>
+            <p className="text-sm text-sage mt-1">Nothing scheduled for the next 7 days.</p>
           </div>
         ) : (
-          <>
-            {/* In progress — always on top */}
-            {inProgress.length > 0 && (
-              <Section title="In progress" count={inProgress.length}>
-                {inProgress.map((s) => (
-                  <ServiceCard key={s.id} service={s} />
-                ))}
-              </Section>
-            )}
-
-            {/* Up next */}
-            {pending.length > 0 && (
-              <Section title="Up next" count={pending.length}>
-                {pending.map((s) => (
-                  <ServiceCard key={s.id} service={s} />
-                ))}
-              </Section>
-            )}
-
-            {/* Done */}
-            {done.length > 0 && (
-              <Section title="Done" count={done.length}>
-                {done.map((s) => (
-                  <ServiceCard key={s.id} service={s} />
-                ))}
-              </Section>
-            )}
-          </>
+          dates.map((date) => (
+            <Section key={date} title={formatDayLabel(date, today)} count={byDate[date].length}>
+              {byDate[date].map((s) => (
+                <ServiceCard key={s.id} service={s} />
+              ))}
+            </Section>
+          ))
         )}
       </div>
     </div>
   );
 }
 
-function ServiceCard({ service }: { service: TodayService }) {
+function ServiceCard({ service }: { service: WeekService }) {
   const badge = STATUS_BADGE[service.status] ?? {
     cls: "bg-stone/20 text-charcoal border-stone",
     label: service.status,
@@ -147,6 +146,12 @@ function ServiceCard({ service }: { service: TodayService }) {
           <p className="font-medium text-charcoal truncate">
             {service.customer_name}
           </p>
+          {service.customer_address && (
+            <p className="flex items-start gap-1 text-xs text-sage mt-0.5 truncate">
+              <MapPin size={11} className="mt-0.5 flex-shrink-0" />
+              <span className="truncate">{service.customer_address}</span>
+            </p>
+          )}
           <div className="flex items-center gap-2 text-xs text-sage mt-0.5">
             {service.time_window_start && (
               <span>

@@ -83,9 +83,27 @@ export async function generateServices(
     status: "scheduled",
   }));
 
-  const { error } = await supabase.from("service_visits").insert(rows);
+  const { data: inserted, error } = await supabase
+    .from("service_visits")
+    .insert(rows)
+    .select("id");
   if (error) {
     throw new Error(`Failed to generate services: ${error.message}`);
+  }
+
+  // Populate junction table so the gardener can see these services on
+  // the gardener "today"/"history" views (which filter via this table).
+  if (inserted && inserted.length > 0) {
+    const junctionRows = inserted.map((r) => ({
+      service_id: r.id,
+      gardener_id: gardenerId,
+    }));
+    const { error: junctionErr } = await supabase
+      .from("service_visit_gardeners")
+      .insert(junctionRows);
+    if (junctionErr) {
+      throw new Error(`Failed to populate gardener junction: ${junctionErr.message}`);
+    }
   }
 
   return newDates.length;
