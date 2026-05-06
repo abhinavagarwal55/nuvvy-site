@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   const { data: slots, error: slotsErr } = await supabase
     .from("service_slots")
-    .select("id, customer_id, gardener_id, day_of_week, time_window_start, time_window_end")
+    .select("id, customer_id, gardener_id, day_of_week, time_window_start, time_window_end, effective_from")
     .eq("is_active", true);
 
   if (slotsErr) {
@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
         timeStart: slot.time_window_start,
         timeEnd: slot.time_window_end,
         visitFrequency: plan.visit_frequency,
+        effectiveFrom: slot.effective_from ?? today,
         fromDate: today,
         weeksAhead: 6,
       });

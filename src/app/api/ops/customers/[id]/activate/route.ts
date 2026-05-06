@@ -153,6 +153,7 @@ export async function POST(
       timeStart: slot.time_window_start,
       timeEnd: slot.time_window_end,
       visitFrequency: plan.visit_frequency,
+      effectiveFrom: today,
       fromDate: today,
       weeksAhead: 6,
     });

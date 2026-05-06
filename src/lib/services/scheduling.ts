@@ -19,15 +19,21 @@ export interface GenerateServicesInput {
   timeStart: string; // HH:MM
   timeEnd: string;
   visitFrequency: string; // 'weekly' | 'fortnightly' | 'monthly'
-  fromDate: string; // YYYY-MM-DD — generate from this date onward
+  effectiveFrom: string; // YYYY-MM-DD — the slot's cycle anchor
+  fromDate: string; // YYYY-MM-DD — only generate dates on/after this
   weeksAhead?: number; // default 6
 }
 
 /**
  * Generate service visit rows for a slot.
  *
- * Idempotent: skips dates that already have a service for this slot.
- * Never touches past services.
+ * Cycle dates are anchored to slot.effective_from (stable across calls),
+ * never to today. This means calling generateServices() on different days
+ * produces dates aligned to the same cycle — fortnightly stays fortnightly.
+ *
+ * Idempotent: skips dates that already have a service for this slot
+ * (matched by original_scheduled_date so reschedules don't trigger
+ * re-creation of the original date).
  *
  * Returns the number of services inserted.
  */
@@ -44,6 +50,7 @@ export async function generateServices(
     timeStart,
     timeEnd,
     visitFrequency,
+    effectiveFrom,
     fromDate,
     weeksAhead = 6,
   } = input;
@@ -53,23 +60,30 @@ export async function generateServices(
     throw new Error(`Unknown visit frequency: ${visitFrequency}`);
   }
 
-  // Compute all occurrence dates within the window
-  const dates = computeOccurrences(dayOfWeek, intervalDays, fromDate, weeksAhead);
+  // Compute cycle dates anchored to the slot's effective_from
+  const dates = computeOccurrences(
+    dayOfWeek,
+    intervalDays,
+    effectiveFrom,
+    fromDate,
+    weeksAhead
+  );
 
   if (dates.length === 0) return 0;
 
-  // Fetch existing services for this slot in the date range to ensure idempotency
+  // Idempotency check by original_scheduled_date — covers services that
+  // have been rescheduled away from their original cycle date.
   const { data: existing } = await supabase
     .from("service_visits")
-    .select("scheduled_date")
+    .select("original_scheduled_date")
     .eq("slot_id", slotId)
-    .in("scheduled_date", dates);
+    .in("original_scheduled_date", dates);
 
-  const existingDates = new Set((existing ?? []).map((e) => e.scheduled_date));
+  const existingDates = new Set(
+    (existing ?? []).map((e) => e.original_scheduled_date)
+  );
 
-  // Filter to only new dates
   const newDates = dates.filter((d) => !existingDates.has(d));
-
   if (newDates.length === 0) return 0;
 
   const rows = newDates.map((date) => ({
@@ -78,6 +92,7 @@ export async function generateServices(
     assigned_gardener_id: gardenerId,
     slot_id: slotId,
     scheduled_date: date,
+    original_scheduled_date: date,
     time_window_start: timeStart,
     time_window_end: timeEnd,
     status: "scheduled",
@@ -110,44 +125,56 @@ export async function generateServices(
 }
 
 /**
- * Compute visit dates for a given day-of-week and frequency.
+ * Compute cycle dates anchored to effectiveFrom, restricted to the
+ * window [fromDate, fromDate + weeksAhead*7).
  *
- * dayOfWeek: 0=Mon ... 6=Sun (matches DB convention)
- * intervalDays: 7 for weekly, 14 for fortnightly, 28 for monthly
- * fromDate: YYYY-MM-DD — first possible date
- * weeksAhead: generate up to this many weeks from fromDate
+ * dayOfWeek: 0=Mon ... 6=Sun (DB convention)
+ * intervalDays: 7 / 14 / 28
  */
 function computeOccurrences(
   dayOfWeek: number,
   intervalDays: number,
-  fromDate: string,
+  effectiveFromStr: string,
+  fromDateStr: string,
   weeksAhead: number
 ): string[] {
-  const from = new Date(fromDate + "T00:00:00");
-  const endDate = new Date(from);
+  // Find the first occurrence of dayOfWeek on or after effectiveFrom.
+  // This is the cycle's true anchor — every subsequent visit is
+  // anchorDate + k*intervalDays for k = 0, 1, 2, ...
+  const effectiveFrom = new Date(effectiveFromStr + "T00:00:00");
+  const anchorDate = firstDayOfWeekOnOrAfter(effectiveFrom, dayOfWeek);
+
+  const fromDate = new Date(fromDateStr + "T00:00:00");
+  const endDate = new Date(fromDate);
   endDate.setDate(endDate.getDate() + weeksAhead * 7);
 
-  // Find the first occurrence of dayOfWeek on or after fromDate
-  // JS: 0=Sun, 1=Mon ... 6=Sat. DB: 0=Mon ... 6=Sun
-  // Convert DB dayOfWeek to JS dayOfWeek
-  const jsDow = dayOfWeek === 6 ? 0 : dayOfWeek + 1;
-
-  const cursor = new Date(from);
-  const currentJsDow = cursor.getDay();
-  let daysUntilFirst = (jsDow - currentJsDow + 7) % 7;
-  if (daysUntilFirst === 0 && cursor >= from) {
-    // fromDate itself is a valid date if it matches
-    daysUntilFirst = 0;
-  }
-  cursor.setDate(cursor.getDate() + daysUntilFirst);
+  // Smallest k such that anchorDate + k*intervalDays >= fromDate
+  const dayMs = 86400000;
+  const daysFromAnchor = Math.floor((fromDate.getTime() - anchorDate.getTime()) / dayMs);
+  const kStart = daysFromAnchor <= 0 ? 0 : Math.ceil(daysFromAnchor / intervalDays);
 
   const dates: string[] = [];
+  const cursor = new Date(anchorDate);
+  cursor.setDate(cursor.getDate() + kStart * intervalDays);
   while (cursor < endDate) {
     dates.push(formatDate(cursor));
     cursor.setDate(cursor.getDate() + intervalDays);
   }
-
   return dates;
+}
+
+/**
+ * Given a date and a target day-of-week (DB convention: 0=Mon..6=Sun),
+ * return the first date on or after `from` that falls on that DOW.
+ */
+function firstDayOfWeekOnOrAfter(from: Date, dayOfWeek: number): Date {
+  // JS getDay(): 0=Sun..6=Sat. DB: 0=Mon..6=Sun.
+  const targetJsDow = dayOfWeek === 6 ? 0 : dayOfWeek + 1;
+  const result = new Date(from);
+  const currentJsDow = result.getDay();
+  const daysUntil = (targetJsDow - currentJsDow + 7) % 7;
+  result.setDate(result.getDate() + daysUntil);
+  return result;
 }
 
 function formatDate(d: Date): string {

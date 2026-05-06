@@ -128,7 +128,7 @@ export async function POST(
     // Get active slot to regenerate
     const { data: activeSlot } = await supabase
       .from("service_slots")
-      .select("id, gardener_id, day_of_week, time_window_start, time_window_end")
+      .select("id, gardener_id, day_of_week, time_window_start, time_window_end, effective_from")
       .eq("customer_id", id)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
@@ -149,6 +149,7 @@ export async function POST(
         timeStart: activeSlot.time_window_start,
         timeEnd: activeSlot.time_window_end,
         visitFrequency: newPlan.visit_frequency,
+        effectiveFrom: activeSlot.effective_from ?? tomorrowStr,
         fromDate: tomorrowStr,
         weeksAhead: 6,
       });

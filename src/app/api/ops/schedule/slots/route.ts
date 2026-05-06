@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
     timeStart: d.time_window_start,
     timeEnd: d.time_window_end,
     visitFrequency: plan.visit_frequency,
+    effectiveFrom: today,
     fromDate: today,
     weeksAhead: 6,
   });
@@ -282,6 +283,7 @@ export async function PUT(request: NextRequest) {
     timeStart: d.time_window_start,
     timeEnd: d.time_window_end,
     visitFrequency: plan.visit_frequency,
+    effectiveFrom: today,
     fromDate: tomorrowStr,
     weeksAhead: 6,
   });
