@@ -46,16 +46,22 @@ export async function POST(
   const { id } = await params;
   const supabase = getSupabaseAdmin();
 
-  // Fetch service
+  // Fetch service + customer name in one round-trip. The customer name
+  // is captured here so the email IIFE doesn't have to re-fetch it later
+  // (which previously failed silently on transient errors and produced
+  // "Customer: Unknown" emails).
   const { data: service } = await supabase
     .from("service_visits")
-    .select("id, status, customer_id, assigned_gardener_id")
+    .select("id, status, customer_id, assigned_gardener_id, customers(name)")
     .eq("id", id)
     .single();
 
   if (!service) {
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
+
+  const customerName =
+    (service.customers as unknown as { name: string } | null)?.name ?? "Unknown";
 
   if (
     auth.role === "gardener" &&
@@ -284,11 +290,6 @@ export async function POST(
   // Send email notification (fire-and-forget)
   (async () => {
     try {
-      const { data: cust } = await supabase
-        .from("customers")
-        .select("name")
-        .eq("id", service.customer_id)
-        .single();
       const { data: checklistItems } = await supabase
         .from("visit_checklist_items")
         .select("completion_status")
@@ -333,7 +334,7 @@ export async function POST(
       }
 
       const email = serviceCompletedEmail({
-        customerName: cust?.name ?? "Unknown",
+        customerName,
         scheduledDate: updated.scheduled_date,
         timeWindow: updated.time_window_start
           ? `${updated.time_window_start}–${updated.time_window_end}`
