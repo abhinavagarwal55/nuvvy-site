@@ -236,19 +236,24 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Plan not found" }, { status: 500 });
   }
 
-  // 1. Deactivate old slot
+  // 1. Capture IDs of future scheduled services on the old slot — these
+  //    need to be removed once the new slot is in place.
+  const { data: toDeleteRows, error: toDeleteErr } = await supabase
+    .from("service_visits")
+    .select("id")
+    .eq("slot_id", d.slot_id)
+    .eq("status", "scheduled")
+    .gt("scheduled_date", today);
+  if (toDeleteErr) {
+    return NextResponse.json({ error: toDeleteErr.message }, { status: 500 });
+  }
+  const toDeleteIds = (toDeleteRows ?? []).map((r) => r.id);
+
+  // 2. Deactivate old slot
   await supabase
     .from("service_slots")
     .update({ is_active: false, effective_until: today })
     .eq("id", d.slot_id);
-
-  // 2. Delete future scheduled services from old slot
-  await supabase
-    .from("service_visits")
-    .delete()
-    .eq("slot_id", d.slot_id)
-    .eq("status", "scheduled")
-    .gt("scheduled_date", today);
 
   // 3. Create new slot
   const { data: newSlot, error: newSlotErr } = await supabase
@@ -287,6 +292,50 @@ export async function PUT(request: NextRequest) {
     fromDate: tomorrowStr,
     weeksAhead: 6,
   });
+
+  // 5. Now safely delete the old slot's future services. The previous code
+  //    just called .delete() without checking errors, which silently failed
+  //    when FK refs (service_visit_gardeners, service_special_tasks)
+  //    pointed at those services — leaving orphan visits on the old slot.
+  if (toDeleteIds.length > 0) {
+    // Reassign special tasks to the earliest new-slot service (so the
+    // gardener still gets the task on the customer's next visit).
+    const { data: nextNew } = await supabase
+      .from("service_visits")
+      .select("id")
+      .eq("slot_id", newSlot.id)
+      .eq("status", "scheduled")
+      .order("scheduled_date")
+      .limit(1)
+      .maybeSingle();
+    if (nextNew?.id) {
+      await supabase
+        .from("service_special_tasks")
+        .update({ for_service_id: nextNew.id })
+        .in("for_service_id", toDeleteIds);
+    }
+    // created_after_service_id is just provenance — null it out
+    await supabase
+      .from("service_special_tasks")
+      .update({ created_after_service_id: null })
+      .in("created_after_service_id", toDeleteIds);
+    // Drop junction rows
+    await supabase
+      .from("service_visit_gardeners")
+      .delete()
+      .in("service_id", toDeleteIds);
+    // Now delete the services, with error checking
+    const { error: delErr } = await supabase
+      .from("service_visits")
+      .delete()
+      .in("id", toDeleteIds);
+    if (delErr) {
+      return NextResponse.json(
+        { error: `Failed to clean up old slot services: ${delErr.message}` },
+        { status: 500 }
+      );
+    }
+  }
 
   const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || null;
   const userAgent = request.headers.get("user-agent") || null;

@@ -113,19 +113,20 @@ export async function POST(
     return NextResponse.json({ error: subErr.message }, { status: 500 });
   }
 
-  // 3. If frequency changed, delete future scheduled services and regenerate
+  // 3. If frequency changed, regenerate future services on the new cadence
   let regeneratedCount = 0;
   if (oldFrequency && oldFrequency !== newPlan.visit_frequency) {
-    // Delete future scheduled services (preserve one-offs and non-scheduled)
-    await supabase
+    // Capture future scheduled services tied to a slot (preserve one-offs)
+    const { data: toDeleteRows } = await supabase
       .from("service_visits")
-      .delete()
+      .select("id")
       .eq("customer_id", id)
       .gt("scheduled_date", today)
       .eq("status", "scheduled")
-      .not("slot_id", "is", null); // preserve one-off services (slot_id IS NULL)
+      .not("slot_id", "is", null);
+    const toDeleteIds = (toDeleteRows ?? []).map((r) => r.id);
 
-    // Get active slot to regenerate
+    // Get active slot
     const { data: activeSlot } = await supabase
       .from("service_slots")
       .select("id, gardener_id, day_of_week, time_window_start, time_window_end, effective_from")
@@ -153,6 +154,46 @@ export async function POST(
         fromDate: tomorrowStr,
         weeksAhead: 6,
       });
+    }
+
+    // Clean up FK refs and delete old services. The previous code's plain
+    // .delete() silently failed when service_visit_gardeners or
+    // service_special_tasks had FKs to those services, leaving orphans.
+    if (toDeleteIds.length > 0) {
+      const { data: nextNew } = await supabase
+        .from("service_visits")
+        .select("id")
+        .eq("customer_id", id)
+        .eq("status", "scheduled")
+        .gt("scheduled_date", today)
+        .not("id", "in", `(${toDeleteIds.join(",")})`)
+        .order("scheduled_date")
+        .limit(1)
+        .maybeSingle();
+      if (nextNew?.id) {
+        await supabase
+          .from("service_special_tasks")
+          .update({ for_service_id: nextNew.id })
+          .in("for_service_id", toDeleteIds);
+      }
+      await supabase
+        .from("service_special_tasks")
+        .update({ created_after_service_id: null })
+        .in("created_after_service_id", toDeleteIds);
+      await supabase
+        .from("service_visit_gardeners")
+        .delete()
+        .in("service_id", toDeleteIds);
+      const { error: delErr } = await supabase
+        .from("service_visits")
+        .delete()
+        .in("id", toDeleteIds);
+      if (delErr) {
+        return NextResponse.json(
+          { error: `Failed to clean up old services: ${delErr.message}` },
+          { status: 500 }
+        );
+      }
     }
   }
 
