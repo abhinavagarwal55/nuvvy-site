@@ -5,6 +5,11 @@
 // Read WhatsApp number from environment variable
 export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
 
+// Display-formatted Indian phone, e.g. "+91 99011 53781"
+export const PHONE_DISPLAY = WHATSAPP_NUMBER && WHATSAPP_NUMBER.length === 12
+  ? `+${WHATSAPP_NUMBER.slice(0, 2)} ${WHATSAPP_NUMBER.slice(2, 7)} ${WHATSAPP_NUMBER.slice(7)}`
+  : "";
+
 // Pre-written message templates for different CTAs
 export const WHATSAPP_MESSAGES = {
   balconyAssessment: "Hi, I'd like to book a free 30-minute consultation with a horticulturist about my balcony and understand what would work best for my space.",

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Phone } from "lucide-react";
+import { WHATSAPP_NUMBER, PHONE_DISPLAY } from "@/config/whatsapp";
 
 /**
  * Landing page header - sticky header with Nuvvy logo and hamburger menu
@@ -21,19 +22,31 @@ export default function LandingHeader() {
               Nuvvy
             </Link>
 
-            {/* Hamburger Menu */}
-            <button
-              type="button"
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="p-2 text-gray-700 hover:text-gray-900 transition-colors"
-              aria-label="Toggle menu"
-            >
-              {menuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
+            {/* Phone + Hamburger */}
+            <div className="flex items-center gap-1">
+              {PHONE_DISPLAY && (
+                <a
+                  href={`tel:+${WHATSAPP_NUMBER}`}
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-green-700 transition-colors px-2 py-2"
+                  aria-label={`Call Nuvvy at ${PHONE_DISPLAY}`}
+                >
+                  <Phone className="w-4 h-4" />
+                  <span className="hidden sm:inline">{PHONE_DISPLAY}</span>
+                </a>
               )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="p-2 text-gray-700 hover:text-gray-900 transition-colors"
+                aria-label="Toggle menu"
+              >
+                {menuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Menu Dropdown */}

@@ -1,3 +1,5 @@
+import { WHATSAPP_NUMBER, PHONE_DISPLAY, WHATSAPP_MESSAGES, getWhatsAppLink } from "@/config/whatsapp";
+
 export default function Footer() {
   const year = new Date().getFullYear();
 
@@ -22,8 +24,30 @@ export default function Footer() {
           </nav>
 
           {/* Contact */}
-          <div className="md:text-right">
-            <p className="text-sm text-text-muted">Questions? We&apos;re happy to help.</p>
+          <div className="md:text-right text-sm">
+            <p className="text-text-muted">Questions? We&apos;re happy to help.</p>
+            {PHONE_DISPLAY && (
+              <p className="mt-2">
+                <a
+                  href={`tel:+${WHATSAPP_NUMBER}`}
+                  className="text-ink hover:text-green-700 font-medium"
+                >
+                  {PHONE_DISPLAY}
+                </a>
+              </p>
+            )}
+            {WHATSAPP_NUMBER && (
+              <p className="mt-1">
+                <a
+                  href={getWhatsAppLink(WHATSAPP_MESSAGES.generalChat)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-text-muted hover:text-ink"
+                >
+                  Chat on WhatsApp
+                </a>
+              </p>
+            )}
           </div>
         </div>
 
