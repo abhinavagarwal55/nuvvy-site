@@ -198,9 +198,9 @@ export default function PlantCatalogPage() {
 
   return (
     <main className="bg-cream min-h-screen">
-      <section className="py-10 md:py-12">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="bg-[#F9FAFB] rounded-3xl border border-gray-200 p-5 md:p-7">
+      <section className="py-6 md:py-12">
+        <div className="max-w-6xl mx-auto px-3 md:px-6">
+          <div className="bg-[#F9FAFB] rounded-2xl md:rounded-3xl border border-gray-200 p-3 md:p-7">
             {/* Breadcrumb */}
             <div className="mb-2 text-sm text-gray-500">
               <a href="/" className="hover:underline">Home</a>
@@ -278,7 +278,7 @@ export default function PlantCatalogPage() {
                 {/* Category Filter */}
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
-                  <div className="flex gap-2 overflow-x-auto whitespace-nowrap -mx-6 px-6 scrollbar-hide flex-nowrap" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                  <div className="flex gap-2 overflow-x-auto whitespace-nowrap -mx-3 md:-mx-7 px-3 md:px-7 scrollbar-hide flex-nowrap" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                     <button
                       onClick={() => { setSelectedCategory("All"); updateParam("category", null); }}
                       className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
@@ -394,9 +394,9 @@ export default function PlantCatalogPage() {
       </section>
 
       {/* Bottom CTA Section — CE3: custom shortlist via WhatsApp */}
-      <section className="py-8 md:py-10">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="bg-[#F9FAFB] rounded-3xl border border-gray-200 p-6 md:p-8 text-center">
+      <section className="py-6 md:py-10">
+        <div className="max-w-6xl mx-auto px-3 md:px-6">
+          <div className="bg-[#F9FAFB] rounded-2xl md:rounded-3xl border border-gray-200 p-4 md:p-8 text-center">
             <h2 className="text-xl md:text-2xl font-semibold text-gray-900">
               Want plants picked for your balcony specifically?
             </h2>
@@ -421,8 +421,8 @@ export default function PlantCatalogPage() {
       </section>
 
       {segment === "accessories" && (
-        <section className="pb-12">
-          <div className="max-w-6xl mx-auto px-6">
+        <section className="pb-10 md:pb-12">
+          <div className="max-w-6xl mx-auto px-3 md:px-6">
             <AffiliateDisclosure subtle />
           </div>
         </section>
@@ -475,7 +475,7 @@ function AccessoriesSegment({
               Category
             </label>
             <div
-              className="flex gap-2 overflow-x-auto whitespace-nowrap -mx-6 px-6 scrollbar-hide flex-nowrap"
+              className="flex gap-2 overflow-x-auto whitespace-nowrap -mx-3 md:-mx-7 px-3 md:px-7 scrollbar-hide flex-nowrap"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
               <button
