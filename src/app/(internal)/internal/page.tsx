@@ -144,7 +144,27 @@ export default function InternalPage() {
             </Link>
           </div>
         </div>
-        
+
+        {/* Accessories */}
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Accessories</h3>
+          <div className="flex flex-col gap-2 md:flex-row md:gap-3">
+            <Link
+              href="/internal/accessories/new"
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-center md:text-left"
+            >
+              Add Accessory
+            </Link>
+            <Link
+              href="/internal/accessories"
+              className="w-full md:w-auto px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium text-center md:text-left"
+            >
+              View Accessories
+            </Link>
+          </div>
+        </div>
+
+
         {/* Customers */}
         <div className="mb-4">
           <h3 className="text-sm font-medium text-gray-700 mb-2">Customers</h3>

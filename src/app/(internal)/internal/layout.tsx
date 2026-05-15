@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import { requireInternalAccess } from "@/lib/internal/authz";
+import { requireOpsAccess } from "@/lib/internal/authz";
 import { isDevBypassAuth } from "@/lib/internal/dev-bypass";
 import SignOutButton from "./signout-button";
 
@@ -12,18 +12,20 @@ export default async function InternalLayout({
   // Get current pathname from middleware header
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") || "";
-  
+
   // Allow login and auth callback routes without authentication/authorization
-  const isPublicRoute = 
-    pathname === "/internal/login" || 
+  const isPublicRoute =
+    pathname === "/internal/login" ||
     pathname.startsWith("/internal/auth/callback");
 
   // Check if dev bypass is enabled
   const bypassAuth = await isDevBypassAuth();
 
   if (!isPublicRoute && !bypassAuth) {
-    // Check authentication AND authorization (requires internal_users table entry)
-    const { user, access } = await requireInternalAccess();
+    // Authorize via the ops role system (profiles.role). Admin and
+    // horticulturist can manage the catalog (plants + accessories) and the
+    // CMS surfaces under /internal. Gardener is redirected away.
+    const { role } = await requireOpsAccess(["admin", "horticulturist"]);
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -42,15 +44,14 @@ export default async function InternalLayout({
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600">{user.email}</span>
               <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                {access.role}
+                {role}
               </span>
             </div>
             <SignOutButton />
           </div>
         </header>
-        
+
         {/* Main Content */}
         <main className="flex-1 p-6">
           {children}

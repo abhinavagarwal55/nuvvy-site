@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { OG_DEFAULT_IMAGE } from "@/lib/constants";
 
+// Public catalog reads `?type=` via useSearchParams — keep route dynamic.
+export const dynamic = "force-dynamic";
+
 // Get site URL for metadata (works at build time)
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||

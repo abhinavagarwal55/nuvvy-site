@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/ssr";
-import { getInternalAccess } from "@/lib/internal/authz";
+import { requireOpsRole } from "@/lib/auth/ops-auth";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { withPerfLog } from "@/lib/perf/with-perf-log";
 import { PerfContext } from "@/lib/perf/perf-context";
@@ -8,49 +7,12 @@ import { PerfContext } from "@/lib/perf/perf-context";
 // Force Node.js runtime for this route
 export const runtime = "nodejs";
 
-// Helper function to check auth (used by both GET and POST)
-async function checkAuth(): Promise<{ authorized: boolean; error?: string; status?: number }> {
-  // DEV-ONLY: Auth bypass for local development
-  const isDevBypass =
-    (process.env.INTERNAL_AUTH_BYPASS === "true" ||
-      process.env.INTERNAL_AUTH_BYPASS === "1") &&
-    process.env.NODE_ENV !== "production";
-
-  if (isDevBypass) {
-    return { authorized: true };
-  }
-
-  // Production path: Check authentication
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (!user || authError) {
-    return { authorized: false, error: "Unauthorized", status: 401 };
-  }
-
-  if (!user.email) {
-    return { authorized: false, error: "Forbidden: Missing user email", status: 403 };
-  }
-
-  const access = await getInternalAccess(user.email);
-  if (!access) {
-    return { authorized: false, error: "Forbidden: Access denied", status: 403 };
-  }
-
-  return { authorized: true };
-}
-
 export const GET = withPerfLog('/api/internal/plants', async (request: NextRequest, ctx: PerfContext) => {
   try {
-    const authCheck = await checkAuth();
-    if (!authCheck.authorized) {
-      return NextResponse.json(
-        { data: null, error: authCheck.error },
-        { status: authCheck.status || 401 }
-      );
+    try {
+      await requireOpsRole(request, ["admin", "horticulturist"]);
+    } catch (res) {
+      return res as Response;
     }
     const searchParams = request.nextUrl.searchParams;
     const limitParam = searchParams.get("limit");
@@ -150,12 +112,10 @@ export const GET = withPerfLog('/api/internal/plants', async (request: NextReque
 
 export async function POST(request: NextRequest) {
   try {
-    const authCheck = await checkAuth();
-    if (!authCheck.authorized) {
-      return NextResponse.json(
-        { data: null, error: authCheck.error },
-        { status: authCheck.status || 401 }
-      );
+    try {
+      await requireOpsRole(request, ["admin", "horticulturist"]);
+    } catch (res) {
+      return res as Response;
     }
 
     const formData = await request.formData();

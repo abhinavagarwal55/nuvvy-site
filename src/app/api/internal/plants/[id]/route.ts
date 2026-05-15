@@ -1,55 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/ssr";
-import { getInternalAccess } from "@/lib/internal/authz";
+import { requireOpsRole } from "@/lib/auth/ops-auth";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 // Force Node.js runtime for this route
 export const runtime = "nodejs";
-
-// Helper function to check auth
-async function checkAuth(): Promise<{ authorized: boolean; error?: string; status?: number }> {
-  const isDevBypass =
-    (process.env.INTERNAL_AUTH_BYPASS === "true" ||
-      process.env.INTERNAL_AUTH_BYPASS === "1") &&
-    process.env.NODE_ENV !== "production";
-
-  if (isDevBypass) {
-    return { authorized: true };
-  }
-
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (!user || authError) {
-    return { authorized: false, error: "Unauthorized", status: 401 };
-  }
-
-  if (!user.email) {
-    return { authorized: false, error: "Forbidden: Missing user email", status: 403 };
-  }
-
-  const access = await getInternalAccess(user.email);
-  if (!access) {
-    return { authorized: false, error: "Forbidden: Access denied", status: 403 };
-  }
-
-  return { authorized: true };
-}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authCheck = await checkAuth();
-    if (!authCheck.authorized) {
-      return NextResponse.json(
-        { data: null, error: authCheck.error },
-        { status: authCheck.status || 401 }
-      );
+    try {
+      await requireOpsRole(request, ["admin", "horticulturist"]);
+    } catch (res) {
+      return res as Response;
     }
 
     const { id } = await params;
@@ -96,12 +60,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authCheck = await checkAuth();
-    if (!authCheck.authorized) {
-      return NextResponse.json(
-        { data: null, error: authCheck.error },
-        { status: authCheck.status || 401 }
-      );
+    try {
+      await requireOpsRole(request, ["admin", "horticulturist"]);
+    } catch (res) {
+      return res as Response;
     }
 
     const { id } = await params;
@@ -372,12 +334,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authCheck = await checkAuth();
-    if (!authCheck.authorized) {
-      return NextResponse.json(
-        { data: null, error: authCheck.error },
-        { status: authCheck.status || 401 }
-      );
+    try {
+      await requireOpsRole(request, ["admin", "horticulturist"]);
+    } catch (res) {
+      return res as Response;
     }
 
     const { id } = await params;

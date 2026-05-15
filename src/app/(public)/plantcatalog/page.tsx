@@ -2,15 +2,70 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import PlantImage from "@/components/PlantImage";
+import AccessoryCard from "@/components/AccessoryCard";
+import AffiliateDisclosure from "@/components/AffiliateDisclosure";
 import { getCatalogStore, type PlantListItem, type PlantCategory, type AirPurifier } from "@/lib/catalog";
+import { listActiveAccessoriesFromSupabase } from "@/lib/catalog/supabaseCatalogProductsStore";
+import {
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+} from "@/lib/catalog/catalogProductLabels";
+import type {
+  CatalogProduct,
+  CatalogProductCategory,
+} from "@/lib/catalog/catalogProductTypes";
+
+type Segment = "plants" | "accessories";
 
 export default function PlantCatalogPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const segment: Segment = searchParams.get("type") === "accessories" ? "accessories" : "plants";
+
+  const setSegment = (next: Segment) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "plants") params.delete("type");
+    else params.set("type", "accessories");
+    const qs = params.toString();
+    router.replace(qs ? `/plantcatalog?${qs}` : "/plantcatalog");
+  };
+
   const [plants, setPlants] = useState<PlantListItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<PlantCategory | "All">("All");
   const [selectedAirPurifier, setSelectedAirPurifier] = useState<AirPurifier | "All">("All");
   const [loading, setLoading] = useState(true);
+
+  // Accessories state (used only when segment === 'accessories')
+  const [accessories, setAccessories] = useState<CatalogProduct[]>([]);
+  const [accLoading, setAccLoading] = useState(false);
+  const [accCategory, setAccCategory] = useState<CatalogProductCategory | "All">("All");
+  const [accSearch, setAccSearch] = useState("");
+  const [accSort, setAccSort] = useState<"curated" | "price_asc" | "price_desc">("curated");
+
+  useEffect(() => {
+    if (segment !== "accessories") return;
+    let cancelled = false;
+    setAccLoading(true);
+    listActiveAccessoriesFromSupabase({
+      category: accCategory === "All" ? null : accCategory,
+      q: accSearch.trim() || null,
+      sort: accSort,
+    })
+      .then((data) => { if (!cancelled) setAccessories(data); })
+      .finally(() => { if (!cancelled) setAccLoading(false); });
+    return () => { cancelled = true; };
+  }, [segment, accCategory, accSearch, accSort]);
+
+  useEffect(() => {
+    if (segment === "accessories") {
+      document.title = "Garden Accessories — Nuvvy";
+    } else {
+      document.title = "Nuvvy Plant Catalog";
+    }
+  }, [segment]);
 
   useEffect(() => {
     async function loadPlants() {
@@ -68,6 +123,43 @@ export default function PlantCatalogPage() {
               Curated for Bangalore balconies
             </p>
 
+            {/* Segment toggle */}
+            <div className="inline-flex items-center rounded-full bg-gray-100 p-1 mb-6">
+              <button
+                type="button"
+                onClick={() => setSegment("plants")}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  segment === "plants" ? "bg-leaf text-white shadow-sm" : "text-gray-700"
+                }`}
+                aria-pressed={segment === "plants"}
+              >
+                Plants
+              </button>
+              <button
+                type="button"
+                onClick={() => setSegment("accessories")}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  segment === "accessories" ? "bg-leaf text-white shadow-sm" : "text-gray-700"
+                }`}
+                aria-pressed={segment === "accessories"}
+              >
+                Accessories
+              </button>
+            </div>
+
+            {segment === "accessories" ? (
+              <AccessoriesSegment
+                accessories={accessories}
+                loading={accLoading}
+                category={accCategory}
+                onCategoryChange={setAccCategory}
+                search={accSearch}
+                onSearchChange={setAccSearch}
+                sort={accSort}
+                onSortChange={setAccSort}
+              />
+            ) : (
+            <>
             {/* Search and Filters Section */}
             <div className="py-4 mb-6">
               {/* Search Input */}
@@ -190,6 +282,8 @@ export default function PlantCatalogPage() {
                 </>
               )}
             </div>
+            </>
+            )}
           </div>
         </div>
       </section>
@@ -210,6 +304,132 @@ export default function PlantCatalogPage() {
           </div>
         </div>
       </section>
+
+      {segment === "accessories" && (
+        <section className="pb-12">
+          <div className="max-w-6xl mx-auto px-6">
+            <AffiliateDisclosure subtle />
+          </div>
+        </section>
+      )}
     </main>
+  );
+}
+
+function AccessoriesSegment({
+  accessories,
+  loading,
+  category,
+  onCategoryChange,
+  search,
+  onSearchChange,
+  sort,
+  onSortChange,
+}: {
+  accessories: CatalogProduct[];
+  loading: boolean;
+  category: CatalogProductCategory | "All";
+  onCategoryChange: (c: CatalogProductCategory | "All") => void;
+  search: string;
+  onSearchChange: (s: string) => void;
+  sort: "curated" | "price_asc" | "price_desc";
+  onSortChange: (s: "curated" | "price_asc" | "price_desc") => void;
+}) {
+  return (
+    <>
+      <div className="mb-4">
+        <AffiliateDisclosure />
+      </div>
+
+      <div className="py-4 mb-6">
+        {/* Search */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search accessories..."
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-green focus:border-transparent"
+          />
+        </div>
+
+        {/* Category chips */}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Category
+            </label>
+            <div
+              className="flex gap-2 overflow-x-auto whitespace-nowrap -mx-6 px-6 scrollbar-hide flex-nowrap"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              <button
+                onClick={() => onCategoryChange("All")}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  category === "All"
+                    ? "bg-green text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                All
+              </button>
+              {CATEGORY_ORDER.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => onCategoryChange(c)}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    category === c
+                      ? "bg-green text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {CATEGORY_LABELS[c]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Sort */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Sort</label>
+            <select
+              value={sort}
+              onChange={(e) =>
+                onSortChange(e.target.value as "curated" | "price_asc" | "price_desc")
+              }
+              className="rounded-xl border border-gray-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-green focus:border-transparent"
+            >
+              <option value="curated">Nuvvy curated</option>
+              <option value="price_asc">Price: low → high</option>
+              <option value="price_desc">Price: high → low</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-6">
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600">Loading accessories...</p>
+          </div>
+        ) : accessories.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600">No accessories match your filters yet.</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-gray-600 mb-4">
+              Showing {accessories.length}{" "}
+              {accessories.length === 1 ? "product" : "products"}
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {accessories.map((p) => (
+                <AccessoryCard key={p.id} product={p} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }

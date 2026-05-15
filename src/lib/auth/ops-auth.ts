@@ -11,6 +11,25 @@ export type OpsAuthContext = {
 };
 
 /**
+ * requireOpsRole — convenience wrapper around requireOpsAuth that also
+ * enforces a role allow-list. Throws a 403 Response if the user's role
+ * is not in `allowedRoles`. Catch like requireOpsAuth.
+ */
+export async function requireOpsRole(
+  request: NextRequest,
+  allowedRoles: OpsRole[]
+): Promise<OpsAuthContext> {
+  const auth = await requireOpsAuth(request);
+  if (!allowedRoles.includes(auth.role)) {
+    throw new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  return auth;
+}
+
+/**
  * requireOpsAuth — for API route handlers in /api/ops/*.
  * Reads the Supabase session from the incoming request cookies.
  * Throws a Response (401/403) if auth fails — catch it in the route handler.

@@ -23,6 +23,7 @@ import {
   Sprout,
   Truck,
   Settings,
+  ShoppingBag,
 } from "lucide-react";
 import { useState } from "react";
 import type { OpsRole } from "@/lib/internal/authz";
@@ -56,6 +57,7 @@ const primaryNav: NavItem[] = [
 
 const secondaryNav: NavItem[] = [
   { href: "/internal/plants", label: "Plant Catalog", icon: <Leaf size={20} /> },
+  { href: "/internal/accessories", label: "Accessories", icon: <ShoppingBag size={20} /> },
   { href: "/internal/shortlists", label: "Shortlists", icon: <List size={20} /> },
   { href: "/internal/homepage", label: "CMS", icon: <LayoutGrid size={20} /> },
 ];

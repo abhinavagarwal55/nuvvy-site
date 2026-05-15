@@ -70,6 +70,17 @@ The internal tool uses Supabase email auth. In dev, auth can be bypassed via the
 - Legacy/fallback stores also exist: Airtable, API, mock (`src/lib/catalog/`)
 - Public catalog at `/plantcatalog` and `/plantcatalog/[id]`
 - Plant images stored in Supabase Storage; `thumbnail_storage_url` preferred over `thumbnail_url`
+- **Auth migration (2026-05-15):** `/internal/plants/*` admin + the internal layout now use **ops auth** (`profiles.role` with `admin | horticulturist`) via `requireOpsAccess` / `requireOpsRole`. The legacy `internal_users` table is no longer the gate. Shortlists and homepage CMS still use `getInternalAccess` for their API routes — they'll be migrated as part of WS-D.
+
+### 2a. Accessories Catalog (Amazon affiliate, WS-A)
+- Affiliate accessories (pots, planter boxes, grow lights, tools, soil & inputs) live in the **`catalog_products` table** (migration `20260515000000_catalog_products.sql`). Distinct from `plants`.
+- Internal admin: `/internal/accessories` — admin + horticulturist only (ops-auth gated).
+- API: `/api/internal/accessories/*` (list, CRUD, `/[id]/image` for upload-or-mirror, `/asin-lookup` for URL parsing).
+- Public surface: `/plantcatalog?type=accessories` — segment toggle on the same page; `?type=plants` (default) is unchanged.
+- Affiliate URL constructed at render via `buildAffiliateUrl()` from `src/lib/catalog/affiliate.ts`, using `NEXT_PUBLIC_AMAZON_AFFILIATE_TAG`. Missing tag falls back to a tagless Amazon URL (no commission, link still works).
+- Soft-delete only (`status='inactive'`). Never `DELETE FROM catalog_products`.
+- Image bucket: `catalog-product-images` (public, mirrors the `plant-images` pattern).
+- Every create/update/status-change/soft-delete writes an `audit_logs` row with `action='catalog_product.*'`.
 
 ### 3. Shortlists System
 A significant internal feature for creating curated plant shortlists for customers:
@@ -104,6 +115,9 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 # WhatsApp
 NEXT_PUBLIC_WHATSAPP_NUMBER=   # e.g. 919876543210 (no + or spaces)
+
+# Amazon Associates (affiliate accessories — WS-A)
+NEXT_PUBLIC_AMAZON_AFFILIATE_TAG=  # e.g. nuvvy-21. Missing tag → CTA falls back to a tagless Amazon URL.
 
 # Airtable (optional — only if using Airtable as plant data source)
 AIRTABLE_API_KEY=
