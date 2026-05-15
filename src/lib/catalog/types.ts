@@ -35,6 +35,8 @@ export interface PlantListItem {
   imageUrl?: string;
   airPurifier?: boolean; // Boolean: true if air purifying, false otherwise
   price_band?: string | null; // Price band for display
+  // CE2: horticulturist note rendered as a one-liner on the card grid
+  horticulturistNotes?: string | null;
   // Toxicity kept for backward compatibility but not rendered in UI
   toxicity?: ToxicityLevel;
 }

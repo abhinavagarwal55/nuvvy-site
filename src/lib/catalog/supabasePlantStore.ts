@@ -48,7 +48,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
 
     const { data, error } = await supabase
       .from("plants")
-      .select("airtable_id, name, category, light, air_purifier, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url, toxicity, price_band")
+      .select("airtable_id, name, category, light, air_purifier, thumbnail_storage_url, thumbnail_url, image_storage_url, image_url, toxicity, price_band, horticulturist_notes")
       .eq("can_be_procured", true) // Only show procurable plants on public website
       .order("name", { ascending: true });
 
@@ -92,6 +92,7 @@ export async function listPlantsFromSupabase(): Promise<PlantListItem[]> {
         imageUrl,
         airPurifier: row.air_purifier ?? undefined, // Boolean: true if air purifying
         price_band: row.price_band ?? undefined,
+        horticulturistNotes: row.horticulturist_notes ?? null,
         toxicity: mapToxicityFromDB(row.toxicity),
       };
     });

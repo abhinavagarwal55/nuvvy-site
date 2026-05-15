@@ -164,6 +164,25 @@ export default function InternalPage() {
           </div>
         </div>
 
+        {/* Curated Rails */}
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Curated Rails</h3>
+          <div className="flex flex-col gap-2 md:flex-row md:gap-3">
+            <Link
+              href="/internal/catalog/rails/new"
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-center md:text-left"
+            >
+              New Rail
+            </Link>
+            <Link
+              href="/internal/catalog/rails"
+              className="w-full md:w-auto px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors font-medium text-center md:text-left"
+            >
+              View Rails
+            </Link>
+          </div>
+        </div>
+
 
         {/* Customers */}
         <div className="mb-4">

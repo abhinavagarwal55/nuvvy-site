@@ -17,6 +17,16 @@ export const WHATSAPP_MESSAGES = {
   generalChat: "Hi I'm exploring garden care for my balcony and would like to chat with your team.",
 } as const;
 
+// CE3: catalog bottom CTA — pre-fills a custom-shortlist request
+export const CATALOG_SHORTLIST_REQUEST = `Hi Nuvvy! I'd love a custom plant shortlist for my balcony.
+
+A few quick things about my space:
+- Direction: [North / South / East / West / Not sure]
+- Light: [Full sun / Partial / Mostly shade]
+- Experience: [First-time plant parent / Some plants / Confident]
+
+Looking forward to your recommendations!`;
+
 /**
  * Generate a WhatsApp deep link with a pre-filled message
  * @param message - The message to pre-fill in WhatsApp

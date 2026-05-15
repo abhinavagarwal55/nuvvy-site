@@ -17,8 +17,8 @@ export default function OpsLoginPage() {
   }, [sendState]);
 
   useEffect(() => {
-    if (verifyState?.ok) router.push("/ops/home");
-  }, [verifyState, router]);
+    if (verifyState?.ok) window.location.href = "/ops/home";
+  }, [verifyState]);
 
   return (
     <div className="min-h-screen bg-cream flex flex-col items-center justify-center px-6">

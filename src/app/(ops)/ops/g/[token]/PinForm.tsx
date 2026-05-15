@@ -21,7 +21,7 @@ export default function PinForm({ token }: { token: string }) {
       });
       const data = await res.json();
       if (res.ok) {
-        router.push("/ops/gardener/today");
+        window.location.href = "/ops/gardener/today";
       } else {
         setError(data.error ?? "Something went wrong. Try again.");
       }

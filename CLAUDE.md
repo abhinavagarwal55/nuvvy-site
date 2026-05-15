@@ -72,6 +72,15 @@ The internal tool uses Supabase email auth. In dev, auth can be bypassed via the
 - Plant images stored in Supabase Storage; `thumbnail_storage_url` preferred over `thumbnail_url`
 - **Auth migration (2026-05-15):** `/internal/plants/*` admin + the internal layout now use **ops auth** (`profiles.role` with `admin | horticulturist`) via `requireOpsAccess` / `requireOpsRole`. The legacy `internal_users` table is no longer the gate. Shortlists and homepage CMS still use `getInternalAccess` for their API routes — they'll be migrated as part of WS-D.
 
+### 2.5 Catalog Curation (CE1/CE2/CE3, 2026-05-16)
+- **Curated rails:** `curated_rails` + `curated_rail_items` tables (migration `20260516000000_curated_rails.sql`) hold admin-curated editorial rows for `/plantcatalog`. Each rail has a `segment` (`'plants'` or `'accessories'`) that's immutable post-creation. Item rows reference either `plant_id` OR `catalog_product_id` (CHECK enforces exactly one).
+- **Admin location:** `/internal/catalog/rails` — admin + horticulturist only. Reorder via up/down arrows; no DnD library. Soft-delete only on rails (`status='inactive'`); item removal is a real DELETE on the join table.
+- **Customer rendering:** active rails for the current segment render *above* the search/filter section on `/plantcatalog`. Rails are hidden as soon as any filter or non-empty search is engaged (discovery vs. retrieval).
+- **URL-backed filters:** `/plantcatalog?q=&category=&air_purifier=Yes&light=full|partial|shade&type=plants|accessories` — bookmarkable, shareable. Used as `cta_link` targets for "See all" rail CTAs.
+- **CE2 — Horticulturist note on plant cards:** `PlantCard` component at `src/components/PlantCard.tsx` renders a one-line italic muted snippet of `plants.horticulturist_notes` under the meta line. Compact variant (used in rails) omits the note.
+- **CE3 — Bottom CTA:** "Want plants picked for your balcony specifically?" → opens WhatsApp pre-filled with `CATALOG_SHORTLIST_REQUEST` from `src/config/whatsapp.ts`. Secondary text link still goes to `/#garden-care`.
+- **Rails are admin-curated only in V1.** No auto-population from engagement signals.
+
 ### 2a. Accessories Catalog (Amazon affiliate, WS-A)
 - Affiliate accessories (pots, planter boxes, grow lights, tools, soil & inputs) live in the **`catalog_products` table** (migration `20260515000000_catalog_products.sql`). Distinct from `plants`.
 - Internal admin: `/internal/accessories` — admin + horticulturist only (ops-auth gated).
