@@ -339,27 +339,23 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     setIsSubmitting(true);
 
     try {
-      // Build items array from current state. WS-B: each row references
-      // either plant_id OR catalog_product_id. Only include items with
-      // quantity >= 1 (selected items) — NULL quantity is "recommended
-      // but not selected" and is not submitted.
+      // Build items array from current state. Only plant items are
+      // submitted by the customer — accessories carry over server-side
+      // from the source SENT version (see finalize endpoint). The
+      // customer doesn't select accessories via qty; the Buy-on-Amazon
+      // CTA is the only action.
       const itemsToSubmit = Array.from(items.entries())
         .filter(([itemId, state]) => {
-          const existsInOriginal = data.items.some((item) => item.id === itemId);
+          const original = data.items.find((item) => item.id === itemId);
+          if (!original) return false;
+          const isPlant =
+            (original.type ?? (original.catalog_product_id ? "accessory" : "plant")) === "plant";
+          if (!isPlant) return false;
           const hasQuantity = state.quantity !== null && state.quantity !== undefined && state.quantity >= 1;
-          return existsInOriginal && hasQuantity;
+          return hasQuantity;
         })
         .map(([itemId, state]) => {
           const original = data.items.find((item) => item.id === itemId)!;
-          const isAccessory =
-            (original.type ?? (original.catalog_product_id ? "accessory" : "plant")) === "accessory";
-          if (isAccessory) {
-            return {
-              catalog_product_id: original.catalog_product_id!,
-              quantity: state.quantity!,
-              notes: state.note || null,
-            };
-          }
           return {
             plant_id: original.plant_id!,
             quantity: state.quantity!,
@@ -488,32 +484,22 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
           </div>
         )}
 
-        {/* Top Estimated Total */}
-        <div className="min-h-[90px] mb-6">
-          <div
-            className={`transition-all duration-300 ease-out ${
-              hasItems && hasValidEstimate
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 -translate-y-2 pointer-events-none"
-            }`}
-          >
-            {hasItems && hasValidEstimate && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                  <span className="text-base font-semibold text-gray-900">Estimated total</span>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(estimate.midpoint)}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
-                    </span>
-                  </div>
-                </div>
+        {/* Top Estimated Total — only renders when there's something to show */}
+        {hasItems && hasValidEstimate && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+              <span className="text-base font-semibold text-gray-900">Estimated total</span>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(estimate.midpoint)}
+                </span>
+                <span className="text-xs text-gray-500">
+                  Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
+                </span>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Read-only banner for submitted shortlists */}
         {isSubmitted && (
@@ -764,9 +750,6 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                 {accessories.map((item) => {
                   const cp = item.catalog_product;
                   if (!cp) return null;
-                  const itemState = items.get(item.id);
-                  const quantity =
-                    itemState !== undefined ? itemState.quantity : (item.quantity ?? null);
                   const thumb =
                     cp.thumbnail_storage_url ||
                     cp.thumbnail_url ||
@@ -827,41 +810,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                           <p className="text-sm text-gray-500 mt-1">Price on Amazon</p>
                         )}
 
-                        {/* Qty stepper (editable when shortlist is editable) */}
-                        {isEditable ? (
-                          <div className="flex items-center gap-2 mt-2">
-                            {quantity == null || quantity <= 0 ? (
-                              <button
-                                onClick={() => addPlant(item.id)}
-                                className="px-3 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50"
-                              >
-                                + I want this
-                              </button>
-                            ) : (
-                              <div className="inline-flex items-center border border-gray-300 rounded-md">
-                                <button
-                                  onClick={() => decrementQuantity(item.id)}
-                                  className="w-8 h-7 text-base text-gray-700 hover:bg-gray-50"
-                                >
-                                  −
-                                </button>
-                                <span className="w-8 text-center text-sm">{quantity}</span>
-                                <button
-                                  onClick={() => incrementQuantity(item.id)}
-                                  className="w-8 h-7 text-base text-gray-700 hover:bg-gray-50"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ) : quantity && quantity > 0 ? (
-                          <p className="text-xs text-gray-600 mt-2">
-                            You picked {quantity}
-                          </p>
-                        ) : null}
-
-                        {/* Buy CTA */}
+                        {/* Buy CTA — accessories live entirely on Amazon, no qty UI here */}
                         <div className="mt-2">
                           {isUnavailable ? (
                             <span className="inline-block text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">

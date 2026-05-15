@@ -149,25 +149,49 @@ export async function POST(
     }
 
     // Step 4: Insert shortlist_version_items — polymorphic (WS-B).
-    // Each row references the NEW version_id; either plant_id OR
-    // catalog_product_id is set per the CHECK constraint.
-    // approved=true requires quantity. Accessories follow the same rule.
-    // midpoint_price stays 0 for accessories (no price band).
-    const versionItems = items.map((item) => {
-      const quantity =
-        item.quantity != null && item.quantity > 0 ? item.quantity : null;
-      return {
-        shortlist_version_id: newVersion.id,
-        plant_id: item.plant_id ?? null,
-        catalog_product_id: item.catalog_product_id ?? null,
-        quantity,
-        note: item.notes || null,
-        why_picked_for_balcony: null,
-        horticulturist_note: null,
-        approved: quantity !== null,
-        midpoint_price: 0,
-      };
-    });
+    // Plant items come from the customer's submission body.
+    // Accessory items are carried forward from the source SENT version
+    // unchanged — the customer doesn't choose them via qty; they're
+    // pure curation + Buy-on-Amazon. Preserving them keeps the version
+    // snapshot honest about what the customer saw.
+    const plantVersionItems = items
+      .filter((item) => item.plant_id)
+      .map((item) => {
+        const quantity =
+          item.quantity != null && item.quantity > 0 ? item.quantity : null;
+        return {
+          shortlist_version_id: newVersion.id,
+          plant_id: item.plant_id ?? null,
+          catalog_product_id: null,
+          quantity,
+          note: item.notes || null,
+          why_picked_for_balcony: null,
+          horticulturist_note: null,
+          approved: quantity !== null,
+          midpoint_price: 0,
+        };
+      });
+
+    // Fetch accessory rows from the source SENT version and clone them
+    const { data: sourceAccessories } = await supabase
+      .from("shortlist_version_items")
+      .select("catalog_product_id, quantity, note, why_picked_for_balcony, horticulturist_note, approved, midpoint_price")
+      .eq("shortlist_version_id", latestVersion.id)
+      .not("catalog_product_id", "is", null);
+
+    const accessoryVersionItems = (sourceAccessories ?? []).map((row) => ({
+      shortlist_version_id: newVersion.id,
+      plant_id: null,
+      catalog_product_id: row.catalog_product_id,
+      quantity: row.quantity,
+      note: row.note,
+      why_picked_for_balcony: row.why_picked_for_balcony,
+      horticulturist_note: row.horticulturist_note,
+      approved: row.approved ?? false,
+      midpoint_price: row.midpoint_price ?? 0,
+    }));
+
+    const versionItems = [...plantVersionItems, ...accessoryVersionItems];
 
     const { error: itemsError } = await supabase
       .from("shortlist_version_items")
