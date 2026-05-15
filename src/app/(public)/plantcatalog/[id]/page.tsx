@@ -72,7 +72,11 @@ export default function PlantDetailPage() {
     );
   }
 
-  const whatsappHref = getWhatsAppLink(getCatalogPlantRequest(plant.name));
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "");
+  const plantUrl = siteUrl ? `${siteUrl}/plantcatalog/${plant.id}` : undefined;
+  const whatsappHref = getWhatsAppLink(getCatalogPlantRequest(plant.name, plantUrl));
 
   return (
     <main className="bg-cream min-h-screen overflow-x-hidden pb-24 md:pb-0">

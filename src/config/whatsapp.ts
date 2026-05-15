@@ -28,8 +28,9 @@ A few quick things about my space:
 Looking forward to your recommendations!`;
 
 // Plant detail CTA — pre-fills a request for a specific plant
-export function getCatalogPlantRequest(plantName: string): string {
-  return `Hi Nuvvy! I'd like to get ${plantName} for my balcony via Nuvvy. Can you help me arrange this?`;
+export function getCatalogPlantRequest(plantName: string, plantUrl?: string): string {
+  const link = plantUrl ? `\n\n${plantUrl}` : "";
+  return `Hi Nuvvy! I'd like to get ${plantName} for my balcony via Nuvvy. Can you help me arrange this?${link}`;
 }
 
 /**
