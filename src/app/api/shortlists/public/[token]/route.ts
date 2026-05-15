@@ -145,15 +145,18 @@ export async function GET(
       );
     }
 
-    // Step 4: Fetch version items with plant details
+    // Step 4: Fetch version items with plant + catalog_product joins
+    // (WS-B polymorphic items — `type` discriminator added below).
     const { data: versionItems, error: itemsError } = await supabase
       .from("shortlist_version_items")
       .select(`
         id,
         plant_id,
+        catalog_product_id,
         quantity,
         note,
         why_picked_for_balcony,
+        created_at,
         plant:plants (
           id,
           name,
@@ -165,9 +168,25 @@ export async function GET(
           thumbnail_storage_url,
           image_url,
           image_storage_url
+        ),
+        catalog_product:catalog_products (
+          id,
+          name,
+          brand,
+          category,
+          price_inr,
+          price_snapshot_at,
+          status,
+          amazon_asin,
+          amazon_url,
+          thumbnail_url,
+          thumbnail_storage_url,
+          image_url,
+          image_storage_url
         )
       `)
-      .eq("shortlist_version_id", versionToLoad.id);
+      .eq("shortlist_version_id", versionToLoad.id)
+      .order("created_at", { ascending: true });
 
     if (itemsError) {
       console.error("Error fetching version items:", itemsError);
@@ -177,14 +196,16 @@ export async function GET(
       );
     }
 
-    // Transform items to match expected format
     const items = (versionItems || []).map((item: any) => ({
       id: item.id,
+      type: item.catalog_product_id ? "accessory" : "plant",
       plant_id: item.plant_id,
+      catalog_product_id: item.catalog_product_id,
       quantity: item.quantity,
       note: item.note,
       why_picked_for_balcony: item.why_picked_for_balcony,
       plant: item.plant,
+      catalog_product: item.catalog_product,
     }));
 
     return NextResponse.json({

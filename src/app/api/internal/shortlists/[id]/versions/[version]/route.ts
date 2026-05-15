@@ -66,15 +66,17 @@ export async function GET(
       );
     }
     
-    // Fetch version items (snapshot)
+    // Fetch version items (snapshot) — both plant and accessory rows
     const { data: versionItems, error: itemsError } = await supabase
       .from("shortlist_version_items")
       .select(`
         id,
         plant_id,
+        catalog_product_id,
         quantity,
         note,
         why_picked_for_balcony,
+        created_at,
         plant:plants (
           id,
           name,
@@ -86,10 +88,26 @@ export async function GET(
           thumbnail_storage_url,
           image_url,
           image_storage_url
+        ),
+        catalog_product:catalog_products (
+          id,
+          name,
+          brand,
+          category,
+          price_inr,
+          price_snapshot_at,
+          status,
+          amazon_asin,
+          amazon_url,
+          thumbnail_url,
+          thumbnail_storage_url,
+          image_url,
+          image_storage_url
         )
       `)
-      .eq("shortlist_version_id", versionData.id);
-    
+      .eq("shortlist_version_id", versionData.id)
+      .order("created_at", { ascending: true });
+
     if (itemsError) {
       console.error("Error fetching version items:", itemsError);
       return NextResponse.json(
@@ -97,15 +115,17 @@ export async function GET(
         { status: 500 }
       );
     }
-    
-    // Transform items to match the format expected by the UI
+
     const transformedItems = (versionItems || []).map((item: any) => ({
       id: item.id,
+      type: item.catalog_product_id ? "accessory" : "plant",
       plant_id: item.plant_id,
+      catalog_product_id: item.catalog_product_id,
       quantity: item.quantity,
       note: item.note,
       why_picked_for_balcony: item.why_picked_for_balcony,
       plant: item.plant,
+      catalog_product: item.catalog_product,
     }));
     
     return NextResponse.json({

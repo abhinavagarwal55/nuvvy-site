@@ -54,10 +54,10 @@ export async function POST(
       );
     }
 
-    // Fetch version items from the submitted version
+    // Fetch version items from the submitted version (both plant + accessory rows)
     const { data: versionItems, error: itemsError } = await supabase
       .from("shortlist_version_items")
-      .select("plant_id, quantity, note, why_picked_for_balcony")
+      .select("plant_id, catalog_product_id, quantity, note, why_picked_for_balcony")
       .eq("shortlist_version_id", submittedVersion.id);
 
     if (itemsError || !versionItems || versionItems.length === 0) {
@@ -81,10 +81,12 @@ export async function POST(
       );
     }
 
-    // Create new draft items from submitted version
+    // Create new draft items from submitted version — carry both plant_id
+    // AND catalog_product_id; the CHECK enforces exactly one is set.
     const draftItems = versionItems.map((item: any) => ({
       shortlist_id: id,
-      plant_id: item.plant_id,
+      plant_id: item.plant_id ?? null,
+      catalog_product_id: item.catalog_product_id ?? null,
       quantity: item.quantity || null,
       note: item.note || null,
       why_picked_for_balcony: item.why_picked_for_balcony || null,

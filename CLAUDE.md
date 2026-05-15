@@ -88,6 +88,9 @@ A significant internal feature for creating curated plant shortlists for custome
 - Full versioning system (create version, revise, publish, move to procurement)
 - **Public share link** for customers: `/s/[token]` — customers can view and finalize their shortlist
 - API routes: `/api/internal/shortlists/[id]/*` and `/api/shortlists/public/[token]/*`
+- **WS-B (polymorphic items, 2026-05-15):** `shortlist_draft_items` and `shortlist_version_items` now have BOTH `plant_id` and `catalog_product_id` columns, with a CHECK constraint enforcing exactly one. Each item is either a plant or an accessory. API responses include a `type: 'plant' | 'accessory'` discriminator per item plus the appropriate join (`plant` or `catalog_product`).
+- **Procurement workflow is plant-only.** No code under `/api/ops/*` reads `shortlist_*_items`, so accessory rows never enter nursery trips or plant orders. If any future procurement query is added against these tables, it must filter `WHERE plant_id IS NOT NULL` to skip accessories.
+- **Customer-facing `/s/[token]`** now renders a second "Accessories we recommend" section (only when at least one accessory item exists) with the required affiliate disclosure and a "Buy on Amazon" CTA per item. The cost estimator on `/s/[token]` remains plant-only.
 
 ### 4. Pricing
 - Pricing is **code-owned**, not CMS-editable.

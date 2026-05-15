@@ -104,7 +104,7 @@ export async function POST(
       if (versionToCopy) {
         const { data: versionItems, error: versionItemsError } = await supabase
           .from("shortlist_version_items")
-          .select("plant_id, quantity, note, why_picked_for_balcony")
+          .select("plant_id, catalog_product_id, quantity, note, why_picked_for_balcony")
           .eq("shortlist_version_id", versionToCopy.id);
 
         if (!versionItemsError && versionItems) {
@@ -115,7 +115,7 @@ export async function POST(
       // For draft shortlists, copy from draft items
       const { data: draftItems, error: itemsError } = await supabase
         .from("shortlist_draft_items")
-        .select("plant_id, quantity, note, why_picked_for_balcony")
+        .select("plant_id, catalog_product_id, quantity, note, why_picked_for_balcony")
         .eq("shortlist_id", id);
 
       if (!itemsError && draftItems) {
@@ -123,11 +123,12 @@ export async function POST(
       }
     }
 
-    // Duplicate items if they exist
+    // Duplicate items if they exist (WS-B: polymorphic — carry both id columns)
     if (originalItems && originalItems.length > 0) {
       const duplicateItems = originalItems.map((item: any) => ({
         shortlist_id: duplicate.id,
-        plant_id: item.plant_id,
+        plant_id: item.plant_id ?? null,
+        catalog_product_id: item.catalog_product_id ?? null,
         quantity: item.quantity || null,
         note: item.note || null,
         why_picked_for_balcony: item.why_picked_for_balcony || null,

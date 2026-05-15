@@ -103,10 +103,13 @@ export async function POST(
       );
     }
 
-    // Insert draft items mapped from version items
+    // Insert draft items mapped from version items — copy both plant_id
+    // and catalog_product_id (WS-B polymorphic). The CHECK enforces
+    // exactly one is non-null.
     const draftItems = versionItems.map((item: any) => ({
       shortlist_id: id,
-      plant_id: item.plant_id,
+      plant_id: item.plant_id ?? null,
+      catalog_product_id: item.catalog_product_id ?? null,
       quantity: item.quantity || null,
       note: item.note || null,
       why_picked_for_balcony: item.why_picked_for_balcony || null,

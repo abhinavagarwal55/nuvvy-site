@@ -54,15 +54,19 @@ export async function GET(
       console.error("Error fetching customer:", customerError);
     }
     
-    // Fetch shortlist items with plant details
+    // Fetch shortlist items with plant + catalog_product joins.
+    // WS-B: polymorphic — exactly one of plant_id or catalog_product_id
+    // is set per item. The `type` discriminator is added below.
     const { data: items, error: itemsError } = await supabase
       .from("shortlist_draft_items")
       .select(`
         id,
         plant_id,
+        catalog_product_id,
         quantity,
         note,
         why_picked_for_balcony,
+        created_at,
         plant:plants (
           id,
           name,
@@ -74,9 +78,25 @@ export async function GET(
           thumbnail_storage_url,
           image_url,
           image_storage_url
+        ),
+        catalog_product:catalog_products (
+          id,
+          name,
+          brand,
+          category,
+          price_inr,
+          price_snapshot_at,
+          status,
+          amazon_asin,
+          amazon_url,
+          thumbnail_url,
+          thumbnail_storage_url,
+          image_url,
+          image_storage_url
         )
       `)
-      .eq("shortlist_id", id);
+      .eq("shortlist_id", id)
+      .order("created_at", { ascending: true });
     
     if (itemsError) {
       console.error("Error fetching items - full Supabase error:", itemsError);
@@ -138,7 +158,8 @@ export async function GET(
     // 2. Otherwise, prefer CUSTOMER_SUBMITTED version if it exists
     // 3. Fallback to latest SENT_TO_CUSTOMER version if no submitted version
     // 4. Otherwise show draft items
-    let itemsToReturn = items || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let itemsToReturn: any[] = items || [];
     let showingVersionItems = false;
     let selectedVersion = null;
     let selectedVersionNumber = 0;
@@ -156,9 +177,11 @@ export async function GET(
         .select(`
           id,
           plant_id,
+          catalog_product_id,
           quantity,
           note,
           why_picked_for_balcony,
+          created_at,
           plant:plants (
             id,
             name,
@@ -170,19 +193,36 @@ export async function GET(
             thumbnail_storage_url,
             image_url,
             image_storage_url
+          ),
+          catalog_product:catalog_products (
+            id,
+            name,
+            brand,
+            category,
+            price_inr,
+            price_snapshot_at,
+            status,
+            amazon_asin,
+            amazon_url,
+            thumbnail_url,
+            thumbnail_storage_url,
+            image_url,
+            image_storage_url
           )
         `)
-        .eq("shortlist_version_id", latestSubmittedVersion.id);
-      
+        .eq("shortlist_version_id", latestSubmittedVersion.id)
+        .order("created_at", { ascending: true });
+
       if (!versionItemsError && versionItems) {
-        // Transform version items to match draft items format
         itemsToReturn = versionItems.map((item: any) => ({
           id: item.id,
           plant_id: item.plant_id,
+          catalog_product_id: item.catalog_product_id,
           quantity: item.quantity,
           note: item.note,
           why_picked_for_balcony: item.why_picked_for_balcony,
           plant: item.plant,
+          catalog_product: item.catalog_product,
         }));
         showingVersionItems = true;
       }
@@ -190,15 +230,17 @@ export async function GET(
       // PRIORITY 2: Fallback to latest SENT_TO_CUSTOMER version (only if no newer draft)
       selectedVersion = latestSentVersion;
       selectedVersionNumber = latestSentVersion.version_number;
-      
+
       const { data: versionItems, error: versionItemsError } = await supabase
         .from("shortlist_version_items")
         .select(`
           id,
           plant_id,
+          catalog_product_id,
           quantity,
           note,
           why_picked_for_balcony,
+          created_at,
           plant:plants (
             id,
             name,
@@ -210,24 +252,47 @@ export async function GET(
             thumbnail_storage_url,
             image_url,
             image_storage_url
+          ),
+          catalog_product:catalog_products (
+            id,
+            name,
+            brand,
+            category,
+            price_inr,
+            price_snapshot_at,
+            status,
+            amazon_asin,
+            amazon_url,
+            thumbnail_url,
+            thumbnail_storage_url,
+            image_url,
+            image_storage_url
           )
         `)
-        .eq("shortlist_version_id", latestSentVersion.id);
-      
+        .eq("shortlist_version_id", latestSentVersion.id)
+        .order("created_at", { ascending: true });
+
       if (!versionItemsError && versionItems) {
-        // Transform version items to match draft items format
         itemsToReturn = versionItems.map((item: any) => ({
           id: item.id,
           plant_id: item.plant_id,
+          catalog_product_id: item.catalog_product_id,
           quantity: item.quantity,
           note: item.note,
           why_picked_for_balcony: item.why_picked_for_balcony,
           plant: item.plant,
+          catalog_product: item.catalog_product,
         }));
         showingVersionItems = true;
       }
     }
     // Otherwise, show draft items (no version selected)
+
+    // Add the WS-B `type` discriminator on every item
+    itemsToReturn = (itemsToReturn || []).map((item: any) => ({
+      ...item,
+      type: item.catalog_product_id ? "accessory" : "plant",
+    }));
     
     // Check for unsent changes using version number comparison
     // hasUnsentChanges = current_version_number > latest_sent_version_number

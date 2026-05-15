@@ -3,6 +3,13 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import AddAccessoryModal from "./AddAccessoryModal";
+import {
+  CATEGORY_LABELS,
+  formatPriceInr,
+} from "@/lib/catalog/catalogProductLabels";
+import type { CatalogProductCategory } from "@/lib/catalog/catalogProductTypes";
+import { buildAffiliateUrl } from "@/lib/catalog/affiliate";
 
 // Types
 interface Plant {
@@ -18,13 +25,32 @@ interface Plant {
   image_storage_url?: string;
 }
 
+interface CatalogProductRef {
+  id: string;
+  name: string;
+  brand: string | null;
+  category: string;
+  price_inr: number | null;
+  price_snapshot_at: string | null;
+  status: string;
+  amazon_asin: string | null;
+  amazon_url: string | null;
+  thumbnail_url?: string | null;
+  thumbnail_storage_url?: string | null;
+  image_url?: string | null;
+  image_storage_url?: string | null;
+}
+
 interface ShortlistItem {
   id: string;
-  plant_id: string;
+  type?: "plant" | "accessory";
+  plant_id: string | null;
+  catalog_product_id?: string | null;
   quantity: number | null;
   note?: string | null;
   why_picked_for_balcony?: string | null;
   plant: Plant | null;
+  catalog_product?: CatalogProductRef | null;
 }
 
 interface Shortlist {
@@ -95,6 +121,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
   const [versionData, setVersionData] = useState<ShortlistData | null>(null);
   const [loadingVersion, setLoadingVersion] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showAccessoryModal, setShowAccessoryModal] = useState(false);
 
   // Fetch shortlist data
   useEffect(() => {
@@ -120,7 +147,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
         result.data.items.forEach((item: ShortlistItem) => {
           formDataMap.set(item.id, {
             id: item.id,
-            plant_id: item.plant_id,
+            plant_id: item.plant_id ?? "",
             quantity: item.quantity?.toString() || "",
             notes: item.note || "",
           });
@@ -459,7 +486,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
         result.data.items.forEach((item: ShortlistItem) => {
           formDataMap.set(item.id, {
             id: item.id,
-            plant_id: item.plant_id,
+            plant_id: item.plant_id ?? "",
             quantity: item.quantity?.toString() || "",
             notes: item.note || "",
           });
@@ -516,7 +543,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
         result.data.items.forEach((item: any) => {
           formDataMap.set(item.id, {
             id: item.id,
-            plant_id: item.plant_id,
+            plant_id: item.plant_id ?? "",
             quantity: item.quantity?.toString() || "",
             notes: item.note || "",
           });
@@ -791,9 +818,19 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
   }
 
   // Derive active items - use version data if viewing historical, otherwise use current data
-  const activeItems = viewingVersion !== null && versionData 
-    ? versionData.items 
+  const activeItems = viewingVersion !== null && versionData
+    ? versionData.items
     : data?.items || [];
+
+  // WS-B: split into plant vs accessory rows. Existing UI iterates over
+  // `activeItems` for plant rendering — we narrow that to plant items so
+  // accessory rows render in their own dedicated section below.
+  const plantItems = activeItems.filter(
+    (item) => (item.type ?? (item.catalog_product_id ? "accessory" : "plant")) === "plant"
+  );
+  const accessoryItems = activeItems.filter(
+    (item) => (item.type ?? (item.catalog_product_id ? "accessory" : "plant")) === "accessory"
+  );
 
   // Calculate total cost from active items only
   const totalCost = (() => {
@@ -1125,7 +1162,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
           <div className="p-4 md:p-6 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Configure Selected Plants</h2>
             <p className="text-sm text-gray-600 mt-1">
-              {activeItems.length} plant{activeItems.length !== 1 ? "s" : ""} selected
+              {plantItems.length} plant{plantItems.length !== 1 ? "s" : ""} selected
             </p>
           </div>
 
@@ -1155,7 +1192,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {activeItems.map((item) => {
+              {plantItems.map((item) => {
                 const formData = itemsData.get(item.id);
                 if (!formData) return null;
 
@@ -1266,7 +1303,7 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
 
         {/* Mobile Cards */}
         <div className="md:hidden divide-y divide-gray-200">
-          {activeItems.map((item) => {
+          {plantItems.map((item) => {
             const formData = itemsData.get(item.id);
             if (!formData) return null;
 
@@ -1394,6 +1431,138 @@ export default function ShortlistConfigurePage({ params }: { params: Promise<{ i
           );
         })()}
         </div>
+      )}
+
+      {/* ─── WS-B: Accessories section ────────────────────────── */}
+      {data && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 md:p-6 border-b border-gray-200 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Accessories</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {accessoryItems.length === 0
+                  ? "Amazon-affiliate recommendations — none added yet"
+                  : `${accessoryItems.length} accessor${accessoryItems.length === 1 ? "y" : "ies"} selected`}
+              </p>
+            </div>
+            {!isViewingSubmittedVersion && !isToBeProcured && (
+              <button
+                type="button"
+                onClick={() => setShowAccessoryModal(true)}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              >
+                + Add Accessory
+              </button>
+            )}
+          </div>
+
+          {accessoryItems.length > 0 && (
+            <div className="divide-y divide-gray-100">
+              {accessoryItems.map((item) => {
+                const cp = item.catalog_product;
+                if (!cp) return null;
+                const thumb =
+                  cp.thumbnail_storage_url ||
+                  cp.thumbnail_url ||
+                  cp.image_storage_url ||
+                  cp.image_url ||
+                  null;
+                const buyHref = buildAffiliateUrl({
+                  amazon_asin: cp.amazon_asin,
+                  amazon_url: cp.amazon_url,
+                });
+                const snapshot = cp.price_snapshot_at
+                  ? new Date(cp.price_snapshot_at).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : null;
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-start gap-3 px-4 md:px-6 py-3"
+                  >
+                    {thumb ? (
+                      <Image
+                        src={thumb}
+                        alt={cp.name}
+                        width={56}
+                        height={56}
+                        className="rounded object-cover border border-gray-200 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded bg-gray-100 border border-gray-200 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">
+                        {cp.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {cp.brand ? <span className="italic">{cp.brand}</span> : null}
+                        {cp.brand ? " · " : ""}
+                        {CATEGORY_LABELS[cp.category as CatalogProductCategory] ?? cp.category}
+                        {cp.price_inr != null
+                          ? ` · ${formatPriceInr(cp.price_inr)}${snapshot ? ` (as of ${snapshot})` : ""}`
+                          : ""}
+                      </p>
+                      <div className="mt-1 flex items-center gap-3 text-xs">
+                        {buyHref ? (
+                          <a
+                            href={buyHref}
+                            target="_blank"
+                            rel="sponsored noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            Preview Buy on Amazon ↗
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">No buy link</span>
+                        )}
+                        {cp.status !== "active" && (
+                          <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                            {cp.status}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {!isViewingSubmittedVersion && !isToBeProcured && (
+                      <button
+                        onClick={() => handleRemoveItem(item.id)}
+                        className="text-sm text-red-600 hover:text-red-800 flex-shrink-0"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showAccessoryModal && data && (
+        <AddAccessoryModal
+          shortlistId={data.shortlist.id}
+          alreadyAddedIds={
+            new Set(
+              accessoryItems
+                .map((i) => i.catalog_product_id)
+                .filter((x): x is string => Boolean(x))
+            )
+          }
+          onClose={() => setShowAccessoryModal(false)}
+          onAdded={() => {
+            // Refetch shortlist to pick up the new accessory items
+            fetch(`/api/internal/shortlists/${data.shortlist.id}`)
+              .then((r) => r.json())
+              .then((result) => {
+                if (result.data) setData(result.data);
+              })
+              .catch(() => {});
+          }}
+        />
       )}
 
       {/* Sticky Footer Actions */}

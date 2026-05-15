@@ -2,6 +2,15 @@
 
 import { useState, useEffect, use, useMemo } from "react";
 import Image from "next/image";
+import { buildAffiliateUrl } from "@/lib/catalog/affiliate";
+import {
+  CATEGORY_LABELS,
+  formatPriceInr,
+} from "@/lib/catalog/catalogProductLabels";
+import type {
+  CatalogProductCategory,
+  CatalogProductStatus,
+} from "@/lib/catalog/catalogProductTypes";
 
 interface Plant {
   id: string;
@@ -16,13 +25,32 @@ interface Plant {
   image_storage_url?: string | null;
 }
 
+interface CatalogProductRef {
+  id: string;
+  name: string;
+  brand: string | null;
+  category: CatalogProductCategory;
+  price_inr: number | null;
+  price_snapshot_at: string | null;
+  status: CatalogProductStatus;
+  amazon_asin: string | null;
+  amazon_url: string | null;
+  thumbnail_url?: string | null;
+  thumbnail_storage_url?: string | null;
+  image_url?: string | null;
+  image_storage_url?: string | null;
+}
+
 interface VersionItem {
   id: string;
-  plant_id: string;
+  type?: "plant" | "accessory";
+  plant_id: string | null;
+  catalog_product_id?: string | null;
   quantity: number | null;
   note: string | null;
   why_picked_for_balcony?: string | null;
   plant: Plant | null;
+  catalog_product?: CatalogProductRef | null;
 }
 
 interface Version {
@@ -311,20 +339,29 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     setIsSubmitting(true);
 
     try {
-      // Build items array from current state
-      // Only include items with quantity >= 1 (selected items)
-      // Items with NULL quantity are "recommended but not selected" and should not be submitted
+      // Build items array from current state. WS-B: each row references
+      // either plant_id OR catalog_product_id. Only include items with
+      // quantity >= 1 (selected items) — NULL quantity is "recommended
+      // but not selected" and is not submitted.
       const itemsToSubmit = Array.from(items.entries())
         .filter(([itemId, state]) => {
-          // Only include items that still exist in the original data AND have quantity >= 1
           const existsInOriginal = data.items.some((item) => item.id === itemId);
           const hasQuantity = state.quantity !== null && state.quantity !== undefined && state.quantity >= 1;
           return existsInOriginal && hasQuantity;
         })
         .map(([itemId, state]) => {
-          const originalItem = data.items.find((item) => item.id === itemId);
+          const original = data.items.find((item) => item.id === itemId)!;
+          const isAccessory =
+            (original.type ?? (original.catalog_product_id ? "accessory" : "plant")) === "accessory";
+          if (isAccessory) {
+            return {
+              catalog_product_id: original.catalog_product_id!,
+              quantity: state.quantity!,
+              notes: state.note || null,
+            };
+          }
           return {
-            plant_id: originalItem!.plant_id,
+            plant_id: original.plant_id!,
             quantity: state.quantity!,
             notes: state.note || null,
           };
@@ -491,6 +528,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         {/* Plant Items */}
         <div className="space-y-4 mb-6">
           {data.items
+            .filter((item) => (item.type ?? (item.catalog_product_id ? "accessory" : "plant")) === "plant")
             .map((item) => {
               const itemState = items.get(item.id);
               // Use explicit null check: quantity = null means recommended but not selected
@@ -705,6 +743,156 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             )}
           </div>
         </div>
+
+        {/* ─── WS-B: Accessories ────────────────────────────── */}
+        {(() => {
+          const accessories = data.items.filter(
+            (i) => (i.type ?? (i.catalog_product_id ? "accessory" : "plant")) === "accessory"
+          );
+          if (accessories.length === 0) return null;
+          return (
+            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 shadow-sm">
+              <h2 className="text-base font-semibold text-ink uppercase tracking-wide">
+                Accessories we recommend
+              </h2>
+              <p className="text-xs text-gray-500 mt-1 mb-3">
+                Nuvvy may earn a small commission when you purchase through these
+                links, at no extra cost to you. We only recommend products our
+                horticulturists trust.
+              </p>
+              <div className="space-y-3">
+                {accessories.map((item) => {
+                  const cp = item.catalog_product;
+                  if (!cp) return null;
+                  const itemState = items.get(item.id);
+                  const quantity =
+                    itemState !== undefined ? itemState.quantity : (item.quantity ?? null);
+                  const thumb =
+                    cp.thumbnail_storage_url ||
+                    cp.thumbnail_url ||
+                    cp.image_storage_url ||
+                    cp.image_url ||
+                    null;
+                  const buyHref = buildAffiliateUrl({
+                    amazon_asin: cp.amazon_asin,
+                    amazon_url: cp.amazon_url,
+                  });
+                  const snapshot = cp.price_snapshot_at
+                    ? new Date(cp.price_snapshot_at).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : null;
+                  const isUnavailable =
+                    cp.status === "inactive" || cp.status === "unavailable";
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex flex-col sm:flex-row gap-3 border border-gray-100 rounded-lg p-3"
+                    >
+                      {thumb ? (
+                        <Image
+                          src={thumb}
+                          alt={cp.name}
+                          width={120}
+                          height={120}
+                          className="rounded-lg object-cover flex-shrink-0 self-start"
+                        />
+                      ) : (
+                        <div className="w-[120px] h-[120px] rounded-lg bg-gray-100 border border-gray-200 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-ink">{cp.name}</p>
+                        {cp.brand && (
+                          <p className="text-xs italic text-gray-500">{cp.brand}</p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {CATEGORY_LABELS[cp.category] ?? cp.category}
+                        </p>
+                        {cp.price_inr != null ? (
+                          <p
+                            className="text-sm font-medium text-leaf mt-1"
+                            title={snapshot ? `Price as of ${snapshot}` : undefined}
+                          >
+                            {formatPriceInr(cp.price_inr)}
+                            {snapshot && (
+                              <span className="ml-1 text-[10px] font-normal text-gray-500">
+                                (Amazon, as of {snapshot})
+                              </span>
+                            )}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-gray-500 mt-1">Price on Amazon</p>
+                        )}
+
+                        {/* Qty stepper (editable when shortlist is editable) */}
+                        {isEditable ? (
+                          <div className="flex items-center gap-2 mt-2">
+                            {quantity == null || quantity <= 0 ? (
+                              <button
+                                onClick={() => addPlant(item.id)}
+                                className="px-3 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-50"
+                              >
+                                + I want this
+                              </button>
+                            ) : (
+                              <div className="inline-flex items-center border border-gray-300 rounded-md">
+                                <button
+                                  onClick={() => decrementQuantity(item.id)}
+                                  className="w-8 h-7 text-base text-gray-700 hover:bg-gray-50"
+                                >
+                                  −
+                                </button>
+                                <span className="w-8 text-center text-sm">{quantity}</span>
+                                <button
+                                  onClick={() => incrementQuantity(item.id)}
+                                  className="w-8 h-7 text-base text-gray-700 hover:bg-gray-50"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ) : quantity && quantity > 0 ? (
+                          <p className="text-xs text-gray-600 mt-2">
+                            You picked {quantity}
+                          </p>
+                        ) : null}
+
+                        {/* Buy CTA */}
+                        <div className="mt-2">
+                          {isUnavailable ? (
+                            <span className="inline-block text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
+                              Currently unavailable on Amazon
+                            </span>
+                          ) : buyHref ? (
+                            <a
+                              href={buyHref}
+                              target="_blank"
+                              rel="sponsored noopener noreferrer"
+                              className="inline-block text-sm font-medium bg-leaf text-white px-3 py-1.5 rounded-md hover:bg-leaf/90"
+                            >
+                              Buy on Amazon
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">
+                              Link unavailable — please ask Nuvvy for guidance.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-gray-500 mt-3">
+                Accessory prices are shown on Amazon — see each item for current price.
+              </p>
+            </div>
+          );
+        })()}
 
         {/* Primary CTA */}
         {isEditable && (

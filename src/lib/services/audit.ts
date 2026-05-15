@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 export interface AuditEventInput {
-  actorId: string;
+  actorId: string | null;
   actorRole: string;
   action: string; // e.g. 'bill.marked_paid', 'customer.deactivated'
   targetTable: string;

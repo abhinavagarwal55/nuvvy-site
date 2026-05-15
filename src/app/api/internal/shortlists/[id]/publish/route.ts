@@ -95,25 +95,25 @@ export async function POST(
       );
     }
 
-    // Copy draft items to version items
-    // Required fields: shortlist_version_id, plant_id, approved, midpoint_price
-    // Handle quantity: NULL = recommended but not selected, >= 1 = selected
-    // Convert 0, undefined, or null to null
-    // Database constraint: if approved=true, quantity must NOT be NULL
-    // So: quantity NULL → approved=false, quantity >= 1 → approved=true
+    // Copy draft items to version items.
+    // WS-B: polymorphic — each draft item has either plant_id OR
+    // catalog_product_id (CHECK constraint enforces exactly one).
+    // Filter ensures we only copy valid rows (defensive).
     const versionItems = draftItems
-      .filter((item: any) => item.plant_id) // Ensure plant_id exists
+      .filter((item: any) => item.plant_id || item.catalog_product_id)
       .map((item: any) => {
         const quantity = item.quantity != null && item.quantity > 0 ? item.quantity : null;
         return {
           shortlist_version_id: version.id,
-          plant_id: item.plant_id,
+          plant_id: item.plant_id ?? null,
+          catalog_product_id: item.catalog_product_id ?? null,
           quantity: quantity,
           note: item.note || null,
           why_picked_for_balcony: item.why_picked_for_balcony || null,
           horticulturist_note: null,
-          approved: quantity !== null, // Only approve if quantity is set (>= 1)
-          midpoint_price: 0, // TODO: Calculate from actual price data when available
+          // approved=true requires quantity. Accessories follow the same rule.
+          approved: quantity !== null,
+          midpoint_price: 0,
         };
       });
 

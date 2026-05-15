@@ -1,10 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
+import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 // Force dynamic behavior
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+// WS-B: each item references either a plant OR a catalog product (never both)
+const itemSchema = z
+  .object({
+    plant_id: z.string().uuid().optional(),
+    catalog_product_id: z.string().uuid().optional(),
+    quantity: z.number().int().min(1).nullable().optional(),
+    notes: z.string().nullable().optional(),
+  })
+  .refine(
+    (v) => Boolean(v.plant_id) !== Boolean(v.catalog_product_id),
+    {
+      message:
+        "Each item must reference exactly one of plant_id or catalog_product_id",
+    }
+  );
+
+const finalizeSchema = z.object({
+  items: z.array(itemSchema).min(1),
+});
 
 // POST /api/shortlists/public/[token]/finalize
 export async function POST(
@@ -21,36 +42,16 @@ export async function POST(
       );
     }
 
-    // Parse request body
-    const body = await request.json();
-    const { items } = body;
-
-    // Validate items array
-    if (!Array.isArray(items) || items.length === 0) {
+    // Parse + validate request body
+    const body = await request.json().catch(() => null);
+    const parsed = finalizeSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Items array is required and must not be empty" },
+        { error: parsed.error.issues[0].message },
         { status: 400 }
       );
     }
-
-    // Validate quantities
-    // NULL quantity is allowed (recommended but not selected)
-    // Only items with quantity >= 1 are selected for procurement
-    for (const item of items) {
-      if (!item.plant_id) {
-        return NextResponse.json(
-          { error: "Each item must have a plant_id" },
-          { status: 400 }
-        );
-      }
-      // If quantity is provided (not null/undefined), it must be >= 1
-      if (item.quantity !== undefined && item.quantity !== null && item.quantity < 1) {
-        return NextResponse.json(
-          { error: "Quantity must be >= 1 if provided" },
-          { status: 400 }
-        );
-      }
-    }
+    const items = parsed.data.items;
 
     // Create Supabase admin client with proper error handling
     let supabase;
@@ -147,22 +148,24 @@ export async function POST(
       );
     }
 
-    // Step 4: Insert shortlist_version_items
-    // Insert ONLY the items sent in the request - these are the customer's changes
-    // Each row references the NEW version_id (never reuse previous rows)
-    // Database constraint: if approved=true, quantity must NOT be NULL
-    // So: quantity NULL → approved=false, quantity >= 1 → approved=true
-    const versionItems = items.map((item: any) => {
-      const quantity = item.quantity != null && item.quantity > 0 ? item.quantity : null;
+    // Step 4: Insert shortlist_version_items — polymorphic (WS-B).
+    // Each row references the NEW version_id; either plant_id OR
+    // catalog_product_id is set per the CHECK constraint.
+    // approved=true requires quantity. Accessories follow the same rule.
+    // midpoint_price stays 0 for accessories (no price band).
+    const versionItems = items.map((item) => {
+      const quantity =
+        item.quantity != null && item.quantity > 0 ? item.quantity : null;
       return {
         shortlist_version_id: newVersion.id,
-        plant_id: item.plant_id,
-        quantity: quantity,
+        plant_id: item.plant_id ?? null,
+        catalog_product_id: item.catalog_product_id ?? null,
+        quantity,
         note: item.notes || null,
-        why_picked_for_balcony: null, // Customer submissions don't include this
+        why_picked_for_balcony: null,
         horticulturist_note: null,
-        approved: quantity !== null, // Only approve if quantity is set (>= 1)
-        midpoint_price: 0, // Placeholder - would need to fetch from plants table in production
+        approved: quantity !== null,
+        midpoint_price: 0,
       };
     });
 
