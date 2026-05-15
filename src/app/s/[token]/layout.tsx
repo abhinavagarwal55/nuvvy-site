@@ -40,6 +40,8 @@ interface Plant {
 interface VersionItem {
   quantity: number | null;
   plant: Plant | null;
+  type?: "plant" | "accessory";
+  catalog_product_id?: string | null;
 }
 
 interface ShortlistData {
@@ -101,43 +103,28 @@ export async function generateMetadata({
     const data: ShortlistData = result.body;
     const items = data.items || [];
     const customerName = data.customer_name;
-    const plantCount = items.length;
+
+    // WS-B: items are polymorphic. Count plants only — accessories are
+    // a separate concept that doesn't fit the "X plants" framing.
+    const plantItems = items.filter(
+      (item) =>
+        (item.type ?? (item.catalog_product_id ? "accessory" : "plant")) === "plant"
+    );
+    const plantCount = plantItems.length;
 
     // Generate title
     const title = customerName
       ? `${customerName}'s Nuvvy Plant Shortlist 🌿`
       : "Your Nuvvy Plant Shortlist 🌿";
 
-    // Calculate estimated price range
-    let priceMin = 0;
-    let priceMax = 0;
-    let hasPrice = false;
-
-    items.forEach((item) => {
-      if (!item.plant?.price_band) return;
-      const priceBand = item.plant.price_band;
-      const numbers = priceBand.match(/\d+/g);
-      if (numbers && numbers.length >= 2) {
-        const min = parseInt(numbers[0], 10);
-        const max = parseInt(numbers[1], 10);
-        const qty = item.quantity || 1;
-        priceMin += min * qty;
-        priceMax += max * qty;
-        hasPrice = true;
-      }
-    });
-
-    // Generate description
-    let description = `${plantCount} plant${plantCount !== 1 ? "s" : ""}`;
-    if (hasPrice && priceMin > 0 && priceMax > 0) {
-      const formatCurrency = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;
-      description += ` • Estimated ${formatCurrency(priceMin)}–${formatCurrency(priceMax)}`;
-    }
-    description += ". Review and confirm your shortlist.";
+    // Description: short and honest. Estimated price intentionally removed —
+    // it was misleading once accessories joined the shortlist and the band
+    // math doesn't apply to them.
+    const description = `${plantCount} plant${plantCount !== 1 ? "s" : ""}. Review and confirm your shortlist.`;
 
     // Get first plant image for OG image
     let ogImageUrl = OG_DEFAULT_IMAGE;
-    const firstItem = items.find((item) => item.plant);
+    const firstItem = plantItems.find((item) => item.plant);
     if (firstItem?.plant) {
       const plant = firstItem.plant;
       ogImageUrl =
