@@ -27,6 +27,11 @@ A few quick things about my space:
 
 Looking forward to your recommendations!`;
 
+// Plant detail CTA — pre-fills a request for a specific plant
+export function getCatalogPlantRequest(plantName: string): string {
+  return `Hi Nuvvy! I'd like to get ${plantName} for my balcony via Nuvvy. Can you help me arrange this?`;
+}
+
 /**
  * Generate a WhatsApp deep link with a pre-filled message
  * @param message - The message to pre-fill in WhatsApp

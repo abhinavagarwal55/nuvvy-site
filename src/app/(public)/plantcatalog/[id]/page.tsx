@@ -6,6 +6,7 @@ import PlantImageWithShare from "@/components/PlantImageWithShare";
 import { useParams } from "next/navigation";
 import { Droplet, Layers, FlaskConical, Leaf, Wind } from "lucide-react";
 import { getCatalogStore, type PlantDetail } from "@/lib/catalog";
+import { getWhatsAppLink, getCatalogPlantRequest } from "@/config/whatsapp";
 
 export default function PlantDetailPage() {
   const params = useParams();
@@ -71,8 +72,10 @@ export default function PlantDetailPage() {
     );
   }
 
+  const whatsappHref = getWhatsAppLink(getCatalogPlantRequest(plant.name));
+
   return (
-    <main className="bg-cream min-h-screen overflow-x-hidden">
+    <main className="bg-cream min-h-screen overflow-x-hidden pb-24 md:pb-0">
       {/* Back Link - Above Hero */}
       <div className="max-w-6xl mx-auto px-4 pt-6 pb-4">
         <Link
@@ -130,10 +133,20 @@ export default function PlantDetailPage() {
 
             {/* Price Display */}
             {plant.price_band && (
-              <div className="mt-2 text-lg font-semibold text-green-800 mb-6">
+              <div className="mt-2 text-lg font-semibold text-green-800 mb-4">
                 {plant.price_band}
               </div>
             )}
+
+            {/* Primary CTA — inline on desktop; mobile uses sticky bottom bar */}
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:inline-flex items-center justify-center gap-2 bg-leaf text-white font-semibold py-3 px-6 rounded-full hover:bg-leaf/90 transition-colors mb-6"
+            >
+              Get this plant via Nuvvy
+            </a>
 
             {/* Horticulturist Notes - Prominent */}
             {plant.horticulturistNotes && (
@@ -211,6 +224,21 @@ export default function PlantDetailPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Sticky mobile CTA bar */}
+      <div
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-gray-200 px-3 py-3"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+      >
+        <a
+          href={whatsappHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full text-center bg-leaf text-white font-semibold py-3 rounded-full hover:bg-leaf/90 transition-colors"
+        >
+          Get this plant via Nuvvy
+        </a>
       </div>
     </main>
   );
