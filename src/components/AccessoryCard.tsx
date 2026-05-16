@@ -33,7 +33,7 @@ export default function AccessoryCard({
 
   if (compact) {
     return (
-      <div className="group block w-[160px] md:w-[200px] flex-shrink-0 rounded-xl border border-gray-100 bg-white overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 flex flex-col">
+      <div className="group block w-[140px] md:w-[200px] flex-shrink-0 rounded-xl border border-gray-100 bg-white overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 flex flex-col">
         <div className="aspect-square relative bg-gray-100">
           {img ? (
             // eslint-disable-next-line @next/next/no-img-element

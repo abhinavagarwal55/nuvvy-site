@@ -27,7 +27,7 @@ export default function PlantCard({
     return (
       <Link
         href={`/plantcatalog/${plant.id}`}
-        className="group block w-[160px] md:w-[200px] flex-shrink-0 rounded-xl border border-gray-100 bg-white overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+        className="group block w-[140px] md:w-[200px] flex-shrink-0 rounded-xl border border-gray-100 bg-white overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
       >
         <div className="aspect-square relative bg-gray-100">
           <PlantImage
@@ -35,7 +35,7 @@ export default function PlantCard({
             alt={plant.name}
             fill
             className="object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-            sizes="200px"
+            sizes="(max-width: 768px) 140px, 200px"
           />
         </div>
         <div className="p-3">

@@ -703,32 +703,22 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             })}
         </div>
 
-        {/* Bottom Estimated Total */}
-        <div className="min-h-[90px] mb-6">
-          <div
-            className={`transition-all duration-300 ease-out ${
-              hasItems && hasValidEstimate
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 -translate-y-2 pointer-events-none"
-            }`}
-          >
-            {hasItems && hasValidEstimate && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                  <span className="text-base font-semibold text-gray-900">Estimated total</span>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(estimate.midpoint)}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
-                    </span>
-                  </div>
-                </div>
+        {/* Bottom Estimated Total — collapses cleanly when nothing to show */}
+        {hasItems && hasValidEstimate && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+              <span className="text-base font-semibold text-gray-900">Estimated total</span>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(estimate.midpoint)}
+                </span>
+                <span className="text-xs text-gray-500">
+                  Final price will vary between {formatCurrency(estimate.min)} – {formatCurrency(estimate.max)} based on nursery availability
+                </span>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ─── WS-B: Accessories ────────────────────────────── */}
         {(() => {
@@ -842,6 +832,26 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             </div>
           );
         })()}
+
+        {/* Explore-full-catalog CTA */}
+        <div className="bg-mist border border-leaf/20 rounded-lg p-5 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1">
+              <h3 className="text-base font-semibold text-ink mb-1">
+                Want to explore more plants and accessories?
+              </h3>
+              <p className="text-sm text-gray-600">
+                Browse the full Nuvvy catalog — you can come right back to this shortlist.
+              </p>
+            </div>
+            <a
+              href={`/plantcatalog?shortlist=${token}`}
+              className="inline-flex items-center justify-center bg-leaf text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-leaf/90 whitespace-nowrap"
+            >
+              Browse catalog →
+            </a>
+          </div>
+        </div>
 
         {/* Primary CTA */}
         {isEditable && (

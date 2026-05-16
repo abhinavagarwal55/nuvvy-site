@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Leaf, ShoppingBag, ArrowLeft } from "lucide-react";
 import PlantCard from "@/components/PlantCard";
 import AccessoryCard from "@/components/AccessoryCard";
 import AffiliateDisclosure from "@/components/AffiliateDisclosure";
@@ -44,6 +45,7 @@ export default function PlantCatalogPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const segment: Segment = searchParams.get("type") === "accessories" ? "accessories" : "plants";
+  const shortlistToken = searchParams.get("shortlist") || null;
 
   // Helper: update one URL param without adding to history
   const updateParam = (key: string, value: string | null) => {
@@ -198,6 +200,24 @@ export default function PlantCatalogPage() {
 
   return (
     <main className="bg-cream min-h-screen">
+      {/* Return-to-shortlist banner */}
+      {shortlistToken && (
+        <div className="bg-leaf text-white sticky top-0 z-30">
+          <div className="max-w-6xl mx-auto px-3 md:px-6 py-2 flex items-center justify-between gap-3">
+            <span className="text-sm font-medium">
+              Browsing for your shortlist
+            </span>
+            <a
+              href={`/s/${shortlistToken}`}
+              className="inline-flex items-center gap-1 bg-white text-leaf text-xs md:text-sm font-semibold px-3 py-1.5 rounded-full hover:bg-white/90 whitespace-nowrap"
+            >
+              <ArrowLeft size={14} />
+              Back to shortlist
+            </a>
+          </div>
+        </div>
+      )}
+
       <section className="py-6 md:py-12">
         <div className="max-w-6xl mx-auto px-3 md:px-6">
           <div className="bg-[#F9FAFB] rounded-2xl md:rounded-3xl border border-gray-200 p-3 md:p-7">
@@ -214,26 +234,32 @@ export default function PlantCatalogPage() {
               Curated for Bangalore balconies
             </p>
 
-            {/* Segment toggle */}
-            <div className="inline-flex items-center rounded-full bg-gray-100 p-1 mb-4">
+            {/* Segment toggle — equal-weight buttons so Accessories is visible */}
+            <div className="flex gap-2 mb-4">
               <button
                 type="button"
                 onClick={() => setSegment("plants")}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  segment === "plants" ? "bg-leaf text-white shadow-sm" : "text-gray-700"
+                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border-2 transition-all ${
+                  segment === "plants"
+                    ? "bg-leaf text-white border-leaf shadow-sm"
+                    : "bg-white text-leaf border-leaf/40 hover:border-leaf"
                 }`}
                 aria-pressed={segment === "plants"}
               >
+                <Leaf size={16} />
                 Plants
               </button>
               <button
                 type="button"
                 onClick={() => setSegment("accessories")}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  segment === "accessories" ? "bg-leaf text-white shadow-sm" : "text-gray-700"
+                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border-2 transition-all ${
+                  segment === "accessories"
+                    ? "bg-leaf text-white border-leaf shadow-sm"
+                    : "bg-white text-leaf border-leaf/40 hover:border-leaf"
                 }`}
                 aria-pressed={segment === "accessories"}
               >
+                <ShoppingBag size={16} />
                 Accessories
               </button>
             </div>

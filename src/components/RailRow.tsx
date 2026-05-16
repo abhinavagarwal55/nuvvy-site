@@ -40,7 +40,7 @@ export default function RailRow({ rail }: { rail: PublicRailWithItems }) {
         {hasCta && (
           <Link
             href={rail.cta_link!}
-            className="flex-shrink-0 w-[160px] md:w-[200px] flex items-center justify-center rounded-xl border border-dashed border-leaf/40 text-leaf text-sm font-medium hover:bg-mist hover:border-leaf"
+            className="flex-shrink-0 w-[140px] md:w-[200px] flex items-center justify-center rounded-xl border border-dashed border-leaf/40 text-leaf text-sm font-medium hover:bg-mist hover:border-leaf"
           >
             See all →
           </Link>
