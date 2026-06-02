@@ -222,10 +222,10 @@ export default function BillingPage() {
     );
   }
 
-  if (role === "gardener") {
+  if (role !== null && role !== "admin") {
     return (
       <div className="min-h-screen bg-cream px-4 py-10">
-        <p className="text-sm text-sage text-center">Billing is not available for this role.</p>
+        <p className="text-sm text-sage text-center">Billing is admin-only.</p>
       </div>
     );
   }

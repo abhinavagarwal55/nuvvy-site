@@ -25,6 +25,13 @@ type AdminDashboard = {
     overdue_count: number;
     overdue_total: number;
     follow_up: { id: string; customer_name: string; amount_inr: number; due_date: string; is_overdue: boolean }[];
+    current_month: {
+      month: string;
+      month_label: string;
+      billed: number;
+      paid: number;
+      due: number;
+    };
   };
   open_requests: number;
 };
@@ -219,6 +226,31 @@ function AdminView({ data }: { data: AdminDashboard }) {
         </div>
       </div>
 
+      {/* This month — billing totals */}
+      <Link href="/ops/billing">
+        <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 hover:border-forest/40 transition-colors">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-medium text-sage uppercase tracking-widest">
+              Billing · {data.billing.current_month.month_label}
+            </p>
+            <span className="text-xs text-forest">Open Billing →</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <BillingTotal label="Billed" amount={data.billing.current_month.billed} />
+            <BillingTotal
+              label="Paid"
+              amount={data.billing.current_month.paid}
+              accent="forest"
+            />
+            <BillingTotal
+              label="Due"
+              amount={data.billing.current_month.due}
+              accent="terra"
+            />
+          </div>
+        </div>
+      </Link>
+
       {/* Payment follow-up */}
       <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
         <div className="flex items-center justify-between mb-3">
@@ -397,6 +429,31 @@ function FollowUpRow({
       >
         {copied ? "Copied!" : "Send Reminder"}
       </button>
+    </div>
+  );
+}
+
+function BillingTotal({
+  label,
+  amount,
+  accent,
+}: {
+  label: string;
+  amount: number;
+  accent?: "forest" | "terra";
+}) {
+  const valueCls =
+    accent === "forest"
+      ? "text-forest"
+      : accent === "terra"
+      ? "text-terra"
+      : "text-charcoal";
+  return (
+    <div className="bg-cream/60 rounded-xl p-3">
+      <p className="text-[10px] text-sage uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-base font-medium tabular-nums ${valueCls}`}>
+        ₹{amount.toLocaleString("en-IN")}
+      </p>
     </div>
   );
 }

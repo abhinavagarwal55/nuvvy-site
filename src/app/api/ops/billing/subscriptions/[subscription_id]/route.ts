@@ -77,16 +77,8 @@ export async function PUT(
   }
   const { month, amount_inr, paid, mark_reminder_sent } = parsed.data;
 
-  const writesAdminOnly =
-    amount_inr !== undefined || paid !== undefined;
-  const writesAny =
-    writesAdminOnly || mark_reminder_sent !== undefined;
-
-  if (writesAdminOnly && auth.role !== "admin") {
+  if (auth.role !== "admin") {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
-  }
-  if (writesAny && auth.role === "gardener") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { subscription_id } = await params;

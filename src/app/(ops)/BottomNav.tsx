@@ -44,17 +44,23 @@ const gardenerNav: NavItem[] = [
 
 // ─── Admin / Horti ─────────────────────────────────────────────────────────
 
-const primaryNav: NavItem[] = [
+type RoleScopedNavItem = NavItem & { adminOnly?: boolean };
+
+const primaryNav: RoleScopedNavItem[] = [
   { href: "/ops/home", label: "Home", icon: <Home size={20} /> },
   { href: "/ops/schedule", label: "Schedule", icon: <Calendar size={20} /> },
   { href: "/ops/customers", label: "Customers", icon: <Users size={20} /> },
   { href: "/ops/services", label: "Services", icon: <ClipboardList size={20} /> },
   { href: "/ops/requests", label: "Requests", icon: <AlertCircle size={20} /> },
-  { href: "/ops/billing", label: "Billing", icon: <CreditCard size={20} /> },
+  { href: "/ops/billing", label: "Billing", icon: <CreditCard size={20} />, adminOnly: true },
   { href: "/ops/plant-orders", label: "Plant Orders", icon: <Sprout size={20} /> },
   { href: "/ops/people", label: "People", icon: <UserCog size={20} /> },
   { href: "/ops/plans", label: "Plans", icon: <LayoutGrid size={20} /> },
 ];
+
+function visiblePrimaryNav(role: OpsRole): NavItem[] {
+  return primaryNav.filter((item) => !item.adminOnly || role === "admin");
+}
 
 const secondaryNav: NavItem[] = [
   { href: "/internal/plants", label: "Plant Catalog", icon: <Leaf size={20} /> },
@@ -107,7 +113,7 @@ function DesktopSidebar({ role }: { role: OpsRole }) {
 
       {/* Primary nav */}
       <nav className="flex-1 px-3 pt-4 space-y-0.5 overflow-y-auto">
-        {primaryNav.map((item) => {
+        {visiblePrimaryNav(role).map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           return (
@@ -220,7 +226,7 @@ function MobileNav({
       )}
       {moreOpen && (
         <div className="fixed left-0 right-0 bg-offwhite border-t border-stone rounded-t-2xl z-50 px-4 py-4 space-y-1 max-h-[70vh] overflow-y-auto" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
-          {[...primaryNav.slice(3), ...secondaryNav].map((item) => (
+          {[...visiblePrimaryNav(role ?? "horticulturist").slice(3), ...secondaryNav].map((item) => (
             <Link
               key={item.href}
               href={item.href}

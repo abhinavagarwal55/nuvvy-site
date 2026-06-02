@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { withPerfLog } from "@/lib/perf/with-perf-log";
 import { PerfContext } from "@/lib/perf/perf-context";
+import { currentMonthKey, formatMonthLabel } from "@/lib/billing/template";
+import { getMonthlyBillingSummary } from "@/lib/billing/monthly-summary";
 
 // GET /api/ops/dashboard/admin
 export const GET = withPerfLog('/api/ops/dashboard/admin', async (request: NextRequest, ctx: PerfContext) => {
@@ -19,12 +21,14 @@ export const GET = withPerfLog('/api/ops/dashboard/admin', async (request: NextR
 
   const supabase = getSupabaseAdmin();
   const today = new Date().toISOString().split("T")[0];
+  const monthKey = currentMonthKey();
 
   const [
     { count: activeCustomers },
     { data: todayServices },
     { data: pendingBills },
     { count: openRequests },
+    monthlySummary,
   ] = await ctx.trackQuery(async () => Promise.all([
     supabase
       .from("customers")
@@ -42,6 +46,7 @@ export const GET = withPerfLog('/api/ops/dashboard/admin', async (request: NextR
       .from("requests")
       .select("id", { count: "exact", head: true })
       .in("status", ["open", "in_progress"]),
+    getMonthlyBillingSummary(supabase, monthKey).catch(() => null),
   ]));
 
   // Compute service counts
@@ -89,6 +94,13 @@ export const GET = withPerfLog('/api/ops/dashboard/admin', async (request: NextR
           due_date: b.due_date,
           is_overdue: b.due_date < today,
         })),
+        current_month: {
+          month: monthKey,
+          month_label: formatMonthLabel(monthKey),
+          billed: monthlySummary?.totals.billed ?? 0,
+          paid: monthlySummary?.totals.paid ?? 0,
+          due: monthlySummary?.totals.due ?? 0,
+        },
       },
       open_requests: openRequests ?? 0,
     },
