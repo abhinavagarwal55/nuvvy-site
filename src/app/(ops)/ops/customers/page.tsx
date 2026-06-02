@@ -77,8 +77,10 @@ export default function CustomersPage() {
   const { data, isLoading, mutate } = useSWR(swrKey, perfFetcher);
   const customers: Customer[] = data?.data ?? [];
 
-  const drafts = customers.filter((c) => c.status === "DRAFT");
-  const nonDrafts = customers.filter((c) => c.status !== "DRAFT");
+  const byName = (a: Customer, b: Customer) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  const drafts = customers.filter((c) => c.status === "DRAFT").sort(byName);
+  const nonDrafts = customers.filter((c) => c.status !== "DRAFT").sort(byName);
 
   return (
     <div className="min-h-screen bg-cream pb-24">
