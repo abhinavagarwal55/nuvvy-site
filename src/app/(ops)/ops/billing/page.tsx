@@ -1,108 +1,234 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Plus, Copy, Check, AlertCircle, FileText, ChevronRight } from "lucide-react";
-import { formatDate, formatDateTime } from "@/lib/utils/format-date";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Send,
+} from "lucide-react";
+import { formatDate } from "@/lib/utils/format-date";
+import {
+  BILLING_TEMPLATE_TOKEN_HELP,
+  DEFAULT_BILLING_TEMPLATE,
+  DEFAULT_NUVVY_UPI_ID,
+  currentMonthKey,
+  formatMonthLabel,
+  formatPlanFrequency,
+  renderBillingTemplate,
+} from "@/lib/billing/template";
 
-type Bill = {
-  id: string;
+type Row = {
+  subscription_id: string;
   customer_id: string;
   customer_name: string;
+  phone_number: string | null;
+  plan_name: string;
+  plan_price: number;
+  visit_frequency: "weekly" | "fortnightly" | "monthly";
+  default_amount_inr: number;
+  bill_id: string | null;
   amount_inr: number;
-  billing_period_start: string;
-  billing_period_end: string;
-  due_date: string;
-  status: string;
-  is_overdue: boolean;
+  is_paid: boolean;
   paid_at: string | null;
   last_reminder_sent_at: string | null;
-  notes: string | null;
 };
 
-type Invoice = {
-  id: string;
-  invoice_number: string;
-  customer_id: string;
-  plant_order_id: string | null;
-  status: string;
-  total: number;
-  paid_at: string | null;
-  created_at: string;
-  customer_name: string | null;
+type Totals = { billed: number; paid: number; due: number };
+
+type ApiResponse = {
+  data: {
+    month: string;
+    month_label: string;
+    rows: Row[];
+    totals: Totals;
+  };
 };
 
 const inputCls =
-  "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest placeholder:text-stone";
+  "w-full px-3 py-2 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest placeholder:text-stone";
+
+function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function computeTotals(rows: Row[]): Totals {
+  const billed = rows.reduce((s, r) => s + r.amount_inr, 0);
+  const paid = rows.reduce((s, r) => s + (r.is_paid ? r.amount_inr : 0), 0);
+  return { billed, paid, due: billed - paid };
+}
+
+function buildDraft(template: string, row: Row, month: string): string {
+  return renderBillingTemplate(template, {
+    customer_name: row.customer_name,
+    plan_frequency: formatPlanFrequency(row.visit_frequency),
+    amount: row.amount_inr,
+    month_year: formatMonthLabel(month),
+    upi_id: DEFAULT_NUVVY_UPI_ID,
+  });
+}
+
+function waLink(phone: string, message: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}
 
 export default function BillingPage() {
-  const router = useRouter();
-  const [tab, setTab] = useState<"bills" | "invoices">("bills");
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [month, setMonth] = useState<string>(() => currentMonthKey());
+  const [rows, setRows] = useState<Row[]>([]);
+  const [totals, setTotals] = useState<Totals>({ billed: 0, paid: 0, due: 0 });
+  const [monthLabel, setMonthLabel] = useState<string>(formatMonthLabel(currentMonthKey()));
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("pending");
-  const [showCreate, setShowCreate] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<"admin" | "horticulturist" | "gardener" | null>(null);
+  const [template, setTemplate] = useState<string>(DEFAULT_BILLING_TEMPLATE);
+  const [showTemplate, setShowTemplate] = useState(false);
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [expandedDraft, setExpandedDraft] = useState<Record<string, boolean>>({});
+
+  const isAdmin = role === "admin";
+  const canView = role === "admin" || role === "horticulturist";
 
   useEffect(() => {
     fetch("/api/ops/people/me/role")
       .then((r) => r.json())
-      .then((d) => setIsAdmin(d.data?.role === "admin"))
+      .then((d) => setRole(d.data?.role ?? null))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/ops/system-config/billing-template")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.data?.template) setTemplate(d.data.template);
+      })
       .catch(() => {});
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
-    if (tab === "bills") {
-      const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
-      const res = await fetch(`/api/ops/billing${params}`);
-      const json = await res.json();
-      setBills(json.data ?? []);
-    } else {
-      const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
-      const res = await fetch(`/api/ops/invoices${params}`);
-      const json = await res.json();
-      setInvoices(json.data ?? []);
+    try {
+      const res = await fetch(`/api/ops/billing/subscriptions?month=${month}`);
+      if (!res.ok) {
+        setRows([]);
+        setTotals({ billed: 0, paid: 0, due: 0 });
+        setMonthLabel(formatMonthLabel(month));
+        return;
+      }
+      const json: ApiResponse = await res.json();
+      setRows(json.data.rows);
+      setTotals(json.data.totals);
+      setMonthLabel(json.data.month_label);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [statusFilter, tab]);
+  }, [month]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function handleMarkPaid(billId: string) {
-    const res = await fetch(`/api/ops/billing/${billId}/mark-paid`, { method: "POST" });
-    if (!res.ok) {
-      const json = await res.json();
-      alert(json.error ?? "Failed to mark as paid");
-      return;
+  function setRowErr(id: string, msg: string | null) {
+    setRowError((prev) => {
+      const next = { ...prev };
+      if (msg) next[id] = msg;
+      else delete next[id];
+      return next;
+    });
+    if (msg) {
+      window.setTimeout(() => {
+        setRowError((prev) => {
+          if (prev[id] !== msg) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }, 4000);
     }
-    load();
   }
 
-  async function handleRemind(bill: Bill) {
-    const res = await fetch(`/api/ops/billing/${bill.id}/remind`, { method: "POST" });
-    if (!res.ok) {
-      const json = await res.json();
-      alert(json.error ?? "Failed to send reminder");
-      return;
-    }
+  async function mutateRow(
+    row: Row,
+    body: { amount_inr?: number; paid?: boolean; mark_reminder_sent?: boolean },
+    optimistic: Partial<Row>
+  ) {
+    const prev = rows;
+    const optimisticRows = rows.map((r) =>
+      r.subscription_id === row.subscription_id ? { ...r, ...optimistic } : r
+    );
+    setRows(optimisticRows);
+    setTotals(computeTotals(optimisticRows));
 
-    // Copy reminder text
-    const msg = `Hi ${bill.customer_name}, this is a gentle reminder about your Nuvvy garden care payment of ₹${bill.amount_inr} for the period ${formatDate(bill.billing_period_start)} to ${formatDate(bill.billing_period_end)}. Due date: ${formatDate(bill.due_date)}. Please let us know once done! — Team Nuvvy`;
-    await navigator.clipboard.writeText(msg);
-    load();
+    try {
+      const res = await fetch(
+        `/api/ops/billing/subscriptions/${row.subscription_id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ month, ...body }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        setRows(prev);
+        setTotals(computeTotals(prev));
+        setRowErr(row.subscription_id, json.error ?? "Update failed");
+        return;
+      }
+      const updated = json.data as Row;
+      setRows((cur) => {
+        const next = cur.map((r) =>
+          r.subscription_id === updated.subscription_id ? updated : r
+        );
+        setTotals(computeTotals(next));
+        return next;
+      });
+      setRowErr(row.subscription_id, null);
+    } catch {
+      setRows(prev);
+      setTotals(computeTotals(prev));
+      setRowErr(row.subscription_id, "Network error");
+    }
   }
 
-  const overdue = bills.filter((b) => b.is_overdue);
-  const pending = bills.filter((b) => !b.is_overdue && b.status === "pending");
-  const paid = bills.filter((b) => b.status === "paid");
+  function handleAmountSave(row: Row, raw: string) {
+    const parsed = Math.max(0, Math.round(Number(raw)));
+    if (Number.isNaN(parsed) || parsed === row.amount_inr) return;
+    mutateRow(row, { amount_inr: parsed }, { amount_inr: parsed });
+  }
 
-  const invoiceStatusFilters = tab === "invoices"
-    ? ["draft", "finalized", "paid", "all"]
-    : ["pending", "paid", "all"];
+  function handlePaidToggle(row: Row, paid: boolean) {
+    mutateRow(
+      row,
+      { paid },
+      {
+        is_paid: paid,
+        paid_at: paid ? new Date().toISOString() : null,
+      }
+    );
+  }
+
+  function handleSendWa(row: Row) {
+    if (!row.phone_number) return;
+    const draft = buildDraft(template, row, month);
+    window.open(waLink(row.phone_number, draft), "_blank", "noopener,noreferrer");
+    mutateRow(
+      row,
+      { mark_reminder_sent: true },
+      { last_reminder_sent_at: new Date().toISOString() }
+    );
+  }
+
+  if (role === "gardener") {
+    return (
+      <div className="min-h-screen bg-cream px-4 py-10">
+        <p className="text-sm text-sage text-center">Billing is not available for this role.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-cream pb-24">
@@ -114,402 +240,573 @@ export default function BillingPage() {
           >
             Billing
           </h1>
-          {isAdmin && tab === "bills" && (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden"
-            >
-              <Plus size={16} /> New Bill
-            </button>
-          )}
-        </div>
-
-        {/* Tab switcher */}
-        <div className="flex gap-2 mb-3">
-          {(["bills", "invoices"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); setStatusFilter(t === "invoices" ? "draft" : "pending"); }}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                tab === t
-                  ? "bg-forest text-offwhite border-forest"
-                  : "bg-offwhite text-charcoal border-stone"
-              }`}
-            >
-              {t === "bills" ? "Subscription Bills" : "Plant Invoices"}
-            </button>
-          ))}
-        </div>
-
-        {/* Status filters */}
-        <div className="flex gap-2">
-          {(tab === "invoices" ? invoiceStatusFilters : ["pending", "paid", "all"]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
-                statusFilter === s
-                  ? "bg-charcoal text-offwhite border-charcoal"
-                  : "bg-cream text-charcoal border-stone"
-              }`}
-            >
-              {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="px-4 pt-4 space-y-5">
-        {loading ? (
-          <p className="text-sm text-sage text-center py-10">Loading…</p>
-        ) : tab === "bills" ? (
-          /* Bills view */
-          bills.length === 0 ? (
-            <p className="text-sm text-stone text-center py-10">No bills found.</p>
-          ) : (
-            <>
-              {overdue.length > 0 && statusFilter !== "paid" && (
-                <Section title="Overdue" count={overdue.length}>
-                  {overdue.map((b) => (
-                    <BillCard
-                      key={b.id}
-                      bill={b}
-                      isAdmin={isAdmin}
-                      onMarkPaid={handleMarkPaid}
-                      onRemind={handleRemind}
-                    />
-                  ))}
-                </Section>
-              )}
-              {pending.length > 0 && statusFilter !== "paid" && (
-                <Section title="Pending" count={pending.length}>
-                  {pending.map((b) => (
-                    <BillCard
-                      key={b.id}
-                      bill={b}
-                      isAdmin={isAdmin}
-                      onMarkPaid={handleMarkPaid}
-                      onRemind={handleRemind}
-                    />
-                  ))}
-                </Section>
-              )}
-              {paid.length > 0 && statusFilter !== "pending" && (
-                <Section title="Paid" count={paid.length}>
-                  {paid.map((b) => (
-                    <BillCard
-                      key={b.id}
-                      bill={b}
-                      isAdmin={isAdmin}
-                      onMarkPaid={handleMarkPaid}
-                      onRemind={handleRemind}
-                    />
-                  ))}
-                </Section>
-              )}
-            </>
-          )
-        ) : (
-          /* Invoices view */
-          invoices.length === 0 ? (
-            <p className="text-sm text-stone text-center py-10">No invoices found.</p>
-          ) : (
-            <div className="space-y-2">
-              {invoices.map((inv) => (
-                <InvoiceCard key={inv.id} invoice={inv} onClick={() => router.push(`/ops/invoices/${inv.id}`)} />
-              ))}
-            </div>
-          )
-        )}
-      </div>
-
-      {showCreate && (
-        <CreateBillModal onClose={() => setShowCreate(false)} onSaved={load} />
-      )}
-    </div>
-  );
-}
-
-function BillCard({
-  bill,
-  isAdmin,
-  onMarkPaid,
-  onRemind,
-}: {
-  bill: Bill;
-  isAdmin: boolean;
-  onMarkPaid: (id: string) => void;
-  onRemind: (b: Bill) => void;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <div
-      className={`bg-offwhite rounded-2xl border px-4 py-3 space-y-2 ${
-        bill.is_overdue ? "border-terra/40" : "border-stone/60"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-medium text-charcoal text-sm">{bill.customer_name}</p>
-          <p className="text-xs text-sage">
-            {formatDate(bill.billing_period_start)} → {formatDate(bill.billing_period_end)}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="font-medium text-charcoal">₹{bill.amount_inr}</p>
-          {bill.is_overdue && (
-            <span className="text-xs text-terra flex items-center gap-1">
-              <AlertCircle size={11} /> Overdue
-            </span>
-          )}
-          {bill.status === "paid" && (
-            <span className="text-xs text-sage">Paid</span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 text-xs text-sage">
-        <span>Due: {formatDate(bill.due_date)}</span>
-        {bill.last_reminder_sent_at && (
-          <span>
-            · Reminded{" "}
-            {formatDateTime(bill.last_reminder_sent_at)}
-          </span>
-        )}
-      </div>
-
-      {bill.status === "pending" && (
-        <div className="flex items-center gap-3 pt-1 border-t border-stone/30">
           {isAdmin && (
             <button
-              onClick={() => onMarkPaid(bill.id)}
-              className="flex items-center gap-1 text-xs text-forest font-medium hover:text-garden"
+              onClick={() => setShowTemplate(true)}
+              className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal rounded-xl text-sm hover:bg-cream"
             >
-              <Check size={12} /> Mark Paid
+              <Pencil size={14} /> Edit template
             </button>
           )}
-          <button
-            onClick={() => {
-              onRemind(bill);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-            className="flex items-center gap-1 text-xs text-charcoal font-medium hover:text-forest ml-auto"
-          >
-            <Copy size={12} /> {copied ? "Copied!" : "Send Reminder"}
-          </button>
         </div>
+
+        <MonthPicker month={month} label={monthLabel} onChange={setMonth} />
+
+        <TotalsStrip totals={totals} />
+      </div>
+
+      <div className="px-4 pt-4">
+        {!canView ? (
+          <p className="text-sm text-sage text-center py-10">Loading…</p>
+        ) : loading ? (
+          <p className="text-sm text-sage text-center py-10">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-stone text-center py-10">
+            No active subscriptions in this period.
+          </p>
+        ) : (
+          <>
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-3">
+              {rows.map((row) => (
+                <MobileRow
+                  key={row.subscription_id}
+                  row={row}
+                  template={template}
+                  month={month}
+                  isAdmin={isAdmin}
+                  error={rowError[row.subscription_id]}
+                  isDraftOpen={!!expandedDraft[row.subscription_id]}
+                  onToggleDraft={() =>
+                    setExpandedDraft((p) => ({
+                      ...p,
+                      [row.subscription_id]: !p[row.subscription_id],
+                    }))
+                  }
+                  onAmountSave={(v) => handleAmountSave(row, v)}
+                  onPaidToggle={(b) => handlePaidToggle(row, b)}
+                  onSendWa={() => handleSendWa(row)}
+                />
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block bg-offwhite border border-stone/60 rounded-2xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-cream text-xs text-sage uppercase tracking-wider">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Customer</th>
+                    <th className="text-left px-3 py-2 font-medium">Plan</th>
+                    <th className="text-right px-3 py-2 font-medium">Plan ₹</th>
+                    <th className="text-left px-3 py-2 font-medium">Frequency</th>
+                    <th className="text-left px-3 py-2 font-medium">Invoice ₹</th>
+                    <th className="text-left px-3 py-2 font-medium">Draft</th>
+                    <th className="text-left px-3 py-2 font-medium">WhatsApp</th>
+                    <th className="text-left px-3 py-2 font-medium">Paid</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <DesktopRow
+                      key={row.subscription_id}
+                      row={row}
+                      template={template}
+                      month={month}
+                      isAdmin={isAdmin}
+                      error={rowError[row.subscription_id]}
+                      isDraftOpen={!!expandedDraft[row.subscription_id]}
+                      onToggleDraft={() =>
+                        setExpandedDraft((p) => ({
+                          ...p,
+                          [row.subscription_id]: !p[row.subscription_id],
+                        }))
+                      }
+                      onAmountSave={(v) => handleAmountSave(row, v)}
+                      onPaidToggle={(b) => handlePaidToggle(row, b)}
+                      onSendWa={() => handleSendWa(row)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {showTemplate && isAdmin && (
+        <EditTemplateModal
+          initial={template}
+          sampleRow={rows[0]}
+          month={month}
+          onClose={() => setShowTemplate(false)}
+          onSaved={(next) => {
+            setTemplate(next);
+            setShowTemplate(false);
+          }}
+        />
       )}
     </div>
   );
 }
 
-function CreateBillModal({
-  onClose,
-  onSaved,
+function MonthPicker({
+  month,
+  label,
+  onChange,
 }: {
-  onClose: () => void;
-  onSaved: () => void;
+  month: string;
+  label: string;
+  onChange: (m: string) => void;
 }) {
-  const [customerId, setCustomerId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch("/api/ops/customers?status=ACTIVE")
-      .then((r) => r.json())
-      .then((d) => setCustomers(d.data ?? []));
-  }, []);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSaving(true);
-    const res = await fetch("/api/ops/billing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customer_id: customerId,
-        amount_inr: parseInt(amount),
-        billing_period_start: periodStart,
-        billing_period_end: periodEnd,
-        due_date: dueDate,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setError(json.error);
-      setSaving(false);
-      return;
-    }
-    onSaved();
-    onClose();
-  }
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
-      <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6 max-h-[80vh] overflow-y-auto">
-        <h2
-          className="text-lg text-charcoal mb-4"
-          style={{ fontFamily: "var(--font-cormorant, serif)", fontWeight: 500 }}
+    <div className="flex items-center gap-2 mb-3">
+      <button
+        onClick={() => onChange(shiftMonth(month, -1))}
+        className="p-1.5 rounded-lg border border-stone hover:bg-cream text-charcoal"
+        aria-label="Previous month"
+      >
+        <ChevronLeft size={16} />
+      </button>
+      {editing ? (
+        <input
+          ref={inputRef}
+          type="month"
+          value={month}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={() => setEditing(false)}
+          className="px-2 py-1 border border-stone rounded-lg text-sm bg-offwhite text-charcoal focus:outline-none focus:border-forest"
+        />
+      ) : (
+        <button
+          onClick={() => setEditing(true)}
+          className="px-3 py-1.5 text-sm text-charcoal font-medium min-w-[140px] text-center hover:bg-cream rounded-lg"
         >
-          New Bill
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-charcoal mb-1">
-              Customer <span className="text-terra">*</span>
-            </label>
-            <select
-              className={inputCls}
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              required
-            >
-              <option value="">Select customer…</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-charcoal mb-1">
-              Amount (₹) <span className="text-terra">*</span>
-            </label>
-            <input
-              className={inputCls}
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-              placeholder="799"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-charcoal mb-1">
-                Period start
-              </label>
-              <input
-                type="date"
-                className={inputCls}
-                value={periodStart}
-                onChange={(e) => setPeriodStart(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-charcoal mb-1">
-                Period end
-              </label>
-              <input
-                type="date"
-                className={inputCls}
-                value={periodEnd}
-                onChange={(e) => setPeriodEnd(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-charcoal mb-1">
-              Due date
-            </label>
-            <input
-              type="date"
-              className={inputCls}
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              required
-            />
-          </div>
-          {error && <p className="text-sm text-terra">{error}</p>}
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-cream"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40"
-            >
-              {saving ? "Creating…" : "Create Bill"}
-            </button>
-          </div>
-        </form>
-      </div>
+          {label}
+        </button>
+      )}
+      <button
+        onClick={() => onChange(shiftMonth(month, 1))}
+        className="p-1.5 rounded-lg border border-stone hover:bg-cream text-charcoal"
+        aria-label="Next month"
+      >
+        <ChevronRight size={16} />
+      </button>
     </div>
   );
 }
 
-const INVOICE_STATUS: Record<string, { cls: string; label: string }> = {
-  draft: { cls: "bg-amber-50 text-amber-700", label: "Draft" },
-  finalized: { cls: "bg-blue-50 text-blue-700", label: "Finalized" },
-  paid: { cls: "bg-forest/10 text-forest", label: "Paid" },
-};
+function TotalsStrip({ totals }: { totals: Totals }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Pill label="Billed" amount={totals.billed} tone="neutral" />
+      <Pill label="Paid" amount={totals.paid} tone="forest" />
+      <Pill label="Due" amount={totals.due} tone="terra" />
+    </div>
+  );
+}
 
-function InvoiceCard({
-  invoice,
-  onClick,
+function Pill({
+  label,
+  amount,
+  tone,
 }: {
-  invoice: Invoice;
-  onClick: () => void;
+  label: string;
+  amount: number;
+  tone: "neutral" | "forest" | "terra";
 }) {
-  const badge = INVOICE_STATUS[invoice.status] ?? { cls: "bg-stone/20 text-charcoal", label: invoice.status };
+  const cls =
+    tone === "forest"
+      ? "bg-forest/10 text-forest border-forest/30"
+      : tone === "terra"
+      ? "bg-terra/10 text-terra border-terra/30"
+      : "bg-cream text-charcoal border-stone";
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${cls}`}>
+      {label} ₹{amount.toLocaleString("en-IN")}
+    </span>
+  );
+}
+
+function DraftPreview({
+  template,
+  row,
+  month,
+}: {
+  template: string;
+  row: Row;
+  month: string;
+}) {
+  const draft = useMemo(() => buildDraft(template, row, month), [template, row, month]);
+  return (
+    <pre className="whitespace-pre-wrap text-xs text-charcoal bg-cream/60 border border-stone/40 rounded-xl p-3 font-sans">
+      {draft}
+    </pre>
+  );
+}
+
+function SendWhatsAppButton({
+  row,
+  onSend,
+}: {
+  row: Row;
+  onSend: () => void;
+}) {
+  const disabled = !row.phone_number;
   return (
     <button
-      onClick={onClick}
-      className="w-full text-left bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 hover:border-forest/40 transition-colors"
+      onClick={onSend}
+      disabled={disabled}
+      title={disabled ? "No phone on file." : undefined}
+      className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium border ${
+        disabled
+          ? "border-stone text-stone cursor-not-allowed"
+          : "bg-forest text-offwhite border-forest hover:bg-garden"
+      }`}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-forest/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <FileText size={18} className="text-forest" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-charcoal">{invoice.customer_name ?? "Customer"}</p>
-            <p className="text-xs text-sage">{invoice.invoice_number} · {formatDate(invoice.created_at.split("T")[0])}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="text-right">
-            <p className="text-sm font-semibold text-charcoal">₹{invoice.total.toLocaleString("en-IN")}</p>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${badge.cls}`}>{badge.label}</span>
-          </div>
-          <ChevronRight size={16} className="text-stone" />
-        </div>
-      </div>
+      <Send size={12} /> Send WhatsApp
     </button>
   );
 }
 
-function Section({
-  title,
-  count,
-  children,
+function DesktopRow({
+  row,
+  template,
+  month,
+  isAdmin,
+  error,
+  isDraftOpen,
+  onToggleDraft,
+  onAmountSave,
+  onPaidToggle,
+  onSendWa,
 }: {
-  title: string;
-  count: number;
-  children: React.ReactNode;
+  row: Row;
+  template: string;
+  month: string;
+  isAdmin: boolean;
+  error?: string;
+  isDraftOpen: boolean;
+  onToggleDraft: () => void;
+  onAmountSave: (v: string) => void;
+  onPaidToggle: (b: boolean) => void;
+  onSendWa: () => void;
 }) {
+  const [amount, setAmount] = useState(String(row.amount_inr));
+  useEffect(() => {
+    setAmount(String(row.amount_inr));
+  }, [row.amount_inr]);
+
   return (
-    <div>
-      <p className="text-xs font-medium text-sage uppercase tracking-widest mb-2">
-        {title} ({count})
-      </p>
-      <div className="space-y-2">{children}</div>
+    <>
+      <tr className="border-t border-stone/40 align-top">
+        <td className="px-3 py-3 text-charcoal font-medium">{row.customer_name}</td>
+        <td className="px-3 py-3 text-charcoal">{row.plan_name}</td>
+        <td className="px-3 py-3 text-right text-charcoal tabular-nums">
+          ₹{row.plan_price.toLocaleString("en-IN")}
+        </td>
+        <td className="px-3 py-3 text-charcoal">
+          {formatPlanFrequency(row.visit_frequency)}
+        </td>
+        <td className="px-3 py-3 w-[120px]">
+          <input
+            type="number"
+            min={0}
+            step={1}
+            disabled={!isAdmin}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            onBlur={() => onAmountSave(amount)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            className={`${inputCls} ${!isAdmin ? "opacity-60" : ""}`}
+          />
+        </td>
+        <td className="px-3 py-3">
+          <button
+            onClick={onToggleDraft}
+            className="inline-flex items-center gap-1 text-xs text-charcoal hover:text-forest"
+          >
+            Preview {isDraftOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+        </td>
+        <td className="px-3 py-3">
+          <SendWhatsAppButton row={row} onSend={onSendWa} />
+          {row.last_reminder_sent_at && (
+            <p className="text-[10px] text-sage mt-1">
+              Sent {formatDate(row.last_reminder_sent_at.slice(0, 10))}
+            </p>
+          )}
+        </td>
+        <td className="px-3 py-3">
+          <label className={`inline-flex items-center gap-2 ${isAdmin ? "" : "opacity-60"}`}>
+            <input
+              type="checkbox"
+              checked={row.is_paid}
+              disabled={!isAdmin}
+              onChange={(e) => onPaidToggle(e.target.checked)}
+              className="w-4 h-4 accent-forest"
+            />
+            <span className="text-xs text-charcoal">Paid</span>
+          </label>
+          {row.is_paid && row.paid_at && (
+            <p className="text-[10px] text-sage mt-1">
+              {formatDate(row.paid_at.slice(0, 10))}
+            </p>
+          )}
+        </td>
+      </tr>
+      {isDraftOpen && (
+        <tr className="bg-cream/50">
+          <td colSpan={8} className="px-3 py-3">
+            <DraftPreview template={template} row={row} month={month} />
+          </td>
+        </tr>
+      )}
+      {error && (
+        <tr>
+          <td colSpan={8} className="px-3 pb-2">
+            <p className="text-xs text-terra">{error}</p>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function MobileRow({
+  row,
+  template,
+  month,
+  isAdmin,
+  error,
+  isDraftOpen,
+  onToggleDraft,
+  onAmountSave,
+  onPaidToggle,
+  onSendWa,
+}: {
+  row: Row;
+  template: string;
+  month: string;
+  isAdmin: boolean;
+  error?: string;
+  isDraftOpen: boolean;
+  onToggleDraft: () => void;
+  onAmountSave: (v: string) => void;
+  onPaidToggle: (b: boolean) => void;
+  onSendWa: () => void;
+}) {
+  const [amount, setAmount] = useState(String(row.amount_inr));
+  useEffect(() => {
+    setAmount(String(row.amount_inr));
+  }, [row.amount_inr]);
+
+  return (
+    <div className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-charcoal text-sm">{row.customer_name}</p>
+          <p className="text-xs text-sage">
+            {row.plan_name} · ₹{row.plan_price.toLocaleString("en-IN")} ·{" "}
+            {formatPlanFrequency(row.visit_frequency)}
+          </p>
+        </div>
+        <label className={`flex items-center gap-1.5 ${isAdmin ? "" : "opacity-60"}`}>
+          <input
+            type="checkbox"
+            checked={row.is_paid}
+            disabled={!isAdmin}
+            onChange={(e) => onPaidToggle(e.target.checked)}
+            className="w-4 h-4 accent-forest"
+          />
+          <span className="text-xs text-charcoal">Paid</span>
+        </label>
+      </div>
+
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <label className="block text-[10px] text-sage uppercase tracking-wider mb-1">
+            Invoice
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            disabled={!isAdmin}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            onBlur={() => onAmountSave(amount)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+            className={`${inputCls} ${!isAdmin ? "opacity-60" : ""}`}
+          />
+        </div>
+        {row.is_paid && row.paid_at && (
+          <p className="text-[10px] text-sage pb-2">
+            Paid {formatDate(row.paid_at.slice(0, 10))}
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={onToggleDraft}
+          className="inline-flex items-center gap-1 text-xs text-charcoal hover:text-forest"
+        >
+          Preview draft{" "}
+          {isDraftOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+        <SendWhatsAppButton row={row} onSend={onSendWa} />
+      </div>
+
+      {isDraftOpen && (
+        <DraftPreview template={template} row={row} month={month} />
+      )}
+
+      {row.last_reminder_sent_at && (
+        <p className="text-[10px] text-sage">
+          Last sent {formatDate(row.last_reminder_sent_at.slice(0, 10))}
+        </p>
+      )}
+
+      {error && <p className="text-xs text-terra">{error}</p>}
+    </div>
+  );
+}
+
+function EditTemplateModal({
+  initial,
+  sampleRow,
+  month,
+  onClose,
+  onSaved,
+}: {
+  initial: string;
+  sampleRow: Row | undefined;
+  month: string;
+  onClose: () => void;
+  onSaved: (next: string) => void;
+}) {
+  const [text, setText] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const previewRow: Row = useMemo(
+    () =>
+      sampleRow ?? {
+        subscription_id: "sample",
+        customer_id: "sample",
+        customer_name: "Rakesh Kumar",
+        phone_number: null,
+        plan_name: "Growth",
+        plan_price: 1099,
+        visit_frequency: "weekly",
+        default_amount_inr: 2199,
+        bill_id: null,
+        amount_inr: 2199,
+        is_paid: false,
+        paid_at: null,
+        last_reminder_sent_at: null,
+      },
+    [sampleRow]
+  );
+
+  const preview = useMemo(
+    () => buildDraft(text, previewRow, month),
+    [text, previewRow, month]
+  );
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ops/system-config/billing-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template: text }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Failed to save");
+        setSaving(false);
+        return;
+      }
+      onSaved(json.data?.template ?? text);
+    } catch {
+      setError("Network error");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-50 pb-20 md:pb-0 px-4">
+      <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[560px] p-6 max-h-[85vh] overflow-y-auto mb-16 md:mb-0">
+        <h2
+          className="text-lg text-charcoal mb-4"
+          style={{ fontFamily: "var(--font-cormorant, serif)", fontWeight: 500 }}
+        >
+          Edit WhatsApp template
+        </h2>
+
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={10}
+          className="w-full px-3 py-2 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest font-mono"
+        />
+
+        <div className="mt-3">
+          <p className="text-[10px] text-sage uppercase tracking-wider mb-1">
+            Tokens
+          </p>
+          <ul className="text-xs text-charcoal space-y-0.5">
+            {BILLING_TEMPLATE_TOKEN_HELP.map((t) => (
+              <li key={t.token}>
+                <code className="bg-cream px-1 rounded">{`{${t.token}}`}</code>{" "}
+                — {t.description}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-4">
+          <p className="text-[10px] text-sage uppercase tracking-wider mb-1">
+            Preview
+          </p>
+          <pre className="whitespace-pre-wrap text-xs text-charcoal bg-cream/60 border border-stone/40 rounded-xl p-3 font-sans">
+            {preview}
+          </pre>
+        </div>
+
+        {error && <p className="text-sm text-terra mt-3">{error}</p>}
+
+        <div className="flex gap-3 pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-cream"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+            className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
