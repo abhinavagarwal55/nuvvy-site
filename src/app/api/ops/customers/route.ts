@@ -40,20 +40,25 @@ export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest
   const { data, error } = await ctx.trackQuery(async () => await query);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Round 2: care schedules + slots in parallel (only for active customers)
+  // Round 2: care schedules + slots + photos in parallel (only for active customers)
   const activeIds = (data ?? []).filter((c) => c.status === "ACTIVE").map((c) => c.id);
-  let careScheduleMap: Record<string, number> = {};
-  let slotMap: Record<string, boolean> = {};
+  const careScheduleMap: Record<string, number> = {};
+  const slotMap: Record<string, boolean> = {};
+  const photoMap: Record<string, boolean> = {};
   if (activeIds.length > 0) {
-    const [{ data: careCounts }, { data: slots }] = await ctx.trackQuery(async () => Promise.all([
+    const [{ data: careCounts }, { data: slots }, { data: photos }] = await ctx.trackQuery(async () => Promise.all([
       supabase.from("customer_care_schedules").select("customer_id").in("customer_id", activeIds),
       supabase.from("service_slots").select("customer_id").in("customer_id", activeIds).eq("is_active", true),
+      supabase.from("customer_photos").select("customer_id").in("customer_id", activeIds),
     ]));
     for (const row of careCounts ?? []) {
       careScheduleMap[row.customer_id] = (careScheduleMap[row.customer_id] ?? 0) + 1;
     }
     for (const row of slots ?? []) {
       slotMap[row.customer_id] = true;
+    }
+    for (const row of photos ?? []) {
+      photoMap[row.customer_id] = true;
     }
   }
 
@@ -72,6 +77,7 @@ export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest
       society_name: societyObj?.name ?? null,
       has_care_schedules: c.status === "ACTIVE" ? (careScheduleMap[c.id] ?? 0) > 0 : null,
       has_slot: c.status === "ACTIVE" ? slotMap[c.id] ?? false : null,
+      has_photos: c.status === "ACTIVE" ? photoMap[c.id] ?? false : null,
     };
   });
 

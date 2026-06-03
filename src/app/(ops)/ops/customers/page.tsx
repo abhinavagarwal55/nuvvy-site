@@ -17,6 +17,7 @@ type Customer = {
   plant_count_range: string | null;
   has_care_schedules: boolean | null;
   has_slot: boolean | null;
+  has_photos: boolean | null;
   created_at: string;
 };
 
@@ -227,6 +228,9 @@ function CustomerCard({ customer, onDeleted }: { customer: Customer; onDeleted?:
             )}
             {customer.has_care_schedules === false && (
               <span className="text-terra font-medium">Care schedules needed</span>
+            )}
+            {customer.has_photos === false && (
+              <span className="text-terra font-medium">Photos needed</span>
             )}
           </div>
         </div>

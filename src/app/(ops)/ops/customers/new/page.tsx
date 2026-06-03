@@ -313,7 +313,7 @@ function OnboardingWizardInner() {
       case 1:
         return true; // garden details are optional
       case 2:
-        return photos.length >= 1; // at least 1 onboarding photo required
+        return true; // photos optional
       case 3:
         return draft.plan_id !== "";
       case 4:
@@ -705,10 +705,10 @@ function Step3ObservationsAndCare({
       {/* Photos */}
       <div>
         <p className="text-sm font-medium text-charcoal mb-1">
-          Garden photos <span className="text-terra">*</span>
+          Garden photos <span className="text-sage text-[10px] font-normal">(optional but recommended)</span>
         </p>
         <p className="text-xs text-sage mb-3">
-          Upload 1–3 photos of the customer&apos;s garden. At least 1 is required.
+          Upload up to 3 photos of the customer&apos;s garden. You can add them later from the customer page.
         </p>
 
         {!customerId && (
@@ -721,9 +721,6 @@ function Step3ObservationsAndCare({
           <>
             <p className="text-sm text-charcoal mb-2">
               {photos.length}/3 photo{photos.length !== 1 ? "s" : ""} uploaded
-              {photos.length === 0 && (
-                <span className="text-terra ml-1">(min 1 required)</span>
-              )}
             </p>
 
             {photos.length > 0 && (

@@ -195,6 +195,14 @@ export default function Customer360Page() {
   );
   const { data: roleData } = useSWR("/api/ops/people/me/role", fetcher);
   const { data: societiesData } = useSWR("/api/ops/societies", fetcher);
+  const { data: customerPhotosData } = useSWR(
+    `/api/ops/customers/${customerId}/photos`,
+    fetcher
+  );
+  const customerPhotoCount: number | null =
+    customerPhotosData?.data == null
+      ? null
+      : (customerPhotosData.data as unknown[]).length;
 
   const customer: CustomerDetail | null = custData?.data ?? null;
   const services: Service[] = svcData?.data ?? [];
@@ -339,6 +347,23 @@ export default function Customer360Page() {
       </div>
 
       <div className="px-4 pt-4 space-y-4">
+        {customerPhotoCount === 0 && (
+          <div className="bg-terra/10 border border-terra/30 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-terra">
+              <Camera size={16} />
+              <span>No garden photos uploaded yet.</span>
+            </div>
+            <button
+              onClick={() => {
+                setShowEdit(true);
+                setTab("overview");
+              }}
+              className="text-xs text-terra font-medium hover:underline whitespace-nowrap"
+            >
+              Add photos →
+            </button>
+          </div>
+        )}
         {tab === "overview" && !showEdit && (
           <OverviewTab customer={customer} customerId={customerId} />
         )}
