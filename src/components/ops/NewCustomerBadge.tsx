@@ -11,7 +11,7 @@ export function NewCustomerBadge({ createdAt }: { createdAt: string | null | und
   if (!isNewCustomer(createdAt)) return null;
   return (
     <span
-      className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-forest/10 text-forest border border-forest/20"
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-400 text-charcoal shadow-sm"
       title="Onboarded in the last 30 days"
     >
       New
