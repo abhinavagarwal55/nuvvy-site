@@ -30,6 +30,7 @@ type SubscriptionRow = {
     id: string;
     name: string;
     phone_number: string | null;
+    created_at: string | null;
   } | null;
   service_plans: {
     id: string;
@@ -93,7 +94,7 @@ export async function PUT(
         plan_id,
         status,
         override_price,
-        customers!inner ( id, name, phone_number ),
+        customers!inner ( id, name, phone_number, created_at ),
         service_plans!inner ( id, name, price, visit_frequency )
       `
     )
@@ -266,6 +267,7 @@ export async function PUT(
     subscription_id,
     customer_id: sub.customer_id,
     customer_name: sub.customers.name,
+    customer_created_at: sub.customers.created_at,
     phone_number: sub.customers.phone_number,
     plan_name: sub.service_plans.name,
     plan_price: Math.round(Number(sub.service_plans.price)),

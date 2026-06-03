@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { usePerf } from "@/lib/perf/use-perf";
+import { NewCustomerBadge } from "@/components/ops/NewCustomerBadge";
 
 type Customer = {
   id: string;
@@ -207,6 +208,7 @@ function CustomerCard({ customer, onDeleted }: { customer: Customer; onDeleted?:
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-0.5">
             <p className="font-medium text-charcoal truncate">{customer.name}</p>
+            <NewCustomerBadge createdAt={customer.created_at} />
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>
               {badge.label}
             </span>

@@ -19,11 +19,13 @@ import {
   formatPlanFrequency,
   renderBillingTemplate,
 } from "@/lib/billing/template";
+import { NewCustomerBadge } from "@/components/ops/NewCustomerBadge";
 
 type Row = {
   subscription_id: string;
   customer_id: string;
   customer_name: string;
+  customer_created_at: string | null;
   phone_number: string | null;
   plan_name: string;
   plan_price: number;
@@ -506,7 +508,12 @@ function DesktopRow({
   return (
     <>
       <tr className="border-t border-stone/40 align-top">
-        <td className="px-3 py-3 text-charcoal font-medium">{row.customer_name}</td>
+        <td className="px-3 py-3 text-charcoal font-medium">
+          <span className="inline-flex items-center gap-2">
+            {row.customer_name}
+            <NewCustomerBadge createdAt={row.customer_created_at} />
+          </span>
+        </td>
         <td className="px-3 py-3 text-charcoal">{row.plan_name}</td>
         <td className="px-3 py-3 text-right text-charcoal tabular-nums">
           ₹{row.plan_price.toLocaleString("en-IN")}
@@ -613,7 +620,10 @@ function MobileRow({
     <div className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="font-medium text-charcoal text-sm">{row.customer_name}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-charcoal text-sm">{row.customer_name}</p>
+            <NewCustomerBadge createdAt={row.customer_created_at} />
+          </div>
           <p className="text-xs text-sage">
             {row.plan_name} · ₹{row.plan_price.toLocaleString("en-IN")} ·{" "}
             {formatPlanFrequency(row.visit_frequency)}
@@ -706,6 +716,7 @@ function EditTemplateModal({
         subscription_id: "sample",
         customer_id: "sample",
         customer_name: "Rakesh Kumar",
+        customer_created_at: null,
         phone_number: null,
         plan_name: "Growth",
         plan_price: 1099,

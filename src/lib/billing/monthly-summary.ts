@@ -5,6 +5,7 @@ export type BillingRow = {
   subscription_id: string;
   customer_id: string;
   customer_name: string;
+  customer_created_at: string | null;
   phone_number: string | null;
   plan_name: string;
   plan_price: number;
@@ -34,6 +35,7 @@ type SubscriptionJoin = {
     id: string;
     name: string;
     phone_number: string | null;
+    created_at: string | null;
   } | null;
   service_plans: {
     id: string;
@@ -67,7 +69,7 @@ export async function getMonthlyBillingSummary(
         override_price,
         start_date,
         end_date,
-        customers!inner ( id, name, phone_number ),
+        customers!inner ( id, name, phone_number, created_at ),
         service_plans!inner ( id, name, price, visit_frequency )
       `
     )
@@ -111,6 +113,7 @@ export async function getMonthlyBillingSummary(
         subscription_id: s.id,
         customer_id: s.customer_id,
         customer_name: customer.name,
+        customer_created_at: customer.created_at,
         phone_number: customer.phone_number,
         plan_name: plan.name,
         plan_price: Math.round(Number(plan.price)),
