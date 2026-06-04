@@ -5,6 +5,7 @@ import { withPerfLog } from "@/lib/perf/with-perf-log";
 import { PerfContext } from "@/lib/perf/perf-context";
 import { currentMonthKey, formatMonthLabel } from "@/lib/billing/template";
 import { getMonthlyBillingSummary } from "@/lib/billing/monthly-summary";
+import { getLeadFollowUps } from "@/lib/services/leads";
 
 // GET /api/ops/dashboard/admin
 export const GET = withPerfLog('/api/ops/dashboard/admin', async (request: NextRequest, ctx: PerfContext) => {
@@ -48,6 +49,10 @@ export const GET = withPerfLog('/api/ops/dashboard/admin', async (request: NextR
       .in("status", ["open", "in_progress"]),
     getMonthlyBillingSummary(supabase, monthKey).catch(() => null),
   ]));
+
+  const leadFollowUps = await ctx.trackQuery(async () =>
+    getLeadFollowUps(supabase).catch(() => ({ overdue_count: 0, today_count: 0, items: [] }))
+  );
 
   // Compute service counts
   const svcByStatus: Record<string, number> = {};
@@ -103,6 +108,7 @@ export const GET = withPerfLog('/api/ops/dashboard/admin', async (request: NextR
         },
       },
       open_requests: openRequests ?? 0,
+      lead_follow_ups: leadFollowUps,
     },
   });
 });

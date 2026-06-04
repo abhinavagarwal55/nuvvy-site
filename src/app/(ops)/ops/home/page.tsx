@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { usePerf } from "@/lib/perf/use-perf";
+import LeadFollowUpCard, { type LeadFollowUpsData } from "@/components/ops/leads/LeadFollowUpCard";
 
 type AdminDashboard = {
   active_customers: number;
@@ -34,6 +35,7 @@ type AdminDashboard = {
     };
   };
   open_requests: number;
+  lead_follow_ups?: LeadFollowUpsData;
 };
 
 type HortiDashboard = {
@@ -41,6 +43,7 @@ type HortiDashboard = {
   open_requests: number;
   week_services_count: number;
   care_actions_due_this_week: { name: string; count: number }[];
+  lead_follow_ups?: LeadFollowUpsData;
 };
 
 const CARE_LABELS: Record<string, string> = {
@@ -278,6 +281,9 @@ function AdminView({ data }: { data: AdminDashboard }) {
         )}
       </div>
 
+      {/* Lead follow-ups */}
+      {data.lead_follow_ups && <LeadFollowUpCard data={data.lead_follow_ups} />}
+
       {/* Quick links */}
       <QuickLinks />
 
@@ -356,6 +362,9 @@ function HortiView({ data }: { data: HortiDashboard }) {
           </div>
         </div>
       )}
+
+      {/* Lead follow-ups */}
+      {data.lead_follow_ups && <LeadFollowUpCard data={data.lead_follow_ups} />}
 
       {/* This week services */}
       <Link href="/ops/schedule">

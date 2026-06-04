@@ -84,6 +84,9 @@ function OnboardingWizardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const draftId = searchParams.get("draft");
+  // Lead conversion: when present, the first customer-create goes through the
+  // atomic /api/ops/leads/[id]/convert endpoint instead of POST /customers.
+  const fromLead = searchParams.get("from_lead");
 
   const [step, setStep] = useState(0);
   const [customerId, setCustomerId] = useState<string | null>(draftId);
@@ -140,6 +143,22 @@ function OnboardingWizardInner() {
       .catch(() => {});
   }, [draftId]);
 
+  // Pre-fill from a lead conversion (only on a fresh wizard, no existing draft).
+  useEffect(() => {
+    if (!fromLead || draftId) return;
+    const watering = searchParams.get("watering_responsibility");
+    setDraft((prev) => ({
+      ...prev,
+      name: searchParams.get("name") ?? prev.name,
+      phone_number: searchParams.get("phone") ?? prev.phone_number,
+      society_id: searchParams.get("society_id") ?? prev.society_id,
+      plant_count_range: searchParams.get("plant_count_range") ?? prev.plant_count_range,
+      light_condition: searchParams.get("light_condition") ?? prev.light_condition,
+      watering_responsibility: watering ? watering.split(",").filter(Boolean) : prev.watering_responsibility,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromLead, draftId]);
+
   const update = useCallback(
     (field: keyof Draft, value: Draft[keyof Draft]) => {
       setDraft((prev) => ({ ...prev, [field]: value }));
@@ -174,33 +193,40 @@ function OnboardingWizardInner() {
           }),
         });
       } else {
-        // Create new draft
-        const res = await fetch("/api/ops/customers", {
+        // Create new draft. When converting a lead, route through the atomic
+        // convert endpoint so the customer create + lead stamp happen together.
+        const customerPayload = {
+          name: draft.name,
+          phone_number: draft.phone_number,
+          email: draft.email || undefined,
+          address: draft.address || undefined,
+          society_id: draft.society_id || undefined,
+          society_name: draft.society_name || undefined,
+          plant_count_range: draft.plant_count_range || undefined,
+          light_condition: draft.light_condition || undefined,
+          watering_responsibility:
+            draft.watering_responsibility.length > 0
+              ? draft.watering_responsibility
+              : undefined,
+          house_help_phone: draft.house_help_phone || undefined,
+          garden_notes: draft.garden_notes || undefined,
+        };
+        const endpoint = fromLead
+          ? `/api/ops/leads/${fromLead}/convert`
+          : "/api/ops/customers";
+        const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: draft.name,
-            phone_number: draft.phone_number,
-            email: draft.email || undefined,
-            address: draft.address || undefined,
-            society_id: draft.society_id || undefined,
-            society_name: draft.society_name || undefined,
-            plant_count_range: draft.plant_count_range || undefined,
-            light_condition: draft.light_condition || undefined,
-            watering_responsibility:
-              draft.watering_responsibility.length > 0
-                ? draft.watering_responsibility
-                : undefined,
-            house_help_phone: draft.house_help_phone || undefined,
-            garden_notes: draft.garden_notes || undefined,
-          }),
+          body: JSON.stringify(customerPayload),
         });
         const json = await res.json();
         if (!res.ok) {
           setError(json.error);
           return false;
         }
-        setCustomerId(json.data.id);
+        // convert → { data: { customer_id, customer } }; create → { data: { id } }
+        const newId = json.data?.customer_id ?? json.data?.id;
+        setCustomerId(newId);
       }
       return true;
     } catch {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { withPerfLog } from "@/lib/perf/with-perf-log";
 import { PerfContext } from "@/lib/perf/perf-context";
+import { createCustomerSchema, createDraftCustomer } from "@/lib/services/customers";
 
 // GET /api/ops/customers?status=ACTIVE&society_id=xxx&q=search
 export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest, ctx: PerfContext) => {
@@ -84,22 +84,6 @@ export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest
   return NextResponse.json({ data: customers });
 });
 
-const CreateCustomerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  phone_number: z.string().min(1, "Phone number is required"),
-  email: z.string().email().optional().or(z.literal("")),
-  address: z.string().optional(),
-  society_id: z.string().uuid().optional(),
-  society_name: z.string().optional(), // for creating a new society inline
-  plant_count_range: z
-    .enum(["0_20", "20_40", "40_plus"])
-    .optional(),
-  light_condition: z.string().optional(),
-  watering_responsibility: z.array(z.string()).optional(),
-  house_help_phone: z.string().optional(),
-  garden_notes: z.string().optional(),
-});
-
 // POST /api/ops/customers — creates a draft customer
 export async function POST(request: NextRequest) {
   let auth;
@@ -113,7 +97,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const parsed = CreateCustomerSchema.safeParse(body);
+  const parsed = createCustomerSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0].message },
@@ -122,53 +106,10 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getSupabaseAdmin();
-  const d = parsed.data;
-
-  // If society_name provided without society_id, create the society
-  let societyId = d.society_id ?? null;
-  if (!societyId && d.society_name) {
-    // Upsert: find existing or create
-    const { data: existing } = await supabase
-      .from("societies")
-      .select("id")
-      .eq("name", d.society_name)
-      .single();
-
-    if (existing) {
-      societyId = existing.id;
-    } else {
-      const { data: newSociety, error: socErr } = await supabase
-        .from("societies")
-        .insert({ name: d.society_name })
-        .select("id")
-        .single();
-      if (socErr)
-        return NextResponse.json({ error: socErr.message }, { status: 500 });
-      societyId = newSociety.id;
-    }
+  const result = await createDraftCustomer(supabase, parsed.data, auth.userId);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
-  const { data, error } = await supabase
-    .from("customers")
-    .insert({
-      name: d.name,
-      phone_number: d.phone_number,
-      email: d.email || null,
-      address: d.address ?? null,
-      status: "DRAFT",
-      society_id: societyId,
-      plant_count_range: d.plant_count_range ?? null,
-      light_condition: d.light_condition ?? null,
-      watering_responsibility: d.watering_responsibility ?? null,
-      house_help_phone: d.house_help_phone ?? null,
-      garden_notes: d.garden_notes ?? null,
-      created_by: auth.userId,
-    })
-    .select()
-    .single();
-
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
-
-  return NextResponse.json({ data }, { status: 201 });
+  return NextResponse.json({ data: result.customer }, { status: 201 });
 }

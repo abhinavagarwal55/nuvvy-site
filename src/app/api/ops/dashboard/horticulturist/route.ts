@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { withPerfLog } from "@/lib/perf/with-perf-log";
 import { PerfContext } from "@/lib/perf/perf-context";
+import { getLeadFollowUps } from "@/lib/services/leads";
 
 // GET /api/ops/dashboard/horticulturist
 export const GET = withPerfLog('/api/ops/dashboard/horticulturist', async (request: NextRequest, ctx: PerfContext) => {
@@ -83,12 +84,17 @@ export const GET = withPerfLog('/api/ops/dashboard/horticulturist', async (reque
     count,
   }));
 
+  const leadFollowUps = await ctx.trackQuery(async () =>
+    getLeadFollowUps(supabase).catch(() => ({ overdue_count: 0, today_count: 0, items: [] }))
+  );
+
   return NextResponse.json({
     data: {
       unreviewed_services: unreviewedCount ?? 0,
       open_requests: openRequests ?? 0,
       week_services_count: (weekServices ?? []).length,
       care_actions_due_this_week: careActionsDue,
+      lead_follow_ups: leadFollowUps,
     },
   });
 });
