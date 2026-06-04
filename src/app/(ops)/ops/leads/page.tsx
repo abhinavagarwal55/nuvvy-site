@@ -24,8 +24,8 @@ const inputCls =
 type Tab = "follow-up-today" | "active" | "closed";
 
 const TABS: { value: Tab; label: string }[] = [
-  { value: "follow-up-today", label: "Follow up today" },
   { value: "active", label: "Active leads" },
+  { value: "follow-up-today", label: "Follow up today" },
   { value: "closed", label: "Closed" },
 ];
 
@@ -52,9 +52,9 @@ export default function LeadsPage() {
 function LeadsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initialTab = (searchParams.get("tab") as Tab) || "follow-up-today";
+  const initialTab = (searchParams.get("tab") as Tab) || "active";
   const [tab, setTab] = useState<Tab>(
-    TABS.some((t) => t.value === initialTab) ? initialTab : "follow-up-today"
+    TABS.some((t) => t.value === initialTab) ? initialTab : "active"
   );
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
