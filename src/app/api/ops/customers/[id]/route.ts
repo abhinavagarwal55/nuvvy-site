@@ -108,7 +108,11 @@ const UpdateCustomerSchema = z.object({
   watering_responsibility: z.array(z.string()).nullable().optional(),
   house_help_phone: z.string().nullable().optional(),
   garden_notes: z.string().nullable().optional(),
-});
+})
+  // `.strict()` rejects any unknown key. In particular `customer_type` is NOT
+  // editable here — it is set once at create and changed only via the audited
+  // POST /api/ops/customers/[id]/change-type (mirrors how leads reject `state`).
+  .strict();
 
 // PUT /api/ops/customers/[id] — update customer fields (not status)
 export async function PUT(

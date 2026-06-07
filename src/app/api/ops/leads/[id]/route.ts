@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const LEAD_SELECT =
-  "id, phone, name, state, source, society_id, area, qualifiers, notes, next_action, next_action_at, closed_reason, closed_note, closed_at, converted_customer_id, converted_at, first_seen_at, last_touch_at, created_at, updated_at, societies(name)";
+  "id, phone, name, state, source, society_id, area, qualifiers, notes, next_action, next_action_at, intended_customer_type, closed_reason, closed_note, closed_at, converted_customer_id, converted_at, first_seen_at, last_touch_at, created_at, updated_at, societies(name)";
 
 function shapeLead(l: Record<string, unknown>) {
   const societyObj = l.societies as unknown as { name: string } | null;

@@ -7,6 +7,10 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { usePerf } from "@/lib/perf/use-perf";
 import { NewCustomerBadge } from "@/components/ops/NewCustomerBadge";
+import {
+  CUSTOMER_TYPE_LABELS,
+  type CustomerType,
+} from "@/lib/schemas/customer-type";
 
 type Customer = {
   id: string;
@@ -15,11 +19,24 @@ type Customer = {
   status: string;
   society_name: string | null;
   plant_count_range: string | null;
+  customer_type: CustomerType;
   has_care_schedules: boolean | null;
   has_slot: boolean | null;
   has_photos: boolean | null;
   created_at: string;
 };
+
+// Type badge (FD-12) — distinct from the status badge.
+const TYPE_BADGE: Record<CustomerType, string> = {
+  care_plan: "bg-[#EAF2EC] text-forest",
+  plant_only: "bg-stone/30 text-charcoal",
+};
+
+const TYPE_FILTERS: { value: string; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "care_plan", label: CUSTOMER_TYPE_LABELS.care_plan },
+  { value: "plant_only", label: CUSTOMER_TYPE_LABELS.plant_only },
+];
 
 const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
   DRAFT: { cls: "bg-stone/30 text-charcoal", label: "Draft" },
@@ -59,6 +76,7 @@ function SkeletonCard() {
 export default function CustomersPage() {
   const perfFetcher = usePerf('/api/ops/customers', '/ops/customers');
   const [statusFilter, setStatusFilter] = useState("ACTIVE");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
 
@@ -68,6 +86,8 @@ export default function CustomersPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Fetch by status + search only (not type) so we can show a count per type
+  // chip and filter by type client-side. Type stays orthogonal to status.
   const swrKey = useMemo(() => {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
@@ -77,7 +97,22 @@ export default function CustomersPage() {
   }, [statusFilter, searchDebounced]);
 
   const { data, isLoading, mutate } = useSWR(swrKey, perfFetcher);
-  const customers: Customer[] = data?.data ?? [];
+  const allCustomers: Customer[] = data?.data ?? [];
+
+  // Counts per type for the current status/search set (drives the chip badges).
+  const typeCounts = useMemo(
+    () => ({
+      all: allCustomers.length,
+      care_plan: allCustomers.filter((c) => c.customer_type === "care_plan").length,
+      plant_only: allCustomers.filter((c) => c.customer_type === "plant_only").length,
+    }),
+    [allCustomers]
+  );
+
+  const customers =
+    typeFilter === "all"
+      ? allCustomers
+      : allCustomers.filter((c) => c.customer_type === typeFilter);
 
   const byName = (a: Customer, b: Customer) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -119,7 +154,10 @@ export default function CustomersPage() {
         </div>
 
         {/* Status filter tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-[10px] font-medium text-sage uppercase tracking-widest w-12 flex-shrink-0">
+            Status
+          </span>
           {["all", "ACTIVE", "DRAFT", "INACTIVE"].map((s) => (
             <button
               key={s}
@@ -133,6 +171,37 @@ export default function CustomersPage() {
               {s === "all" ? "All" : STATUS_BADGE[s]?.label ?? s}
             </button>
           ))}
+        </div>
+
+        {/* Type segmented filter — orthogonal to status (cohort, not lifecycle) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 mt-2">
+          <span className="text-[10px] font-medium text-sage uppercase tracking-widest w-12 flex-shrink-0">
+            Type
+          </span>
+          {TYPE_FILTERS.map((t) => {
+            const count = typeCounts[t.value as keyof typeof typeCounts] ?? 0;
+            const selected = typeFilter === t.value;
+            return (
+              <button
+                key={t.value}
+                onClick={() => setTypeFilter(t.value)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
+                  selected
+                    ? "bg-forest text-offwhite border-forest"
+                    : "bg-cream text-charcoal border-stone"
+                }`}
+              >
+                {t.label}
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                    selected ? "bg-offwhite/25 text-offwhite" : "bg-stone/40 text-charcoal"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -213,6 +282,9 @@ function CustomerCard({ customer, onDeleted }: { customer: Customer; onDeleted?:
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>
               {badge.label}
             </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_BADGE[customer.customer_type] ?? ""}`}>
+              {CUSTOMER_TYPE_LABELS[customer.customer_type] ?? customer.customer_type}
+            </span>
           </div>
           <div className="flex flex-wrap gap-x-3 text-xs text-sage">
             {customer.phone_number && <span>{customer.phone_number}</span>}
@@ -223,13 +295,14 @@ function CustomerCard({ customer, onDeleted }: { customer: Customer; onDeleted?:
                   customer.plant_count_range}
               </span>
             )}
-            {customer.has_slot === false && (
+            {/* Care-only warnings — meaningless for plant_only (no slot/care). */}
+            {customer.customer_type !== "plant_only" && customer.has_slot === false && (
               <span className="text-terra font-medium">Slot needed</span>
             )}
-            {customer.has_care_schedules === false && (
+            {customer.customer_type !== "plant_only" && customer.has_care_schedules === false && (
               <span className="text-terra font-medium">Care schedules needed</span>
             )}
-            {customer.has_photos === false && (
+            {customer.customer_type !== "plant_only" && customer.has_photos === false && (
               <span className="text-terra font-medium">Photos needed</span>
             )}
           </div>

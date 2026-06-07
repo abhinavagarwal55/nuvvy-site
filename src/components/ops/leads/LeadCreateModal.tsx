@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { X, ExternalLink } from "lucide-react";
-import { SOURCE_OPTIONS } from "./leadConstants";
+import { SOURCE_OPTIONS, INTENDED_TYPE_OPTIONS } from "./leadConstants";
 
 const inputCls =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest placeholder:text-stone";
@@ -33,6 +33,7 @@ export default function LeadCreateModal({
   const [phone, setPhone] = useState(initialPhone);
   const [name, setName] = useState(initialName);
   const [source, setSource] = useState("");
+  const [intendedType, setIntendedType] = useState("");
   const [societyId, setSocietyId] = useState("");
   const [newSociety, setNewSociety] = useState("");
   const [area, setArea] = useState("");
@@ -58,6 +59,7 @@ export default function LeadCreateModal({
       phone,
       name: name || undefined,
       source: source || undefined,
+      intended_customer_type: intendedType || undefined,
       society_id: resolvedSocietyId || undefined,
       area: area || undefined,
       notes: notes || undefined,
@@ -236,14 +238,24 @@ export default function LeadCreateModal({
             <label className={labelCls}>Name <span className="text-sage text-[10px]">(optional)</span></label>
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
           </div>
-          <div>
-            <label className={labelCls}>Source <span className="text-sage text-[10px]">(optional)</span></label>
-            <select className={inputCls} value={source} onChange={(e) => setSource(e.target.value)}>
-              <option value="">—</option>
-              {SOURCE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Source <span className="text-sage text-[10px]">(optional)</span></label>
+              <select className={inputCls} value={source} onChange={(e) => setSource(e.target.value)}>
+                <option value="">—</option>
+                {SOURCE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Converting to <span className="text-sage text-[10px]">(optional)</span></label>
+              <select className={inputCls} value={intendedType} onChange={(e) => setIntendedType(e.target.value)}>
+                {INTENDED_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

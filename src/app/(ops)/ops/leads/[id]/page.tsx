@@ -11,7 +11,8 @@ import { formatDate } from "@/lib/utils/format-date";
 import CloseLeadModal from "@/components/ops/leads/CloseLeadModal";
 import {
   SOURCE_OPTIONS, SOURCE_LABELS, STATE_LABELS, CLOSED_REASON_LABELS,
-  PLANT_RANGE_LABELS, formatTimestamp, relativeTime, historyVerb, waDigits,
+  PLANT_RANGE_LABELS, INTENDED_TYPE_OPTIONS, CUSTOMER_TYPE_LABELS,
+  formatTimestamp, relativeTime, historyVerb, waDigits,
   type LeadListItem, type LeadHistoryEvent,
 } from "@/components/ops/leads/leadConstants";
 import type { LeadClosedReason } from "@/lib/schemas/lead.schema";
@@ -75,6 +76,9 @@ export default function LeadDetailPage() {
     const q = lead.qualifiers ?? {};
     const p = new URLSearchParams();
     p.set("from_lead", lead.id);
+    // Land the wizard on the right step list. Null intended type → care_plan
+    // (the historical default); the operator can still change it on step 0.
+    p.set("customer_type", lead.intended_customer_type ?? "care_plan");
     if (lead.name) p.set("name", lead.name);
     p.set("phone", lead.phone);
     if (lead.society_id) p.set("society_id", lead.society_id);
@@ -138,6 +142,11 @@ export default function LeadDetailPage() {
             <MessageCircle size={12} /> {lead.phone}
           </a>
           {lead.source && <span className="px-2 py-0.5 rounded-full bg-cream border border-stone/60 text-charcoal">{SOURCE_LABELS[lead.source]}</span>}
+          {lead.intended_customer_type && (
+            <span className="px-2 py-0.5 rounded-full bg-forest/10 text-forest">
+              → {CUSTOMER_TYPE_LABELS[lead.intended_customer_type]}
+            </span>
+          )}
           {(lead.society_name || lead.area) && <span>{lead.society_name ?? lead.area}</span>}
           <span>Lead since {formatDate((lead.created_at || "").split("T")[0])}</span>
         </div>
@@ -319,6 +328,7 @@ function EditDetails({ lead, onClose, onSaved }: { lead: LeadListItem; onClose: 
 
   const [name, setName] = useState(lead.name ?? "");
   const [source, setSource] = useState(lead.source ?? "");
+  const [intendedType, setIntendedType] = useState<string>(lead.intended_customer_type ?? "");
   const [societyId, setSocietyId] = useState(lead.society_id ?? "");
   const [newSociety, setNewSociety] = useState("");
   const [area, setArea] = useState(lead.area ?? "");
@@ -349,7 +359,7 @@ function EditDetails({ lead, onClose, onSaved }: { lead: LeadListItem; onClose: 
         watering_responsibility: watering.length ? watering : undefined };
       const res = await fetch(`/api/ops/leads/${lead.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name || null, source: source || null, society_id: finalSociety || null, area: area || null, qualifiers }),
+        body: JSON.stringify({ name: name || null, source: source || null, intended_customer_type: intendedType || null, society_id: finalSociety || null, area: area || null, qualifiers }),
       });
       const j = await res.json();
       if (!res.ok) { setError(j.error ?? "Failed to save"); return; }
@@ -370,6 +380,12 @@ function EditDetails({ lead, onClose, onSaved }: { lead: LeadListItem; onClose: 
           <select className={inputCls} value={source} onChange={(e) => setSource(e.target.value)}>
             <option value="">—</option>
             {SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Converting to</label>
+          <select className={inputCls} value={intendedType} onChange={(e) => setIntendedType(e.target.value)}>
+            {INTENDED_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div>

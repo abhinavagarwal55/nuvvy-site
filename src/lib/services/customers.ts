@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { customerTypeSchema } from "@/lib/schemas/customer-type";
 
 /**
  * Shared customer-create logic. The source of truth for the customer-create
@@ -22,6 +23,9 @@ export const createCustomerSchema = z.object({
   watering_responsibility: z.array(z.string()).optional(),
   house_help_phone: z.string().optional(),
   garden_notes: z.string().optional(),
+  // care_plan is the superset (and the historical default). Set once at create;
+  // changed only via the audited POST /api/ops/customers/[id]/change-type.
+  customer_type: customerTypeSchema.default("care_plan"),
 });
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
@@ -76,6 +80,7 @@ export async function createDraftCustomer(
       watering_responsibility: input.watering_responsibility ?? null,
       house_help_phone: input.house_help_phone ?? null,
       garden_notes: input.garden_notes ?? null,
+      customer_type: input.customer_type,
       created_by: createdBy,
     })
     .select()

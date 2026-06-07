@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("leads")
     .select(
-      "id, phone, name, state, source, society_id, area, qualifiers, notes, next_action, next_action_at, closed_reason, closed_note, closed_at, converted_customer_id, converted_at, first_seen_at, last_touch_at, created_at, updated_at, societies(name)",
+      "id, phone, name, state, source, society_id, area, qualifiers, notes, next_action, next_action_at, intended_customer_type, closed_reason, closed_note, closed_at, converted_customer_id, converted_at, first_seen_at, last_touch_at, created_at, updated_at, societies(name)",
       { count: "exact" }
     )
     .order("last_touch_at", { ascending: false, nullsFirst: false })
@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
       qualifiers: d.qualifiers ?? {},
       next_action: d.next_action ?? null,
       next_action_at: d.next_action_at || null,
+      intended_customer_type: d.intended_customer_type ?? null,
     })
     .select()
     .single();

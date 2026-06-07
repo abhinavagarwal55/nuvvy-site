@@ -42,21 +42,15 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
-  const parsed = ActivateSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0].message },
-      { status: 400 }
-    );
-  }
 
   const supabase = getSupabaseAdmin();
-  const { plan_id, slot, care_anchors } = parsed.data;
+  const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || null;
+  const userAgent = request.headers.get("user-agent") || null;
 
-  // Verify customer exists and is in DRAFT status
+  // Load the customer first — its customer_type decides the activation path.
   const { data: customer, error: custErr } = await supabase
     .from("customers")
-    .select("id, status")
+    .select("id, status, customer_type")
     .eq("id", id)
     .single();
 
@@ -69,6 +63,46 @@ export async function POST(
       { status: 400 }
     );
   }
+
+  // ── plant_only: lightweight activation ──────────────────────────────────────
+  // No plan, slot, visits, or care schedules. No plan-centric email. Just flip
+  // DRAFT → ACTIVE. (PRD §4 / §6 — FD-8.)
+  if (customer.customer_type === "plant_only") {
+    const { error: activateErr } = await supabase
+      .from("customers")
+      .update({ status: "ACTIVE" })
+      .eq("id", id);
+
+    if (activateErr) {
+      return NextResponse.json({ error: activateErr.message }, { status: 500 });
+    }
+
+    logAuditEvent({
+      actorId: auth.userId,
+      actorRole: auth.role,
+      action: "customer.activated",
+      targetTable: "customers",
+      targetId: id,
+      metadata: { customer_type: "plant_only" },
+      ip,
+      userAgent,
+    });
+
+    return NextResponse.json({
+      data: { customer_id: id, customer_type: "plant_only" },
+    });
+  }
+
+  // ── care_plan: full activation (unchanged behaviour) ────────────────────────
+  const parsed = ActivateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0].message },
+      { status: 400 }
+    );
+  }
+
+  const { plan_id, slot, care_anchors } = parsed.data;
 
   // Verify plan exists and is active
   const { data: plan } = await supabase
@@ -187,16 +221,13 @@ export async function POST(
     return NextResponse.json({ error: activateErr.message }, { status: 500 });
   }
 
-  const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || null;
-  const userAgent = request.headers.get("user-agent") || null;
-
   logAuditEvent({
     actorId: auth.userId,
     actorRole: auth.role,
     action: "customer.activated",
     targetTable: "customers",
     targetId: id,
-    metadata: { plan_id, slot: slot ?? null },
+    metadata: { customer_type: "care_plan", plan_id, slot: slot ?? null },
     ip,
     userAgent,
   });

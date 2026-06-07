@@ -9,6 +9,7 @@ import LeadCreateModal from "@/components/ops/leads/LeadCreateModal";
 import {
   SOURCE_LABELS,
   CLOSED_REASON_LABELS,
+  CUSTOMER_TYPE_LABELS,
   relativeTime,
   isOverdue,
   isDueToday,
@@ -335,6 +336,11 @@ function LeadRow({ lead, onClick }: { lead: LeadListItem; onClick: () => void })
           {lead.source && (
             <span className="px-2 py-0.5 rounded-full bg-cream border border-stone/60 text-charcoal">
               {SOURCE_LABELS[lead.source]}
+            </span>
+          )}
+          {lead.intended_customer_type && (
+            <span className="px-2 py-0.5 rounded-full bg-forest/10 text-forest">
+              → {CUSTOMER_TYPE_LABELS[lead.intended_customer_type]}
             </span>
           )}
           {(lead.society_name || lead.area) && (

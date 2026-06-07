@@ -26,6 +26,7 @@ import {
 import PlantSelector from "@/components/ops/PlantSelector";
 import WhatsAppDraftButton from "@/components/ops/WhatsAppDraftButton";
 import { compressImage } from "@/lib/utils/compress-image";
+import { CUSTOMER_TYPE_LABELS, type CustomerType } from "@/lib/schemas/customer-type";
 import PhotoLightbox from "../../../components/PhotoLightbox";
 
 type CustomerDetail = {
@@ -35,6 +36,7 @@ type CustomerDetail = {
   email: string | null;
   address: string | null;
   status: string;
+  customer_type: CustomerType;
   plant_count_range: string | null;
   light_condition: string | null;
   watering_responsibility: string[] | null;
@@ -90,6 +92,12 @@ const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
   DRAFT: { cls: "bg-stone/30 text-charcoal", label: "Draft" },
   ACTIVE: { cls: "bg-[#EAF2EC] text-forest", label: "Active" },
   INACTIVE: { cls: "bg-stone/30 text-sage", label: "Inactive" },
+};
+
+// Type badge (FD-12) — distinct from the status badge.
+const TYPE_BADGE: Record<CustomerType, string> = {
+  care_plan: "bg-[#EAF2EC] text-forest",
+  plant_only: "bg-stone/30 text-charcoal",
 };
 
 const SERVICE_STATUS_CLS: Record<string, string> = {
@@ -208,7 +216,10 @@ export default function Customer360Page() {
   const services: Service[] = svcData?.data ?? [];
   const requests: CustRequest[] = reqData?.data ?? [];
   const bills: CustBill[] = billData?.data ?? [];
-  const isAdmin = roleData?.data?.role === "admin";
+  const role = roleData?.data?.role;
+  const isAdmin = role === "admin";
+  // admin + horticulturist may change a customer's type (FD-11).
+  const canChangeType = role === "admin" || role === "horticulturist";
   const societies: { id: string; name: string }[] = societiesData?.data ?? [];
 
   const loading = custLoading || svcLoading || reqLoading || billLoading;
@@ -241,6 +252,29 @@ export default function Customer360Page() {
     });
     setActionLoading(false);
     revalidateAll();
+  }
+
+  // Audited label flip (PRD §5.2). Does NOT provision/teardown subscriptions or
+  // visits — for an upgrade, surface the existing care-setup edit tools.
+  async function handleChangeType(to: CustomerType) {
+    setActionLoading(true);
+    const res = await fetch(`/api/ops/customers/${customerId}/change-type`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customer_type: to }),
+    });
+    setActionLoading(false);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(json.error ?? "Failed to change type");
+      return;
+    }
+    mutateCust();
+    // Upgrade → drop the operator into the care-setup tools (plan/slot/care).
+    if (to === "care_plan") {
+      setTab("overview");
+      setShowEdit(true);
+    }
   }
 
   if (loading) {
@@ -296,6 +330,11 @@ export default function Customer360Page() {
                 className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${badge.cls}`}
               >
                 {badge.label}
+              </span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${TYPE_BADGE[customer.customer_type] ?? ""}`}
+              >
+                {CUSTOMER_TYPE_LABELS[customer.customer_type] ?? customer.customer_type}
               </span>
             </div>
           </div>
@@ -406,6 +445,35 @@ export default function Customer360Page() {
           >
             <UserCheck size={14} /> Reactivate Customer
           </button>
+        )}
+
+        {/* Change customer type (admin + horticulturist). Audited label flip. */}
+        {canChangeType && customer.status !== "INACTIVE" && (
+          customer.customer_type === "plant_only" ? (
+            <button
+              onClick={() => handleChangeType("care_plan")}
+              disabled={actionLoading}
+              className="w-full py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40 flex items-center justify-center gap-1.5"
+            >
+              <Leaf size={14} /> Convert to Care Plan subscriber
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (
+                  confirm(
+                    "Change this customer to Plant Order?\n\nThis only changes the label — it does NOT stop existing visits or billing. Use it to fix a mis-classification, not to off-board a live subscriber."
+                  )
+                ) {
+                  handleChangeType("plant_only");
+                }
+              }}
+              disabled={actionLoading}
+              className="w-full py-2 text-xs text-sage hover:text-charcoal disabled:opacity-40 transition-colors"
+            >
+              Change to Plant Order
+            </button>
+          )
         )}
       </div>
 

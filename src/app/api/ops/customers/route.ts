@@ -4,6 +4,7 @@ import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { withPerfLog } from "@/lib/perf/with-perf-log";
 import { PerfContext } from "@/lib/perf/perf-context";
 import { createCustomerSchema, createDraftCustomer } from "@/lib/services/customers";
+import { CUSTOMER_TYPES } from "@/lib/schemas/customer-type";
 
 // GET /api/ops/customers?status=ACTIVE&society_id=xxx&q=search
 export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest, ctx: PerfContext) => {
@@ -22,6 +23,7 @@ export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest
   const status = searchParams.get("status");
   const societyId = searchParams.get("society_id");
   const q = searchParams.get("q");
+  const customerType = searchParams.get("customer_type");
 
   const supabase = getSupabaseAdmin();
 
@@ -29,12 +31,16 @@ export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest
   let query = supabase
     .from("customers")
     .select(
-      "id, name, phone_number, address, status, society_id, plant_count_range, created_at, updated_at, societies(name)"
+      "id, name, phone_number, address, status, society_id, plant_count_range, customer_type, created_at, updated_at, societies(name)"
     )
     .order("created_at", { ascending: false });
 
   if (status) query = query.eq("status", status);
   if (societyId) query = query.eq("society_id", societyId);
+  // Type filter is orthogonal to status — both can apply.
+  if (customerType && (CUSTOMER_TYPES as readonly string[]).includes(customerType)) {
+    query = query.eq("customer_type", customerType);
+  }
   if (q) query = query.or(`name.ilike.%${q}%,phone_number.ilike.%${q}%`);
 
   const { data, error } = await ctx.trackQuery(async () => await query);
@@ -72,6 +78,7 @@ export const GET = withPerfLog('/api/ops/customers', async (request: NextRequest
       status: c.status,
       society_id: c.society_id,
       plant_count_range: c.plant_count_range,
+      customer_type: c.customer_type,
       created_at: c.created_at,
       updated_at: c.updated_at,
       society_name: societyObj?.name ?? null,

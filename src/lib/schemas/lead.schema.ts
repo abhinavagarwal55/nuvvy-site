@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createCustomerSchema } from "@/lib/services/customers";
+import { customerTypeSchema } from "@/lib/schemas/customer-type";
 
 /**
  * Zod schemas + types for the Leads CRM. Source of truth for what fields exist
@@ -64,6 +65,7 @@ export const createLeadInputSchema = z.object({
   notes: z.string().optional(),
   next_action: z.string().optional(),
   next_action_at: z.string().optional(), // YYYY-MM-DD (date)
+  intended_customer_type: customerTypeSchema.nullable().optional(),
 });
 
 export type CreateLeadInput = z.infer<typeof createLeadInputSchema>;
@@ -92,6 +94,10 @@ export const patchLeadInputSchema = z
     qualifiers: leadQualifiersSchema.optional(),
     next_action: z.string().nullable().optional(),
     next_action_at: z.string().nullable().optional(),
+    // The intended type a lead is converting into. Patchable (unlike `state`):
+    // an operator can set/clear it during qualification. Nullable — a fresh
+    // lead may not know yet.
+    intended_customer_type: customerTypeSchema.nullable().optional(),
   })
   .strict()
   .refine(

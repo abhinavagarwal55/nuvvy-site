@@ -8,6 +8,11 @@ import {
   type LeadClosedReason,
   type LeadQualifiers,
 } from "@/lib/schemas/lead.schema";
+import {
+  CUSTOMER_TYPES,
+  CUSTOMER_TYPE_LABELS,
+  type CustomerType,
+} from "@/lib/schemas/customer-type";
 
 export type LeadListItem = {
   id: string;
@@ -22,6 +27,7 @@ export type LeadListItem = {
   notes: string | null;
   next_action: string | null;
   next_action_at: string | null;
+  intended_customer_type: CustomerType | null;
   closed_reason: LeadClosedReason | null;
   closed_note: string | null;
   closed_at: string | null;
@@ -63,6 +69,15 @@ export const CLOSED_REASON_OPTIONS = LEAD_CLOSED_REASONS.map((value) => ({
   value,
   label: CLOSED_REASON_LABELS[value],
 }));
+
+// "Converting to" selector: the two real types plus an Unknown ("") sentinel
+// that maps to a null intended_customer_type.
+export const INTENDED_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Unknown" },
+  ...CUSTOMER_TYPES.map((value) => ({ value, label: CUSTOMER_TYPE_LABELS[value] })),
+];
+
+export { CUSTOMER_TYPE_LABELS };
 
 export const PLANT_RANGE_LABELS: Record<string, string> = {
   "0_20": "0–20 pots",

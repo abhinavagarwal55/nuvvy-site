@@ -1,10 +1,11 @@
 // NOTE: Keep fields in sync with edit form at src/app/(ops)/ops/customers/[id]/page.tsx (InlineEditForm)
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Copy, Camera, X, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, Camera, X, Trash2, Leaf, ShoppingBag } from "lucide-react";
 import { compressImage } from "@/lib/utils/compress-image";
+import { CUSTOMER_TYPE_LABELS, type CustomerType } from "@/lib/schemas/customer-type";
 import PhotoLightbox from "../../../components/PhotoLightbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -19,6 +20,8 @@ type Plan = {
 };
 
 type Draft = {
+  // Step 0
+  customer_type: CustomerType;
   // Step 1
   name: string;
   phone_number: string;
@@ -37,14 +40,27 @@ type Draft = {
   plan_id: string;
 };
 
-const STEPS = [
-  "Customer Details",
-  "Garden Details",
-  "Photos & Notes",
-  "Plan Assignment",
-  "Review & Confirm",
-  "Post-Onboarding",
-];
+// Stable step IDs — the rendered step LIST is a function of customer_type
+// (FD-6). plant_only skips Garden Details + Plan Assignment. Switching type
+// only changes which steps render; entered data is preserved (FD-7).
+type StepId = "type" | "details" | "garden" | "photos" | "plan" | "review" | "done";
+
+const STEP_LABELS: Record<StepId, string> = {
+  type: "Customer Type",
+  details: "Customer Details",
+  garden: "Garden Details",
+  photos: "Photos & Notes",
+  plan: "Plan Assignment",
+  review: "Review & Confirm",
+  done: "Post-Onboarding",
+};
+
+const CARE_PLAN_STEPS: StepId[] = ["type", "details", "garden", "photos", "plan", "review", "done"];
+const PLANT_ONLY_STEPS: StepId[] = ["type", "details", "photos", "review", "done"];
+
+function stepsForType(type: CustomerType): StepId[] {
+  return type === "plant_only" ? PLANT_ONLY_STEPS : CARE_PLAN_STEPS;
+}
 
 
 const PLANT_RANGES = [
@@ -66,6 +82,7 @@ const selectCls =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest focus:ring-1 focus:ring-forest";
 
 const EMPTY_DRAFT: Draft = {
+  customer_type: "care_plan",
   name: "",
   phone_number: "",
   email: "",
@@ -91,6 +108,13 @@ function OnboardingWizardInner() {
   const [step, setStep] = useState(0);
   const [customerId, setCustomerId] = useState<string | null>(draftId);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+
+  // The rendered step list depends on the chosen type. `step` is an index into
+  // this list. Type can only change on the first step (index 0), so the index
+  // never points past the end of a shrunk list.
+  const steps = useMemo(() => stepsForType(draft.customer_type), [draft.customer_type]);
+  const stepId = steps[step];
+  const isLastStep = step === steps.length - 1;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activated, setActivated] = useState(false);
@@ -124,6 +148,7 @@ function OnboardingWizardInner() {
         const c = json.data;
         setDraft((prev) => ({
           ...prev,
+          customer_type: c.customer_type === "plant_only" ? "plant_only" : "care_plan",
           name: c.name ?? "",
           phone_number: c.phone_number ?? "",
           email: c.email ?? "",
@@ -147,8 +172,11 @@ function OnboardingWizardInner() {
   useEffect(() => {
     if (!fromLead || draftId) return;
     const watering = searchParams.get("watering_responsibility");
+    const leadType = searchParams.get("customer_type");
     setDraft((prev) => ({
       ...prev,
+      customer_type:
+        leadType === "plant_only" || leadType === "care_plan" ? leadType : prev.customer_type,
       name: searchParams.get("name") ?? prev.name,
       phone_number: searchParams.get("phone") ?? prev.phone_number,
       society_id: searchParams.get("society_id") ?? prev.society_id,
@@ -196,6 +224,7 @@ function OnboardingWizardInner() {
         // Create new draft. When converting a lead, route through the atomic
         // convert endpoint so the customer create + lead stamp happen together.
         const customerPayload = {
+          customer_type: draft.customer_type,
           name: draft.name,
           phone_number: draft.phone_number,
           email: draft.email || undefined,
@@ -292,23 +321,25 @@ function OnboardingWizardInner() {
   async function handleNext() {
     setError(null);
 
-    // Save draft at step transitions where we have enough data
-    if (step <= 2 && draft.name && draft.phone_number) {
+    // Persist the draft on the data-entry steps once we have enough to create.
+    if ((stepId === "details" || stepId === "garden" || stepId === "photos") && draft.name && draft.phone_number) {
       const ok = await saveDraft();
       if (!ok) return;
     }
 
-    // Step 4 → 5: Activate the customer
-    if (step === 4) {
+    // Review → activate the customer. The /activate endpoint branches on the
+    // stored customer_type: plant_only just flips to ACTIVE (no plan/slot/care),
+    // care_plan runs the full subscription + visit generation path.
+    if (stepId === "review") {
       if (!customerId) return;
       setSaving(true);
       try {
         const res = await fetch(`/api/ops/customers/${customerId}/activate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            plan_id: draft.plan_id,
-          }),
+          body: JSON.stringify(
+            draft.customer_type === "plant_only" ? {} : { plan_id: draft.plan_id }
+          ),
         });
         const json = await res.json();
         if (!res.ok) {
@@ -324,26 +355,28 @@ function OnboardingWizardInner() {
       }
     }
 
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    setStep((s) => Math.min(s + 1, steps.length - 1));
   }
 
   function handleBack() {
     setStep((s) => Math.max(s - 1, 0));
   }
 
-  // Validation per step
+  // Validation per step (keyed by the active step's stable id).
   const canProceed = (() => {
-    switch (step) {
-      case 0:
+    switch (stepId) {
+      case "type":
+        return true; // a type is always selected (defaults to care_plan)
+      case "details":
         return draft.name.trim() !== "" && draft.phone_number.trim() !== "";
-      case 1:
+      case "garden":
         return true; // garden details are optional
-      case 2:
+      case "photos":
         return true; // photos optional
-      case 3:
+      case "plan":
         return draft.plan_id !== "";
-      case 4:
-        return true; // review step
+      case "review":
+        return true;
       default:
         return false;
     }
@@ -374,18 +407,18 @@ function OnboardingWizardInner() {
               fontWeight: 500,
             }}
           >
-            {step < STEPS.length - 1 ? "New Customer" : "Onboarding Complete"}
+            {!isLastStep ? "New Customer" : "Onboarding Complete"}
           </h1>
           <span className="text-xs text-sage">
-            {step + 1}/{STEPS.length}
+            {step + 1}/{steps.length}
           </span>
         </div>
 
         {/* Progress bar */}
         <div className="flex gap-1">
-          {STEPS.map((_, i) => (
+          {steps.map((id, i) => (
             <div
-              key={i}
+              key={id}
               className={`h-1 flex-1 rounded-full transition-colors ${
                 i <= step ? "bg-forest" : "bg-stone/40"
               }`}
@@ -393,7 +426,7 @@ function OnboardingWizardInner() {
           ))}
         </div>
 
-        <p className="text-xs text-sage mt-2">{STEPS[step]}</p>
+        <p className="text-xs text-sage mt-2">{STEP_LABELS[stepId]}</p>
       </div>
 
       {/* Step content */}
@@ -404,15 +437,18 @@ function OnboardingWizardInner() {
           </div>
         )}
 
-        {step === 0 && (
+        {stepId === "type" && (
+          <Step0CustomerType draft={draft} update={update} />
+        )}
+        {stepId === "details" && (
           <Step1CustomerDetails
             draft={draft}
             update={update}
             societies={societies}
           />
         )}
-        {step === 1 && <Step2GardenDetails draft={draft} update={update} />}
-        {step === 2 && (
+        {stepId === "garden" && <Step2GardenDetails draft={draft} update={update} />}
+        {stepId === "photos" && (
           <Step3ObservationsAndCare
             draft={draft}
             update={update}
@@ -424,17 +460,17 @@ function OnboardingWizardInner() {
             photoInputRef={photoInputRef}
           />
         )}
-        {step === 3 && (
+        {stepId === "plan" && (
           <Step4PlanAssignment draft={draft} update={update} plans={plans} />
         )}
-        {step === 4 && (
+        {stepId === "review" && (
           <Step6Review
             draft={draft}
             selectedPlan={selectedPlan}
             selectedSociety={selectedSociety}
           />
         )}
-        {step === 5 && (
+        {stepId === "done" && (
           <Step7PostOnboarding
             draft={draft}
             selectedPlan={selectedPlan}
@@ -444,7 +480,7 @@ function OnboardingWizardInner() {
       </div>
 
       {/* Bottom nav */}
-      {step < STEPS.length - 1 && (
+      {!isLastStep && (
         <div className="fixed left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="max-w-[480px] mx-auto space-y-2">
             <div className="flex gap-3">
@@ -463,7 +499,7 @@ function OnboardingWizardInner() {
               >
                 {saving ? (
                   "Saving…"
-                ) : step === 4 ? (
+                ) : stepId === "review" ? (
                   <>
                     <Check size={16} /> Confirm & Activate
                   </>
@@ -474,7 +510,7 @@ function OnboardingWizardInner() {
                 )}
               </button>
             </div>
-            {step < 5 && (
+            {stepId !== "done" && (
               <button
                 onClick={handleSaveDraft}
                 disabled={saving || !draft.name || !draft.phone_number}
@@ -488,7 +524,7 @@ function OnboardingWizardInner() {
       )}
 
       {/* Done button on last step */}
-      {step === STEPS.length - 1 && (
+      {isLastStep && (
         <div className="fixed left-0 right-0 bg-offwhite border-t border-stone px-4 py-3 z-20" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="max-w-[480px] mx-auto">
             <button
@@ -520,6 +556,69 @@ export default function OnboardingWizardPage() {
 }
 
 // ─── Step Components ──────────────────────────────────────────────────────────
+
+function Step0CustomerType({
+  draft,
+  update,
+}: {
+  draft: Draft;
+  update: (k: keyof Draft, v: Draft[keyof Draft]) => void;
+}) {
+  const options: {
+    value: CustomerType;
+    icon: typeof Leaf;
+    blurb: string;
+  }[] = [
+    {
+      value: "care_plan",
+      icon: Leaf,
+      blurb: "Recurring care subscriber — scheduled visits, care schedules, and billing. Can also order plants.",
+    },
+    {
+      value: "plant_only",
+      icon: ShoppingBag,
+      blurb: "Transactional plant buyer — no subscription, visits, or care schedules. Lighter onboarding.",
+    },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-sage mb-1">What kind of customer is this?</p>
+      {options.map((opt) => {
+        const Icon = opt.icon;
+        const selected = draft.customer_type === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => update("customer_type", opt.value)}
+            className={`w-full text-left p-4 rounded-2xl border transition-colors flex gap-3 ${
+              selected
+                ? "border-forest bg-[#EAF2EC]"
+                : "border-stone/60 bg-offwhite hover:border-forest/40"
+            }`}
+          >
+            <span
+              className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                selected ? "bg-forest text-offwhite" : "bg-cream text-sage"
+              }`}
+            >
+              <Icon size={20} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-medium text-charcoal">
+                {CUSTOMER_TYPE_LABELS[opt.value]}
+              </span>
+              <span className="block text-xs text-sage mt-0.5 leading-relaxed">
+                {opt.blurb}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function Step1CustomerDetails({
   draft,
@@ -889,10 +988,13 @@ function Step6Review({
   selectedPlan?: Plan;
   selectedSociety?: string;
 }) {
+  const isPlantOnly = draft.customer_type === "plant_only";
+
   const sections = [
     {
       title: "Customer",
       items: [
+        ["Type", CUSTOMER_TYPE_LABELS[draft.customer_type]],
         ["Name", draft.name],
         ["Phone", draft.phone_number],
         ["Email", draft.email || "—"],
@@ -900,40 +1002,45 @@ function Step6Review({
         ["Society", selectedSociety || "—"],
       ],
     },
-    {
-      title: "Garden",
-      items: [
-        [
-          "Plants",
-          PLANT_RANGES.find((r) => r.value === draft.plant_count_range)?.label ??
-            "—",
-        ],
-        ["Light", draft.light_condition || "—"],
-        [
-          "Watering",
-          draft.watering_responsibility
-            .map(
-              (w) =>
-                WATERING_OPTIONS.find((o) => o.value === w)?.label ?? w
-            )
-            .join(", ") || "—",
-        ],
-      ],
-    },
-    {
-      title: "Plan",
-      items: [
-        ["Plan", selectedPlan?.name ?? "—"],
-        ["Price", selectedPlan ? `₹${selectedPlan.price}/mo` : "—"],
-      ],
-    },
+    // Garden + Plan are care-plan-only concepts — hidden for plant_only (FD-10).
+    ...(isPlantOnly
+      ? []
+      : [
+          {
+            title: "Garden",
+            items: [
+              [
+                "Plants",
+                PLANT_RANGES.find((r) => r.value === draft.plant_count_range)?.label ??
+                  "—",
+              ],
+              ["Light", draft.light_condition || "—"],
+              [
+                "Watering",
+                draft.watering_responsibility
+                  .map(
+                    (w) => WATERING_OPTIONS.find((o) => o.value === w)?.label ?? w
+                  )
+                  .join(", ") || "—",
+              ],
+            ],
+          },
+          {
+            title: "Plan",
+            items: [
+              ["Plan", selectedPlan?.name ?? "—"],
+              ["Price", selectedPlan ? `₹${selectedPlan.price}/mo` : "—"],
+            ],
+          },
+        ]),
   ];
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-sage">
-        Review the details below, then tap &quot;Confirm &amp; Activate&quot; to
-        activate this customer and generate their visit schedule.
+        {isPlantOnly
+          ? "Review the details below, then tap “Confirm & Activate” to activate this plant-order customer."
+          : "Review the details below, then tap “Confirm & Activate” to activate this customer and generate their visit schedule."}
       </p>
       {sections.map((sec) => (
         <div
@@ -967,9 +1074,12 @@ function Step7PostOnboarding({
   selectedPlan?: Plan;
   customerId: string | null;
 }) {
+  const isPlantOnly = draft.customer_type === "plant_only";
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState(
-    `Hi ${draft.name}! 🌿\n\nWelcome to Nuvvy! We're excited to start taking care of your garden.\n\nHere's a summary of your plan:\n• Plan: ${selectedPlan?.name ?? "—"} (₹${selectedPlan?.price ?? "—"}/month)\n\nWe'll be setting up your visit schedule shortly and will share the details with you.\n\nIf you have any questions, just reply here. 🌱\n\n— Team Nuvvy`
+    isPlantOnly
+      ? `Hi ${draft.name}! 🌿\n\nWelcome to Nuvvy! Thanks for choosing us for your plants.\n\nWe'll be in touch about your plant order and keep you posted on availability and delivery.\n\nIf you have any questions, just reply here. 🌱\n\n— Team Nuvvy`
+      : `Hi ${draft.name}! 🌿\n\nWelcome to Nuvvy! We're excited to start taking care of your garden.\n\nHere's a summary of your plan:\n• Plan: ${selectedPlan?.name ?? "—"} (₹${selectedPlan?.price ?? "—"}/month)\n\nWe'll be setting up your visit schedule shortly and will share the details with you.\n\nIf you have any questions, just reply here. 🌱\n\n— Team Nuvvy`
   );
 
   async function handleCopy() {
@@ -986,12 +1096,30 @@ function Step7PostOnboarding({
         </div>
         <p className="font-medium text-charcoal">Customer activated!</p>
         <p className="text-sm text-sage mt-1">
-          Visits have been auto-generated for the next 6 weeks.
+          {isPlantOnly
+            ? "This is a plant-order customer — no recurring visits or care schedules."
+            : "Visits have been auto-generated for the next 6 weeks."}
         </p>
       </div>
 
-      {/* Next steps reminder */}
-      {customerId && (
+      {/* plant_only: jump straight to creating a plant order */}
+      {isPlantOnly && customerId && (
+        <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
+          <p className="text-sm font-medium text-charcoal mb-1">Next step</p>
+          <p className="text-xs text-sage mb-3">
+            Create the customer&apos;s first plant order.
+          </p>
+          <a
+            href={`/ops/customers/${customerId}?tab=plant_orders`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-forest text-offwhite rounded-xl text-xs font-medium hover:bg-garden"
+          >
+            <ShoppingBag size={14} /> Create plant order →
+          </a>
+        </div>
+      )}
+
+      {/* care_plan: next-steps reminder (slot + care schedules) */}
+      {!isPlantOnly && customerId && (
         <div className="bg-terra/10 rounded-2xl border border-terra/30 p-4">
           <p className="text-sm font-medium text-charcoal mb-2">Next steps</p>
           <ul className="text-xs text-sage space-y-1 mb-3">
