@@ -45,34 +45,15 @@ export async function POST(
     );
   }
 
+  // Install fact lives in installed_at, NOT the status enum (FD-3). Status stays
+  // 'procured'. And logistics never writes plant_orders.status (FD-4).
   const { error: updateError } = await supabase
     .from("plant_order_items")
-    .update({ status: "installed", installed_at: new Date().toISOString() })
+    .update({ installed_at: new Date().toISOString() })
     .eq("id", id);
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
-  }
-
-  // Check if ALL procured/installed items for this order are now installed
-  const { data: orderItems } = await supabase
-    .from("plant_order_items")
-    .select("id, status")
-    .eq("plant_order_id", item.plant_order_id);
-
-  if (orderItems) {
-    const relevantItems = orderItems.filter((oi) =>
-      ["procured", "installed"].includes(oi.status)
-    );
-    const allInstalled = relevantItems.every(
-      (oi) => oi.status === "installed" || oi.id === id
-    );
-    if (allInstalled && relevantItems.length > 0) {
-      await supabase
-        .from("plant_orders")
-        .update({ status: "installed" })
-        .eq("id", item.plant_order_id);
-    }
   }
 
   logAuditEvent({
@@ -87,6 +68,6 @@ export async function POST(
   });
 
   return NextResponse.json({
-    data: { id, status: "installed" },
+    data: { id, installed: true },
   });
 }

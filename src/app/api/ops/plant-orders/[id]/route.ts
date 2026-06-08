@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
+import {
+  updatePlantOrderSchema,
+  canTransition,
+  type PlantOrderStatus,
+  type PlantOrderItemStatus,
+} from "@/lib/schemas/plant-order";
+
+// Item replacement (editing intent) is only allowed before procurement begins.
+const ITEM_EDITABLE_STATUSES: PlantOrderStatus[] = ["interested", "finalizing"];
 
 // ---------------------------------------------------------------------------
 // GET /api/ops/plant-orders/[id] — order detail with items + customer info
@@ -100,24 +108,12 @@ export async function GET(
 }
 
 // ---------------------------------------------------------------------------
-// PUT /api/ops/plant-orders/[id] — edit order (only when status='requested')
+// PUT /api/ops/plant-orders/[id] — pipeline transitions + follow-up + intent.
+//
+// All pipeline transitions are MANUAL here (FD-4). Logistics endpoints never
+// touch plant_orders.status. Validates the transition map, the "confirmed needs
+// ≥1 item" gate, and the "no_longer_interested needs closed_reason" rule.
 // ---------------------------------------------------------------------------
-const UpdateOrderItemSchema = z.object({
-  plant_id: z.string().optional(),
-  plant_name: z.string().min(1),
-  quantity: z.number().int().min(1),
-  note: z.string().optional(),
-});
-
-const UpdateOrderSchema = z.object({
-  due_date: z.string().optional(),
-  notes: z.string().optional(),
-  request_source: z
-    .enum(["customer_requested", "replacement"])
-    .optional(),
-  items: z.array(UpdateOrderItemSchema).min(1).optional(),
-});
-
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -142,20 +138,21 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const parsed = UpdateOrderSchema.safeParse(body);
+  const parsed = updatePlantOrderSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.flatten().fieldErrors },
+      { error: parsed.error.issues[0].message },
       { status: 400 }
     );
   }
+  const d = parsed.data;
+  const rawBody = body as Record<string, unknown>;
 
   const supabase = getSupabaseAdmin();
 
-  // Verify order exists and is editable
   const { data: existing, error: fetchError } = await supabase
     .from("plant_orders")
-    .select("id, status")
+    .select("id, status, next_follow_up_at, closed_reason")
     .eq("id", id)
     .single();
 
@@ -166,76 +163,134 @@ export async function PUT(
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
-  if (existing.status !== "requested") {
-    return NextResponse.json(
-      { error: "Only orders with status 'requested' can be edited" },
-      { status: 409 }
-    );
-  }
+  const currentStatus = existing.status as PlantOrderStatus;
+  const fields: Record<string, unknown> = {};
 
-  const { items, ...orderUpdates } = parsed.data;
+  // ── Status transition (optional) ───────────────────────────────────────────
+  const targetStatus = d.status;
+  const isTransition = targetStatus !== undefined && targetStatus !== currentStatus;
 
-  // Update order fields if any provided
-  const fieldsToUpdate: Record<string, unknown> = {};
-  if (orderUpdates.due_date !== undefined)
-    fieldsToUpdate.due_date = orderUpdates.due_date;
-  if (orderUpdates.notes !== undefined)
-    fieldsToUpdate.notes = orderUpdates.notes;
-  if (orderUpdates.request_source !== undefined)
-    fieldsToUpdate.request_source = orderUpdates.request_source;
-
-  if (Object.keys(fieldsToUpdate).length > 0) {
-    const { error: updateError } = await supabase
-      .from("plant_orders")
-      .update(fieldsToUpdate)
-      .eq("id", id);
-
-    if (updateError) {
+  if (isTransition) {
+    if (!canTransition(currentStatus, targetStatus!)) {
       return NextResponse.json(
-        { error: updateError.message },
-        { status: 500 }
+        { error: `Cannot move an order from '${currentStatus}' to '${targetStatus}'.` },
+        { status: 422 }
       );
     }
+
+    // confirmed requires ≥1 line item (count the post-update set if items given).
+    if (targetStatus === "confirmed") {
+      const effectiveCount = d.items ? d.items.length : await countItems(supabase, id);
+      if (effectiveCount < 1) {
+        return NextResponse.json(
+          { error: "An order needs at least one line item before it can be confirmed." },
+          { status: 422 }
+        );
+      }
+    }
+
+    if (targetStatus === "no_longer_interested") {
+      if (!d.closed_reason) {
+        return NextResponse.json(
+          { error: "A reason is required to mark an order as no longer interested." },
+          { status: 422 }
+        );
+      }
+      fields.closed_reason = d.closed_reason;
+    } else {
+      // closed_reason only applies to no_longer_interested — clear it otherwise.
+      fields.closed_reason = null;
+    }
+
+    fields.status = targetStatus;
   }
 
-  // Replace items if provided
-  if (items) {
-    // Delete existing items
+  // ── Follow-up (set/clear). Present in body (even as null) = intentional. ────
+  const followUpProvided = "next_follow_up_at" in rawBody;
+  if (followUpProvided) {
+    fields.next_follow_up_at = d.next_follow_up_at || null;
+  }
+
+  // ── Other editable fields ──────────────────────────────────────────────────
+  if (d.due_date !== undefined) fields.due_date = d.due_date;
+  if (d.notes !== undefined) fields.notes = d.notes;
+  if (d.request_source !== undefined) fields.request_source = d.request_source;
+  if (d.shortlist_version_id !== undefined) fields.shortlist_version_id = d.shortlist_version_id;
+
+  // ── Item (intent) replacement — only before procurement begins ─────────────
+  if (d.items !== undefined) {
+    if (!ITEM_EDITABLE_STATUSES.includes(currentStatus)) {
+      return NextResponse.json(
+        { error: "Line items can only be edited while the order is in 'interested' or 'finalizing'." },
+        { status: 422 }
+      );
+    }
+
     const { error: deleteError } = await supabase
       .from("plant_order_items")
       .delete()
       .eq("plant_order_id", id);
-
     if (deleteError) {
-      return NextResponse.json(
-        { error: deleteError.message },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
 
-    // Insert new items
-    const itemRows = items.map((item) => ({
-      plant_order_id: id,
-      plant_id: item.plant_id ?? null,
-      plant_name: item.plant_name,
-      quantity: item.quantity,
-      note: item.note ?? null,
-      status: "requested",
-    }));
-
-    const { error: insertError } = await supabase
-      .from("plant_order_items")
-      .insert(itemRows);
-
-    if (insertError) {
-      return NextResponse.json(
-        { error: insertError.message },
-        { status: 500 }
-      );
+    if (d.items.length > 0) {
+      const itemRows = d.items.map((item) => ({
+        plant_order_id: id,
+        plant_id: item.plant_id ?? null,
+        plant_name: item.plant_name,
+        quantity: item.quantity,
+        note: item.note ?? null,
+        status: "pending" satisfies PlantOrderItemStatus,
+      }));
+      const { error: insertError } = await supabase
+        .from("plant_order_items")
+        .insert(itemRows);
+      if (insertError) {
+        return NextResponse.json({ error: insertError.message }, { status: 500 });
+      }
     }
   }
 
-  // Fetch updated order with items
+  if (Object.keys(fields).length > 0) {
+    const { error: updateError } = await supabase
+      .from("plant_orders")
+      .update(fields)
+      .eq("id", id);
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+  }
+
+  const ip = request.headers.get("x-forwarded-for");
+  const userAgent = request.headers.get("user-agent");
+
+  // Audit: status change and follow-up change are distinct, user-visible events.
+  if (isTransition) {
+    logAuditEvent({
+      actorId: auth.userId,
+      actorRole: auth.role,
+      action: "plant_order.status_changed",
+      targetTable: "plant_orders",
+      targetId: id,
+      metadata: { from: currentStatus, to: targetStatus, closed_reason: d.closed_reason ?? null },
+      ip,
+      userAgent,
+    });
+  }
+  if (followUpProvided && (d.next_follow_up_at || null) !== (existing.next_follow_up_at || null)) {
+    logAuditEvent({
+      actorId: auth.userId,
+      actorRole: auth.role,
+      action: "plant_order.follow_up_set",
+      targetTable: "plant_orders",
+      targetId: id,
+      metadata: { from: existing.next_follow_up_at, to: d.next_follow_up_at || null },
+      ip,
+      userAgent,
+    });
+  }
+
   const { data: updatedOrder } = await supabase
     .from("plant_orders")
     .select("*")
@@ -248,19 +303,78 @@ export async function PUT(
     .eq("plant_order_id", id)
     .order("created_at", { ascending: true });
 
-  // Audit log
+  return NextResponse.json({
+    data: { ...updatedOrder, items: updatedItems ?? [] },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/ops/plant-orders/[id] — hard delete (cascades items + notes).
+// Blocked if an invoice references the order (FK + audit-trail safety).
+// ---------------------------------------------------------------------------
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let auth;
+  try {
+    auth = await requireOpsAuth(request);
+  } catch (res) {
+    return res as Response;
+  }
+  if (auth.role === "gardener") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const supabase = getSupabaseAdmin();
+
+  const { data: order } = await supabase
+    .from("plant_orders")
+    .select("id, status")
+    .eq("id", id)
+    .maybeSingle();
+  if (!order) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  // An invoice references this order — don't orphan billing records.
+  const { count: invoiceCount } = await supabase
+    .from("invoices")
+    .select("id", { count: "exact", head: true })
+    .eq("plant_order_id", id);
+  if ((invoiceCount ?? 0) > 0) {
+    return NextResponse.json(
+      { error: "Cannot delete — an invoice exists for this order." },
+      { status: 409 }
+    );
+  }
+
+  // Cascades to plant_order_items and plant_order_notes via ON DELETE CASCADE.
+  const { error } = await supabase.from("plant_orders").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
   logAuditEvent({
     actorId: auth.userId,
     actorRole: auth.role,
-    action: "plant_order.updated",
+    action: "plant_order.deleted",
     targetTable: "plant_orders",
     targetId: id,
-    metadata: { fields_updated: Object.keys(fieldsToUpdate), items_replaced: !!items },
+    metadata: { status: order.status },
     ip: request.headers.get("x-forwarded-for"),
     userAgent: request.headers.get("user-agent"),
   });
 
-  return NextResponse.json({
-    data: { ...updatedOrder, items: updatedItems ?? [] },
-  });
+  return NextResponse.json({ ok: true });
+}
+
+async function countItems(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  orderId: string
+): Promise<number> {
+  const { count } = await supabase
+    .from("plant_order_items")
+    .select("id", { count: "exact", head: true })
+    .eq("plant_order_id", orderId);
+  return count ?? 0;
 }

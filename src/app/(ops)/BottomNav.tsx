@@ -56,6 +56,7 @@ const primaryNav: RoleScopedNavItem[] = [
   { href: "/ops/requests", label: "Requests", icon: <AlertCircle size={20} /> },
   { href: "/ops/billing", label: "Billing", icon: <CreditCard size={20} />, adminOnly: true },
   { href: "/ops/plant-orders", label: "Plant Orders", icon: <Sprout size={20} /> },
+  { href: "/ops/procurement", label: "Procurement", icon: <Truck size={20} /> },
   { href: "/ops/people", label: "People", icon: <UserCog size={20} /> },
   { href: "/ops/plans", label: "Plans", icon: <LayoutGrid size={20} /> },
 ];

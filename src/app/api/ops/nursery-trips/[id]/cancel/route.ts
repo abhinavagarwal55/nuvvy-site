@@ -44,10 +44,10 @@ export async function POST(
     );
   }
 
-  // Revert all linked items to 'requested' and clear nursery_trip_id
+  // Revert all linked items to 'pending' and clear nursery_trip_id
   const { error: revertError } = await supabase
     .from("plant_order_items")
-    .update({ nursery_trip_id: null, status: "requested" })
+    .update({ nursery_trip_id: null, status: "pending" })
     .eq("nursery_trip_id", id);
 
   if (revertError) {

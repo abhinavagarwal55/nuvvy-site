@@ -74,9 +74,9 @@ export async function POST(
     return NextResponse.json({ error: itemError.message }, { status: 500 });
   }
 
-  if (item.status !== "trip_assigned" && item.status !== "procured") {
+  if (item.status !== "on_trip" && item.status !== "procured") {
     return NextResponse.json(
-      { error: `Item must be in 'trip_assigned' or 'procured' status to record procurement (current: '${item.status}')` },
+      { error: `Item must be in 'on_trip' or 'procured' status to record procurement (current: '${item.status}')` },
       { status: 409 }
     );
   }
@@ -126,7 +126,7 @@ export async function POST(
           plant_name: item.plant_name,
           quantity: remainingQty,
           note: item.note,
-          status: "requested",
+          status: "pending",
         });
 
       if (insertError) {
@@ -173,23 +173,8 @@ export async function POST(
     console.error("Failed to insert procurement_price_log:", logError.message);
   }
 
-  // Check if ALL items for this order are now procured (or beyond)
-  const { data: orderItems } = await supabase
-    .from("plant_order_items")
-    .select("id, status")
-    .eq("plant_order_id", item.plant_order_id);
-
-  if (orderItems) {
-    const allProcuredOrBeyond = orderItems.every((oi) =>
-      ["procured", "installed", "cancelled"].includes(oi.status)
-    );
-    if (allProcuredOrBeyond) {
-      await supabase
-        .from("plant_orders")
-        .update({ status: "procured" })
-        .eq("id", item.plant_order_id);
-    }
-  }
+  // NOTE (FD-4): logistics never writes plant_orders.status. The order pipeline
+  // is advanced manually by the operator via PUT /api/ops/plant-orders/[id].
 
   logAuditEvent({
     actorId: auth.userId,

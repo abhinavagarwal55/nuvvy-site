@@ -83,47 +83,28 @@ export async function POST(
     );
   }
 
-  const nonRequested = items.filter((i) => i.status !== "requested");
-  if (nonRequested.length > 0) {
+  const nonPending = items.filter((i) => i.status !== "pending");
+  if (nonPending.length > 0) {
     return NextResponse.json(
       {
-        error: `Items must be in 'requested' status. Invalid items: ${nonRequested.map((i) => i.id).join(", ")}`,
+        error: `Items must be in 'pending' status. Invalid items: ${nonPending.map((i) => i.id).join(", ")}`,
       },
       { status: 409 }
     );
   }
 
-  // Update items: set nursery_trip_id and status
+  // Update items: set nursery_trip_id and procurement status.
   const { error: updateError } = await supabase
     .from("plant_order_items")
-    .update({ nursery_trip_id: id, status: "trip_assigned" })
+    .update({ nursery_trip_id: id, status: "on_trip" })
     .in("id", parsed.data.item_ids);
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  // Update parent order statuses to 'trip_assigned' if applicable
-  const orderIds = [...new Set(items.map((i) => i.plant_order_id))];
-  for (const orderId of orderIds) {
-    // Check if all items in the order are now at least trip_assigned
-    const { data: orderItems } = await supabase
-      .from("plant_order_items")
-      .select("id, status")
-      .eq("plant_order_id", orderId);
-
-    if (orderItems) {
-      const allAssignedOrBeyond = orderItems.every(
-        (oi) => oi.status !== "requested"
-      );
-      if (allAssignedOrBeyond) {
-        await supabase
-          .from("plant_orders")
-          .update({ status: "trip_assigned" })
-          .eq("id", orderId);
-      }
-    }
-  }
+  // NOTE (FD-4): logistics never writes plant_orders.status. The order pipeline
+  // is advanced manually by the operator via PUT /api/ops/plant-orders/[id].
 
   logAuditEvent({
     actorId: auth.userId,
@@ -191,10 +172,10 @@ export async function DELETE(
     );
   }
 
-  // Revert item
+  // Revert item to awaiting-a-trip.
   const { error: updateError } = await supabase
     .from("plant_order_items")
-    .update({ nursery_trip_id: null, status: "requested" })
+    .update({ nursery_trip_id: null, status: "pending" })
     .eq("id", itemId);
 
   if (updateError) {

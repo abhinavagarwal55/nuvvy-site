@@ -102,12 +102,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: orderError.message }, { status: 500 });
   }
 
-  // Fetch procured/installed items with pricing
+  // Fetch procured items with pricing. (Install fact is installed_at, not a
+  // status — procured covers both installed and not-yet-installed items.)
   const { data: items, error: itemsError } = await supabase
     .from("plant_order_items")
     .select("*")
     .eq("plant_order_id", plant_order_id)
-    .in("status", ["procured", "installed"])
+    .eq("status", "procured")
     .not("qty_procured", "is", null)
     .not("actual_unit_price", "is", null);
 

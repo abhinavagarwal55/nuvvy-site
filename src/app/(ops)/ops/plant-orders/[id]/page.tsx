@@ -2,22 +2,59 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Sprout, Pencil, X, Loader2, Check, Copy, Calendar as CalendarIcon, CheckCircle, FileText } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Sprout,
+  Pencil,
+  Loader2,
+  FileText,
+  CalendarClock,
+  XCircle,
+  Truck,
+  StickyNote,
+  Send,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import { formatDate } from "@/lib/utils/format-date";
+import { isOverdue, isDueToday, relativeTime, formatTimestamp } from "@/components/ops/leads/leadConstants";
 import PlantSelector from "@/components/ops/PlantSelector";
-import WhatsAppDraftButton from "@/components/ops/WhatsAppDraftButton";
+import {
+  ORDER_TRANSITIONS,
+  PLANT_ORDER_STATUS_LABELS,
+  PLANT_ORDER_ITEM_STATUS_LABELS,
+  ORDER_CLOSED_REASONS,
+  ORDER_CLOSED_REASON_LABELS,
+  TERMINAL_ORDER_STATUSES,
+  type PlantOrderStatus,
+  type PlantOrderItemStatus,
+} from "@/lib/schemas/plant-order";
 
 const INPUT_CLS =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest placeholder:text-stone";
 
-const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
-  requested: { cls: "bg-stone/20 text-charcoal", label: "Requested" },
-  trip_assigned: { cls: "bg-blue-50 text-blue-700", label: "Trip Assigned" },
-  procured: { cls: "bg-forest/10 text-forest", label: "Procured" },
-  installed: { cls: "bg-forest text-offwhite", label: "Installed" },
-  cancelled: { cls: "bg-stone/20 text-sage", label: "Cancelled" },
-  deferred: { cls: "bg-amber-50 text-amber-700", label: "Deferred" },
+const ORDER_BADGE: Record<PlantOrderStatus, string> = {
+  interested: "bg-stone/20 text-charcoal",
+  finalizing: "bg-blue-50 text-blue-700",
+  confirmed: "bg-forest/10 text-forest",
+  scheduled: "bg-amber-50 text-amber-700",
+  installed: "bg-garden/15 text-forest",
+  invoiced: "bg-forest text-offwhite",
+  no_longer_interested: "bg-stone/20 text-sage",
 };
+
+const ITEM_BADGE: Record<PlantOrderItemStatus, string> = {
+  pending: "bg-stone/20 text-charcoal",
+  on_trip: "bg-blue-50 text-blue-700",
+  procured: "bg-forest/10 text-forest",
+  partial: "bg-amber-50 text-amber-700",
+  deferred: "bg-amber-50 text-amber-700",
+  cancelled: "bg-stone/20 text-sage",
+};
+
+// Item editing (intent) is only possible before procurement begins.
+const ITEM_EDITABLE: PlantOrderStatus[] = ["interested", "finalizing"];
 
 type OrderItem = {
   id: string;
@@ -25,7 +62,7 @@ type OrderItem = {
   plant_name: string;
   quantity: number;
   note: string | null;
-  status: string;
+  status: PlantOrderItemStatus;
   qty_procured: number | null;
   actual_unit_price: number | null;
   nursery_name: string | null;
@@ -34,11 +71,23 @@ type OrderItem = {
   thumbnail_url: string | null;
 };
 
+type HistoryEvent = {
+  kind: "note" | "created" | "status_changed" | "follow_up";
+  id: string;
+  at: string;
+  actor_name: string | null;
+  body: string | null;
+  detail: string | null;
+};
+
 type OrderDetail = {
   id: string;
-  status: string;
+  status: PlantOrderStatus;
   request_source: string;
-  due_date: string;
+  due_date: string | null;
+  next_follow_up_at: string | null;
+  closed_reason: string | null;
+  shortlist_version_id: string | null;
   notes: string | null;
   created_at: string;
   customer: {
@@ -51,15 +100,6 @@ type OrderDetail = {
   items: OrderItem[];
 };
 
-type InvoiceItem = {
-  id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-  sort_order: number;
-};
-
 type Invoice = {
   id: string;
   invoice_number: string;
@@ -69,7 +109,6 @@ type Invoice = {
   total: number;
   paid_at: string | null;
   created_at: string;
-  items: InvoiceItem[];
 };
 
 type ItemDraft = {
@@ -80,6 +119,28 @@ type ItemDraft = {
   note: string;
 };
 
+function HistoryIcon({ kind }: { kind: HistoryEvent["kind"] }) {
+  if (kind === "created") return <Plus size={14} className="text-sage" />;
+  if (kind === "status_changed") return <ArrowRight size={14} className="text-forest" />;
+  if (kind === "follow_up") return <CalendarClock size={14} className="text-garden" />;
+  return <StickyNote size={14} className="text-forest" />;
+}
+
+function historyVerb(ev: HistoryEvent): string {
+  switch (ev.kind) {
+    case "created":
+      return ev.detail ? `created this order as ${ev.detail}` : "created this order";
+    case "status_changed":
+      return `moved this order: ${ev.detail ?? ""}`;
+    case "follow_up":
+      return ev.detail === "cleared" || !ev.detail
+        ? "cleared the follow-up"
+        : `set a follow-up for ${formatDate(ev.detail)}`;
+    default:
+      return "added a note";
+  }
+}
+
 export default function PlantOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -88,28 +149,29 @@ export default function PlantOrderDetailPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
-  const [showCancel, setShowCancel] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancelling, setCancelling] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
 
+  // Follow-up + close controls
+  const [followUp, setFollowUp] = useState("");
+  const [showCloseReasons, setShowCloseReasons] = useState(false);
+
+  // History timeline (notes + audited pipeline changes)
+  const [history, setHistory] = useState<HistoryEvent[]>([]);
+  const [noteBody, setNoteBody] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+
+  const [deleting, setDeleting] = useState(false);
+
   const loadInvoice = useCallback(async () => {
-    // Check if an invoice already exists for this order
     const res = await fetch(`/api/ops/invoices?plant_order_id=${orderId}`);
     if (res.ok) {
       const json = await res.json();
       const invoices = json.data ?? [];
       if (invoices.length > 0) {
-        // Fetch full detail with items
-        const detailRes = await fetch(`/api/ops/invoices/${invoices[0].id}`);
-        if (detailRes.ok) {
-          const detailJson = await detailRes.json();
-          setInvoice(detailJson.data ?? null);
-          return;
-        }
+        setInvoice(invoices[0]);
+        return;
       }
     }
     setInvoice(null);
@@ -119,57 +181,99 @@ export default function PlantOrderDetailPage() {
     setLoading(true);
     const res = await fetch(`/api/ops/plant-orders/${orderId}`);
     const json = await res.json();
-    setOrder(json.data ?? null);
+    const data: OrderDetail | null = json.data ?? null;
+    setOrder(data);
+    setFollowUp(data?.next_follow_up_at ?? "");
     setLoading(false);
+  }, [orderId]);
+
+  const loadHistory = useCallback(async () => {
+    const res = await fetch(`/api/ops/plant-orders/${orderId}/history`);
+    if (res.ok) {
+      const json = await res.json();
+      setHistory(json.data ?? []);
+    }
   }, [orderId]);
 
   useEffect(() => {
     load();
     loadInvoice();
-  }, [load, loadInvoice]);
+    loadHistory();
+  }, [load, loadInvoice, loadHistory]);
 
-  async function handleCancel() {
-    if (!cancelReason.trim()) return;
-    setCancelling(true);
-    const res = await fetch(`/api/ops/plant-orders/${orderId}/cancel`, {
+  async function handleAddNote() {
+    if (!noteBody.trim()) return;
+    setSavingNote(true);
+    const res = await fetch(`/api/ops/plant-orders/${orderId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cancellation_reason: cancelReason }),
+      body: JSON.stringify({ body: noteBody.trim() }),
     });
+    setSavingNote(false);
     if (!res.ok) {
-      const json = await res.json();
-      alert(json.error ?? "Failed to cancel");
+      const json = await res.json().catch(() => ({}));
+      alert(typeof json.error === "string" ? json.error : "Failed to add note");
+      return;
     }
-    setCancelling(false);
-    setShowCancel(false);
-    setCancelReason("");
-    load();
+    setNoteBody("");
+    loadHistory();
   }
 
-  async function handleAddToService(item: OrderItem) {
-    setActionLoading(`install-${item.id}`);
-    const res = await fetch(`/api/ops/plant-order-items/${item.id}/add-to-service`, {
-      method: "POST",
-    });
-    const json = await res.json();
+  async function handleDelete() {
+    if (
+      !confirm(
+        "Delete this plant order/interest permanently? This removes its line items and notes and cannot be undone."
+      )
+    )
+      return;
+    setDeleting(true);
+    const res = await fetch(`/api/ops/plant-orders/${orderId}`, { method: "DELETE" });
+    setDeleting(false);
     if (!res.ok) {
-      alert(json.error ?? "Failed to add to service");
+      const json = await res.json().catch(() => ({}));
+      alert(typeof json.error === "string" ? json.error : "Failed to delete");
+      return;
     }
-    setActionLoading(null);
-    load();
+    router.push("/ops/plant-orders");
   }
 
-  async function handleMarkInstalled(item: OrderItem) {
-    setActionLoading(`installed-${item.id}`);
-    const res = await fetch(`/api/ops/plant-order-items/${item.id}/mark-installed`, {
-      method: "POST",
+  // ── Pipeline mutations (all manual via PUT) ────────────────────────────────
+  async function putOrder(patch: Record<string, unknown>, errLabel: string) {
+    setActionLoading(true);
+    const res = await fetch(`/api/ops/plant-orders/${orderId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
     });
+    setActionLoading(false);
     if (!res.ok) {
-      const json = await res.json();
-      alert(json.error ?? "Failed to mark installed");
+      const json = await res.json().catch(() => ({}));
+      alert(typeof json.error === "string" ? json.error : errLabel);
+      return false;
     }
-    setActionLoading(null);
-    load();
+    await Promise.all([load(), loadHistory()]);
+    return true;
+  }
+
+  async function handleTransition(to: PlantOrderStatus) {
+    await putOrder({ status: to }, "Failed to update status");
+  }
+
+  async function handleSaveFollowUp() {
+    await putOrder({ next_follow_up_at: followUp || null }, "Failed to set follow-up");
+  }
+
+  async function handleClearFollowUp() {
+    setFollowUp("");
+    await putOrder({ next_follow_up_at: null }, "Failed to clear follow-up");
+  }
+
+  async function handleMarkNoLongerInterested(reason: string) {
+    const ok = await putOrder(
+      { status: "no_longer_interested", closed_reason: reason },
+      "Failed to close order"
+    );
+    if (ok) setShowCloseReasons(false);
   }
 
   async function handleCreateInvoice() {
@@ -180,11 +284,8 @@ export default function PlantOrderDetailPage() {
       body: JSON.stringify({ plant_order_id: orderId }),
     });
     const json = await res.json();
-    if (!res.ok) {
-      alert(json.error ?? "Failed to create invoice");
-    } else {
-      await loadInvoice();
-    }
+    if (!res.ok) alert(json.error ?? "Failed to create invoice");
+    else await loadInvoice();
     setInvoiceLoading(false);
   }
 
@@ -209,16 +310,31 @@ export default function PlantOrderDetailPage() {
       <EditOrderView
         order={order}
         onClose={() => setShowEdit(false)}
-        onSaved={() => { setShowEdit(false); load(); }}
+        onSaved={() => {
+          setShowEdit(false);
+          load();
+        }}
       />
     );
   }
 
-  const badge = STATUS_BADGE[order.status] ?? { cls: "bg-stone/20 text-charcoal", label: order.status };
-  const today = new Date().toISOString().split("T")[0];
-  const isOverdue = order.due_date < today && !["cancelled", "installed"].includes(order.status);
-  const customerPhone = order.customer?.phone_number;
+  const isTerminal = (TERMINAL_ORDER_STATUSES as string[]).includes(order.status);
+  const dueOverdue =
+    isOverdue(order.due_date) && !isTerminal;
   const societyName = (order.customer?.societies as unknown as { name: string } | null)?.name;
+
+  // Forward transitions excluding the close exit (which has its own action).
+  const nextStates = (ORDER_TRANSITIONS[order.status] ?? []).filter(
+    (s) => s !== "no_longer_interested"
+  );
+  const canClose = (ORDER_TRANSITIONS[order.status] ?? []).includes("no_longer_interested");
+
+  // Best-effort procurement rollup (read-only — PRD §4 / FD-14).
+  const total = order.items.length;
+  const procuredCount = order.items.filter((i) => i.status === "procured").length;
+  const onTripCount = order.items.filter((i) => i.status === "on_trip").length;
+
+  const followUpDirty = (followUp || "") !== (order.next_follow_up_at || "");
 
   return (
     <div className="min-h-screen bg-cream pb-24">
@@ -228,59 +344,192 @@ export default function PlantOrderDetailPage() {
           <button onClick={() => router.push("/ops/plant-orders")} className="text-charcoal hover:text-forest">
             <ArrowLeft size={20} />
           </button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h1
-              className="text-xl text-charcoal"
+              className="text-xl text-charcoal truncate"
               style={{ fontFamily: "var(--font-cormorant, serif)", fontWeight: 500 }}
             >
               {order.customer?.name ?? "Plant Order"}
             </h1>
-            <p className="text-xs text-sage">
+            <p className="text-xs text-sage truncate">
               {societyName && `${societyName} · `}
               {order.customer?.address && `${order.customer.address} · `}
               {formatDate(order.created_at.split("T")[0])}
             </p>
           </div>
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${badge.cls}`}>
-            {badge.label}
+          <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${ORDER_BADGE[order.status] ?? "bg-stone/20 text-charcoal"}`}>
+            {PLANT_ORDER_STATUS_LABELS[order.status] ?? order.status}
           </span>
         </div>
       </div>
 
       <div className="px-4 pt-4 space-y-4 max-w-[700px] mx-auto">
-        {/* Order info */}
+        {/* ── Pipeline controls ─────────────────────────────────────────────── */}
+        <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 space-y-3">
+          <p className="text-xs font-medium text-sage uppercase tracking-widest">Pipeline</p>
+
+          {isTerminal ? (
+            <p className="text-sm text-charcoal">
+              {order.status === "invoiced"
+                ? "This order is complete (invoiced)."
+                : `Closed — ${order.closed_reason ? ORDER_CLOSED_REASON_LABELS[order.closed_reason as keyof typeof ORDER_CLOSED_REASON_LABELS] ?? order.closed_reason : "no longer interested"}.`}
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {nextStates.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => handleTransition(s)}
+                    disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-forest text-offwhite text-xs font-medium rounded-xl hover:bg-garden disabled:opacity-50 transition-colors"
+                  >
+                    Move to {PLANT_ORDER_STATUS_LABELS[s]}
+                    <ArrowRight size={12} />
+                  </button>
+                ))}
+              </div>
+
+              {/* Follow-up date */}
+              <div className="border-t border-stone/30 pt-3">
+                <label className="flex items-center gap-1.5 text-xs text-sage mb-1">
+                  <CalendarClock size={13} /> Remind me on
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    className={INPUT_CLS}
+                    value={followUp}
+                    onChange={(e) => setFollowUp(e.target.value)}
+                  />
+                  <button
+                    onClick={handleSaveFollowUp}
+                    disabled={actionLoading || !followUpDirty}
+                    className="px-3 py-2 bg-forest text-offwhite text-xs font-medium rounded-xl hover:bg-garden disabled:opacity-40 whitespace-nowrap"
+                  >
+                    Save
+                  </button>
+                  {order.next_follow_up_at && (
+                    <button
+                      onClick={handleClearFollowUp}
+                      disabled={actionLoading}
+                      className="px-3 py-2 border border-stone text-charcoal text-xs font-medium rounded-xl hover:bg-cream whitespace-nowrap"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                {order.next_follow_up_at && (
+                  <p
+                    className={`text-xs mt-1 ${isOverdue(order.next_follow_up_at) ? "text-terra" : isDueToday(order.next_follow_up_at) ? "text-garden" : "text-sage"}`}
+                  >
+                    Next follow-up: {formatDate(order.next_follow_up_at)}
+                    {isOverdue(order.next_follow_up_at) && " (overdue)"}
+                    {isDueToday(order.next_follow_up_at) && " (today)"}
+                  </p>
+                )}
+              </div>
+
+              {/* No longer interested */}
+              {canClose && (
+                <div className="border-t border-stone/30 pt-3">
+                  {!showCloseReasons ? (
+                    <button
+                      onClick={() => setShowCloseReasons(true)}
+                      className="flex items-center gap-1.5 text-xs text-terra hover:text-terra/80 font-medium"
+                    >
+                      <XCircle size={13} /> Mark no longer interested
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-sage">Reason for closing:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {ORDER_CLOSED_REASONS.map((r) => (
+                          <button
+                            key={r}
+                            onClick={() => handleMarkNoLongerInterested(r)}
+                            disabled={actionLoading}
+                            className="px-3 py-1.5 border border-terra/40 text-terra text-xs font-medium rounded-xl hover:bg-terra/5 disabled:opacity-50"
+                          >
+                            {ORDER_CLOSED_REASON_LABELS[r]}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => setShowCloseReasons(false)}
+                          className="px-3 py-1.5 text-xs text-sage hover:text-charcoal"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── Order info ────────────────────────────────────────────────────── */}
         <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-sage">Due Date</span>
-            <span className={`font-medium ${isOverdue ? "text-terra" : "text-charcoal"}`}>
-              {formatDate(order.due_date)}{isOverdue && " (overdue)"}
+            <span className="text-sage">Install target</span>
+            <span className={`font-medium ${dueOverdue ? "text-terra" : "text-charcoal"}`}>
+              {order.due_date ? formatDate(order.due_date) : "Not set"}
+              {dueOverdue && " (overdue)"}
             </span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-sage">Source</span>
-            <span className="text-charcoal capitalize">{order.request_source.replace("_", " ")}</span>
-          </div>
+          {order.shortlist_version_id && (
+            <div className="flex justify-between text-sm">
+              <span className="text-sage">Created from</span>
+              <span className="text-forest">Shortlist</span>
+            </div>
+          )}
           {order.notes && (
             <div className="border-t border-stone/30 pt-2">
               <p className="text-xs text-sage mb-0.5">Notes</p>
-              <p className="text-sm text-charcoal">{order.notes}</p>
+              <p className="text-sm text-charcoal whitespace-pre-wrap">{order.notes}</p>
             </div>
           )}
         </div>
 
-        {/* Items */}
+        {/* ── Procurement rollup (read-only, links to Procurement) ──────────── */}
+        <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-medium text-sage uppercase tracking-widest">Procurement</p>
+            <button
+              onClick={() => router.push("/ops/procurement")}
+              className="flex items-center gap-1 text-xs text-forest hover:text-garden font-medium"
+            >
+              <Truck size={12} /> View in Procurement
+            </button>
+          </div>
+          {total === 0 ? (
+            <p className="text-sm text-stone">—</p>
+          ) : (
+            <p className="text-sm text-charcoal">
+              {procuredCount} of {total} procured
+              {onTripCount > 0 && <span className="text-sage"> · {onTripCount} on a trip</span>}
+            </p>
+          )}
+        </div>
+
+        {/* ── Items (intent, read-only here) ────────────────────────────────── */}
         <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
           <p className="text-xs font-medium text-sage uppercase tracking-widest mb-3">
             Items ({order.items.length})
           </p>
-          <div className="space-y-3">
-            {order.items.map((item) => {
-              const itemBadge = STATUS_BADGE[item.status] ?? { cls: "bg-stone/20 text-charcoal", label: item.status };
-              return (
+          {order.items.length === 0 ? (
+            <p className="text-sm text-stone">
+              No plants chosen yet.
+              {ITEM_EDITABLE.includes(order.status) && " Use “Edit items” to add them."}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {order.items.map((item) => (
                 <div key={item.id} className="border-b border-stone/20 last:border-0 pb-3 last:pb-0">
                   <div className="flex items-start gap-3">
-                    {/* Thumbnail or placeholder */}
                     {item.thumbnail_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={item.thumbnail_url}
                         alt={item.plant_name}
@@ -298,8 +547,8 @@ export default function PlantOrderDetailPage() {
                           <span className="text-sm font-semibold text-charcoal bg-cream border border-stone/40 px-2.5 py-0.5 rounded-lg">
                             Qty: {item.quantity}
                           </span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${itemBadge.cls}`}>
-                            {itemBadge.label}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${ITEM_BADGE[item.status] ?? "bg-stone/20 text-charcoal"}`}>
+                            {PLANT_ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status}
                           </span>
                         </div>
                       </div>
@@ -315,91 +564,19 @@ export default function PlantOrderDetailPage() {
                           Installed {formatDate(item.installed_at.split("T")[0])}
                         </p>
                       )}
-
-                      {/* Action buttons per item */}
-                      {item.status === "procured" && (
-                        <div className="flex gap-2 mt-2">
-                          {!item.install_service_id && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleAddToService(item); }}
-                              disabled={actionLoading === `install-${item.id}`}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-forest text-offwhite text-xs font-medium rounded-lg hover:bg-garden disabled:opacity-50 transition-colors"
-                            >
-                              <CalendarIcon size={12} />
-                              {actionLoading === `install-${item.id}` ? "Adding…" : "Add to Next Service"}
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleMarkInstalled(item); }}
-                            disabled={actionLoading === `installed-${item.id}`}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-forest text-forest text-xs font-medium rounded-lg hover:bg-forest/5 disabled:opacity-50 transition-colors"
-                          >
-                            <CheckCircle size={12} />
-                            {actionLoading === `installed-${item.id}` ? "Marking…" : "Mark Installed"}
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* WhatsApp draft message */}
-        {customerPhone && order.status !== "cancelled" && (() => {
-          let msg = "";
-          let label = "";
-          if (order.status === "requested") {
-            label = "Acknowledgement Message";
-            msg = `Hi ${order.customer?.name},\n\nWe've noted your plant request for:\n\n${order.items.map((i) => `- ${i.quantity}x ${i.plant_name}`).join("\n")}\n\nWe'll source these and aim to install them by ${formatDate(order.due_date)}.\n\nWe'll keep you updated once the plants are procured.\n\n– Team Nuvvy`;
-          } else if (order.status === "procured") {
-            label = "Procurement Update";
-            msg = `Hi ${order.customer?.name},\n\nWe've procured the following plants for your home:\n\n${order.items.filter((i) => i.status === "procured" || i.status === "installed").map((i) => `- ${i.qty_procured ?? i.quantity}x ${i.plant_name}`).join("\n")}\n\nWe will install these during your next Nuvvy service visit.\n\n– Team Nuvvy`;
-          } else if (order.status === "installed") {
-            label = "Installation Update";
-            msg = `Hi ${order.customer?.name},\n\nYour new plants have been installed today:\n\n${order.items.filter((i) => i.status === "installed").map((i) => `- ${i.quantity}x ${i.plant_name}`).join("\n")}\n\nNuvvy will continue caring for these plants as part of your regular service.\n\n– Team Nuvvy`;
-          }
-          if (!msg) return null;
-
-          const cleanPhone = customerPhone.replace(/[^0-9]/g, "");
-          const waLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
-
-          return (
-            <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-sage uppercase tracking-widest">{label}</p>
-                <button
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(msg);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="flex items-center gap-1 text-xs text-forest hover:text-garden font-medium"
-                >
-                  {copied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
-                </button>
-              </div>
-              <p className="text-sm text-charcoal whitespace-pre-line bg-cream rounded-xl p-3 border border-stone/30 mb-3">{msg}</p>
-              <a
-                href={waLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#25D366] text-white rounded-xl text-sm font-medium hover:bg-[#20BD5A] transition-colors"
-              >
-                Open in WhatsApp
-              </a>
-            </div>
-          );
-        })()}
-
-        {/* Invoice section */}
+        {/* ── Invoice ───────────────────────────────────────────────────────── */}
         {(() => {
           const hasBillableItems = order.items.some(
-            (i) => ["procured", "installed"].includes(i.status) && i.qty_procured != null && i.actual_unit_price != null
+            (i) => i.status === "procured" && i.qty_procured != null && i.actual_unit_price != null
           );
-
           if (!hasBillableItems && !invoice) return null;
 
           if (!invoice) {
@@ -407,7 +584,7 @@ export default function PlantOrderDetailPage() {
               <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
                 <p className="text-xs font-medium text-sage uppercase tracking-widest mb-3">Invoice</p>
                 <p className="text-sm text-charcoal mb-3">
-                  {order.items.filter((i) => ["procured", "installed"].includes(i.status)).length} item(s) ready to be invoiced.
+                  {order.items.filter((i) => i.status === "procured").length} item(s) ready to be invoiced.
                 </p>
                 <button
                   onClick={handleCreateInvoice}
@@ -421,18 +598,19 @@ export default function PlantOrderDetailPage() {
             );
           }
 
-          const statusBadge: Record<string, { cls: string; label: string }> = {
-            draft: { cls: "bg-amber-50 text-amber-700", label: "Draft" },
-            finalized: { cls: "bg-blue-50 text-blue-700", label: "Finalized" },
-            paid: { cls: "bg-forest text-offwhite", label: "Paid" },
+          const statusBadge: Record<string, string> = {
+            draft: "bg-amber-50 text-amber-700",
+            finalized: "bg-blue-50 text-blue-700",
+            paid: "bg-forest text-offwhite",
           };
-          const invBadge = statusBadge[invoice.status] ?? { cls: "bg-stone/20 text-charcoal", label: invoice.status };
 
           return (
             <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-medium text-sage uppercase tracking-widest">Invoice</p>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${invBadge.cls}`}>{invBadge.label}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${statusBadge[invoice.status] ?? "bg-stone/20 text-charcoal"}`}>
+                  {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                </span>
               </div>
               <div className="text-sm text-charcoal mb-3 space-y-1">
                 <div className="flex justify-between">
@@ -458,60 +636,80 @@ export default function PlantOrderDetailPage() {
           );
         })()}
 
-        {/* Action buttons */}
-        <div className="space-y-2">
-          {order.status === "requested" && (
-            <button
-              onClick={() => setShowEdit(true)}
-              className="w-full py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-offwhite flex items-center justify-center gap-1.5"
-            >
-              <Pencil size={14} /> Edit Order
-            </button>
-          )}
-          {!["cancelled", "installed"].includes(order.status) && (
-            <button
-              onClick={() => setShowCancel(true)}
-              className="w-full py-2.5 border border-terra/40 rounded-xl text-sm text-terra hover:bg-terra/5 flex items-center justify-center gap-1.5"
-            >
-              Cancel Order
-            </button>
-          )}
-        </div>
-      </div>
+        {/* ── Notes & history ───────────────────────────────────────────────── */}
+        <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
+          <p className="text-xs font-medium text-sage uppercase tracking-widest mb-3">History &amp; notes</p>
 
-      {/* Cancel modal */}
-      {showCancel && (
-        <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
-          <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6">
-            <h2 className="font-semibold text-charcoal mb-3">Cancel Order</h2>
-            <p className="text-sm text-sage mb-3">This will cancel all pending items. Procured/installed items will not be affected.</p>
-            <input
-              className={INPUT_CLS}
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="Reason for cancellation…"
-              autoFocus
+          {/* Composer */}
+          <div className="space-y-2 mb-4">
+            <textarea
+              className={`${INPUT_CLS} min-h-[64px]`}
+              value={noteBody}
+              onChange={(e) => setNoteBody(e.target.value)}
+              placeholder="Add a note — what was said, promised, pending…"
             />
-            <div className="flex gap-3 mt-4">
-              <button onClick={() => setShowCancel(false)} className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal">
-                Go Back
-              </button>
+            <div className="flex justify-end">
               <button
-                onClick={handleCancel}
-                disabled={cancelling || !cancelReason.trim()}
-                className="flex-1 py-2.5 bg-terra text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
+                onClick={handleAddNote}
+                disabled={savingNote || !noteBody.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-forest text-offwhite text-sm font-medium rounded-xl hover:bg-garden disabled:opacity-40"
               >
-                {cancelling ? "Cancelling…" : "Cancel Order"}
+                <Send size={14} /> {savingNote ? "Saving…" : "Add note"}
               </button>
             </div>
           </div>
+
+          {/* Timeline — notes + audited pipeline changes */}
+          {history.length === 0 ? (
+            <p className="text-sm text-stone">No history yet.</p>
+          ) : (
+            <ol className="space-y-3">
+              {history.map((ev) => (
+                <li key={`${ev.kind}-${ev.id}`} className="flex gap-3">
+                  <span className="w-7 h-7 rounded-full bg-cream border border-stone/60 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <HistoryIcon kind={ev.kind} />
+                  </span>
+                  <div className="min-w-0 flex-1 pb-3 border-b border-stone/20 last:border-0">
+                    <p className="text-xs text-sage">
+                      <span className="text-charcoal font-medium">{ev.actor_name || "Someone"}</span>{" "}
+                      {historyVerb(ev)}
+                      {" · "}
+                      <span title={formatTimestamp(ev.at)}>{relativeTime(ev.at)}</span>
+                    </p>
+                    {ev.kind === "note" && ev.body && (
+                      <p className="text-sm text-charcoal leading-relaxed whitespace-pre-wrap mt-1">{ev.body}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
-      )}
+
+        {/* ── Edit items (intent only) ──────────────────────────────────────── */}
+        {ITEM_EDITABLE.includes(order.status) && (
+          <button
+            onClick={() => setShowEdit(true)}
+            className="w-full py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-offwhite flex items-center justify-center gap-1.5"
+          >
+            <Pencil size={14} /> Edit items &amp; details
+          </button>
+        )}
+
+        {/* ── Delete (hard) ─────────────────────────────────────────────────── */}
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="w-full py-2 text-terra hover:bg-terra/5 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-40"
+        >
+          <Trash2 size={13} /> {deleting ? "Deleting…" : "Delete order / interest"}
+        </button>
+      </div>
     </div>
   );
 }
 
-// ─── Edit Order View ──────────────────────────────────────────────────────────
+// ─── Edit Order View (intent) ───────────────────────────────────────────────
 
 function EditOrderView({
   order,
@@ -531,8 +729,7 @@ function EditOrderView({
       note: i.note ?? "",
     }))
   );
-  const [dueDate, setDueDate] = useState(order.due_date);
-  const [requestSource, setRequestSource] = useState(order.request_source);
+  const [dueDate, setDueDate] = useState(order.due_date ?? "");
   const [notes, setNotes] = useState(order.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -540,11 +737,9 @@ function EditOrderView({
   function updateItem(index: number, updates: Partial<ItemDraft>) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...updates } : item)));
   }
-
   function addItem() {
     setItems((prev) => [...prev, { plant_id: null, plant_name: "", price_band: null, quantity: 1, note: "" }]);
   }
-
   function removeItem(index: number) {
     setItems((prev) => prev.filter((_, i) => i !== index));
   }
@@ -552,10 +747,6 @@ function EditOrderView({
   const validItems = items.filter((i) => i.plant_name.trim());
 
   async function handleSave() {
-    if (validItems.length === 0) {
-      setError("At least one plant is required");
-      return;
-    }
     setSaving(true);
     setError(null);
 
@@ -563,11 +754,10 @@ function EditOrderView({
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        due_date: dueDate,
-        request_source: requestSource,
+        due_date: dueDate || undefined,
         notes: notes || undefined,
         items: validItems.map((i) => ({
-          plant_id: i.plant_id,
+          plant_id: i.plant_id ?? undefined,
           plant_name: i.plant_name,
           quantity: i.quantity,
           note: i.note || undefined,
@@ -607,9 +797,9 @@ function EditOrderView({
           <div key={i} className="bg-offwhite rounded-xl border border-stone/60 p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-sage font-medium">Plant {i + 1}</span>
-              {items.length > 1 && (
-                <button onClick={() => removeItem(i)} className="text-xs text-terra">Remove</button>
-              )}
+              <button onClick={() => removeItem(i)} className="text-xs text-terra">
+                Remove
+              </button>
             </div>
             <PlantSelector
               value={item.plant_name ? { plant_id: item.plant_id, plant_name: item.plant_name, price_band: item.price_band } : null}
@@ -647,18 +837,15 @@ function EditOrderView({
           </div>
         ))}
 
-        <button onClick={addItem} className="text-sm text-forest hover:text-garden font-medium">+ Add another plant</button>
+        <button onClick={addItem} className="text-sm text-forest hover:text-garden font-medium">
+          + Add a plant
+        </button>
 
         <div>
-          <label className="block text-xs text-sage mb-1">Due date</label>
+          <label className="block text-xs text-sage mb-1">
+            Install target <span className="text-stone">(optional)</span>
+          </label>
           <input type="date" className={INPUT_CLS} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-xs text-sage mb-1">Request source</label>
-          <select className={INPUT_CLS} value={requestSource} onChange={(e) => setRequestSource(e.target.value)}>
-            <option value="customer_requested">Customer Requested</option>
-            <option value="replacement">Replacement</option>
-          </select>
         </div>
         <div>
           <label className="block text-xs text-sage mb-1">Notes</label>
@@ -668,8 +855,10 @@ function EditOrderView({
         {error && <p className="text-sm text-terra">{error}</p>}
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal">Cancel</button>
-          <button onClick={handleSave} disabled={saving || validItems.length === 0} className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40">
             {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>
