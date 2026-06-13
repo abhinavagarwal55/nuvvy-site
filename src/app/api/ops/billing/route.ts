@@ -14,7 +14,7 @@ const CreateBillSchema = z.object({
   notes: z.string().optional(),
 });
 
-// GET /api/ops/billing?status=pending&customer_id=xxx
+// GET /api/ops/billing?status=pending&customer_id=xxx — admin only
 export async function GET(request: NextRequest) {
   let auth;
   try {
@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
   } catch (res) {
     return res as Response;
   }
-  if (auth.role === "gardener") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (auth.role !== "admin") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);

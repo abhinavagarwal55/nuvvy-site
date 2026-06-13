@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CreditCard,
   ClipboardCheck,
+  MessageSquare,
   Leaf,
   ChevronRight,
 } from "lucide-react";
@@ -389,13 +390,14 @@ function HortiView({ data }: { data: HortiDashboard }) {
 function QuickLinks() {
   const links = [
     { href: "/ops/schedule", label: "Schedule", icon: Calendar },
+    { href: "/ops/schedule/reminders", label: "Reminders", icon: MessageSquare },
     { href: "/ops/customers", label: "Customers", icon: Users },
     { href: "/ops/services", label: "Services", icon: ClipboardCheck },
     { href: "/ops/requests", label: "Requests", icon: AlertCircle },
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-5 gap-2">
       {links.map((link) => (
         <Link key={link.href} href={link.href}>
           <div className="bg-offwhite rounded-xl border border-stone/60 p-3 text-center hover:border-forest/40 transition-colors">

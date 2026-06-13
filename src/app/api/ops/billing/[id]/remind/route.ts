@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 
-// POST /api/ops/billing/[id]/remind — update last_reminder_sent_at
+// POST /api/ops/billing/[id]/remind — admin only — update last_reminder_sent_at
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,8 +13,8 @@ export async function POST(
   } catch (res) {
     return res as Response;
   }
-  if (auth.role === "gardener") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (auth.role !== "admin") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   const { id } = await params;
