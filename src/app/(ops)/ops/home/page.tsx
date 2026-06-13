@@ -208,9 +208,12 @@ function AdminView({ data }: { data: AdminDashboard }) {
 
       {/* Today's services */}
       <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
-        <p className="text-xs font-medium text-sage uppercase tracking-widest mb-3">
-          Today&apos;s Services
-        </p>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <p className="text-xs font-medium text-sage uppercase tracking-widest">
+            Today&apos;s Services
+          </p>
+          <SendReminderButton />
+        </div>
         <div className="grid grid-cols-3 gap-3">
           <StatCard
             icon={<Calendar size={18} className="text-forest" />}
@@ -368,36 +371,43 @@ function HortiView({ data }: { data: HortiDashboard }) {
       {data.lead_follow_ups && <LeadFollowUpCard data={data.lead_follow_ups} />}
 
       {/* This week services */}
-      <Link href="/ops/schedule">
-        <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 flex items-center justify-between hover:border-forest/40">
-          <div className="flex items-center gap-3">
-            <Calendar size={20} className="text-forest" />
-            <div>
-              <p className="text-sm font-medium text-charcoal">
-                {data.week_services_count} services this week
-              </p>
-            </div>
-          </div>
-          <ChevronRight size={18} className="text-stone" />
-        </div>
-      </Link>
+      <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 flex items-center justify-between gap-2">
+        <Link href="/ops/schedule" className="flex items-center gap-3 min-w-0">
+          <Calendar size={20} className="text-forest shrink-0" />
+          <p className="text-sm font-medium text-charcoal truncate">
+            {data.week_services_count} services this week
+          </p>
+        </Link>
+        <SendReminderButton />
+      </div>
 
       <QuickLinks />
     </>
   );
 }
 
+function SendReminderButton() {
+  return (
+    <Link
+      href="/ops/schedule/reminders"
+      className="flex items-center gap-1.5 border border-stone text-charcoal text-xs px-2.5 py-1.5 rounded-lg hover:bg-cream hover:border-forest/40 transition-colors whitespace-nowrap shrink-0"
+    >
+      <MessageSquare size={14} className="text-forest" />
+      Send service reminder
+    </Link>
+  );
+}
+
 function QuickLinks() {
   const links = [
     { href: "/ops/schedule", label: "Schedule", icon: Calendar },
-    { href: "/ops/schedule/reminders", label: "Reminders", icon: MessageSquare },
     { href: "/ops/customers", label: "Customers", icon: Users },
     { href: "/ops/services", label: "Services", icon: ClipboardCheck },
     { href: "/ops/requests", label: "Requests", icon: AlertCircle },
   ];
 
   return (
-    <div className="grid grid-cols-5 gap-2">
+    <div className="grid grid-cols-4 gap-2">
       {links.map((link) => (
         <Link key={link.href} href={link.href}>
           <div className="bg-offwhite rounded-xl border border-stone/60 p-3 text-center hover:border-forest/40 transition-colors">

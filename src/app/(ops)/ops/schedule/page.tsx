@@ -923,21 +923,23 @@ export default function SchedulePage() {
           <div className="flex items-center gap-2">
             <Link
               href="/ops/schedule/reminders"
-              className="flex items-center gap-1.5 border border-stone text-charcoal text-sm px-3 py-2 rounded-xl hover:bg-cream transition-colors"
+              aria-label="Reminders"
+              title="Reminders"
+              className="flex items-center gap-1.5 border border-stone text-charcoal text-sm px-3 py-2 rounded-xl hover:bg-cream transition-colors whitespace-nowrap"
             >
               <MessageSquare size={16} />
-              Reminders
+              <span className="hidden sm:inline">Reminders</span>
             </Link>
             <button
               onClick={() => setEventCreateOpen(true)}
-              className="flex items-center gap-1.5 border border-stone text-charcoal text-sm px-3 py-2 rounded-xl hover:bg-cream transition-colors"
+              className="flex items-center gap-1.5 border border-stone text-charcoal text-sm px-3 py-2 rounded-xl hover:bg-cream transition-colors whitespace-nowrap"
             >
               <Plus size={16} />
               New Event
             </button>
             <button
               onClick={() => setCreateOpen(true)}
-              className="flex items-center gap-1.5 bg-forest text-offwhite text-sm px-3 py-2 rounded-xl hover:bg-garden transition-colors"
+              className="flex items-center gap-1.5 bg-forest text-offwhite text-sm px-3 py-2 rounded-xl hover:bg-garden transition-colors whitespace-nowrap"
             >
               <Plus size={16} />
               New Service
