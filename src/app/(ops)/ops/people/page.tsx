@@ -368,6 +368,7 @@ export default function PeoplePage() {
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [showInactive, setShowInactive] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Modal state
@@ -412,9 +413,11 @@ export default function PeoplePage() {
     load();
   }
 
-  const filtered = roleFilter === "all"
-    ? people
-    : people.filter((p) => p.role === roleFilter);
+  const filtered = people
+    .filter((p) => roleFilter === "all" || p.role === roleFilter)
+    .filter((p) => showInactive || p.status === "active");
+
+  const inactiveCount = people.filter((p) => p.status !== "active").length;
 
   const gardeners = filtered.filter((p) => p.role === "gardener");
   const horticulturists = filtered.filter((p) => p.role === "horticulturist");
@@ -457,6 +460,18 @@ export default function PeoplePage() {
               {r === "all" ? "All" : ROLE_LABEL[r as Person["role"]]}
             </button>
           ))}
+
+          <button
+            onClick={() => setShowInactive((v) => !v)}
+            className={`ml-auto px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
+              showInactive
+                ? "bg-forest text-offwhite border-forest"
+                : "bg-cream text-charcoal border-stone"
+            }`}
+          >
+            {showInactive ? "Showing inactive" : "Show inactive"}
+            {inactiveCount > 0 && ` (${inactiveCount})`}
+          </button>
         </div>
       </div>
 
