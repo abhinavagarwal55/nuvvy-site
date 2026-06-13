@@ -10,6 +10,7 @@ import {
   Calendar,
   Plus,
   MoreVertical,
+  MessageSquare,
   X,
 } from "lucide-react";
 import { usePerf } from "@/lib/perf/use-perf";
@@ -920,6 +921,13 @@ export default function SchedulePage() {
             Schedule
           </h1>
           <div className="flex items-center gap-2">
+            <Link
+              href="/ops/schedule/reminders"
+              className="flex items-center gap-1.5 border border-stone text-charcoal text-sm px-3 py-2 rounded-xl hover:bg-cream transition-colors"
+            >
+              <MessageSquare size={16} />
+              Reminders
+            </Link>
             <button
               onClick={() => setEventCreateOpen(true)}
               className="flex items-center gap-1.5 border border-stone text-charcoal text-sm px-3 py-2 rounded-xl hover:bg-cream transition-colors"
