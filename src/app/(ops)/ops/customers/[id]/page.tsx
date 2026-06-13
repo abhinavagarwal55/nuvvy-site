@@ -22,6 +22,13 @@ import {
   X,
   Copy,
   Check,
+  Sprout,
+  Bug,
+  Pill,
+  Recycle,
+  ShieldCheck,
+  Layers,
+  type LucideIcon,
 } from "lucide-react";
 import PlantSelector from "@/components/ops/PlantSelector";
 import WhatsAppDraftButton from "@/components/ops/WhatsAppDraftButton";
@@ -116,6 +123,18 @@ const CARE_LABELS: Record<string, string> = {
   neem_oil: "Neem Oil",
 };
 
+// Distinct icon per input type for the Care History table. Falls back to Leaf
+// for any care action not listed here.
+const CARE_ICONS: Record<string, LucideIcon> = {
+  fertilizer: Sprout,
+  vermi_compost: Recycle,
+  micro_nutrients: Pill,
+  neem_oil: Bug,
+  pesticide: Bug,
+  fungicide: ShieldCheck,
+  soil_amendment: Layers,
+};
+
 const PLANT_LABEL: Record<string, string> = {
   "0_20": "0–20 pots",
   "20_40": "20–40 pots",
@@ -123,6 +142,28 @@ const PLANT_LABEL: Record<string, string> = {
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+// Customer 360 tab bar. Order: overview, photos, care history, then the
+// transactional tabs. The bar is horizontally scrollable, so adding tabs is safe.
+const CUSTOMER_TAB_KEYS = [
+  "overview",
+  "photos",
+  "care_history",
+  "services",
+  "requests",
+  "billing",
+  "plant_orders",
+] as const;
+type CustomerTab = (typeof CUSTOMER_TAB_KEYS)[number];
+const CUSTOMER_TAB_LABELS: Record<CustomerTab, string> = {
+  overview: "Overview",
+  photos: "Photos",
+  care_history: "Care History",
+  services: "Services",
+  requests: "Requests",
+  billing: "Billing",
+  plant_orders: "Plant Orders",
+};
 
 // ─── Skeleton Components ──────────────────────────────────────────────────────
 
@@ -172,8 +213,11 @@ export default function Customer360Page() {
   const searchParams = useSearchParams();
   const perfFetcher = usePerf(`/api/ops/customers/${customerId}`, '/ops/customers/[id]');
 
-  const initialTab = (searchParams.get("tab") === "plant_orders" ? "plant_orders" : "overview") as "overview" | "services" | "requests" | "billing" | "plant_orders";
-  const [tab, setTab] = useState<"overview" | "services" | "requests" | "billing" | "plant_orders">(initialTab);
+  const tabParam = searchParams.get("tab");
+  const initialTab: CustomerTab = (CUSTOMER_TAB_KEYS as readonly string[]).includes(tabParam ?? "")
+    ? (tabParam as CustomerTab)
+    : "overview";
+  const [tab, setTab] = useState<CustomerTab>(initialTab);
   const [showDeactivate, setShowDeactivate] = useState(false);
   const [deactivateReason, setDeactivateReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -366,8 +410,7 @@ export default function Customer360Page() {
 
         {/* Tabs */}
         <div className="flex gap-1 overflow-x-auto pb-1">
-          {(["overview", "services", "requests", "billing", "plant_orders"] as const).map((t) => {
-            const labels: Record<string, string> = { overview: "Overview", services: "Services", requests: "Requests", billing: "Billing", plant_orders: "Plant Orders" };
+          {CUSTOMER_TAB_KEYS.map((t) => {
             return (
               <button
                 key={t}
@@ -378,7 +421,7 @@ export default function Customer360Page() {
                     : "bg-cream text-charcoal border-stone"
                 }`}
               >
-                {labels[t]}
+                {CUSTOMER_TAB_LABELS[t]}
               </button>
             );
           })}
@@ -415,6 +458,8 @@ export default function Customer360Page() {
             onSaved={() => { setShowEdit(false); revalidateAll(); }}
           />
         )}
+        {tab === "photos" && <PhotosTab customerId={customerId} />}
+        {tab === "care_history" && <CareHistoryTab customerId={customerId} />}
         {tab === "services" && (
           <ServicesTab services={services} />
         )}
@@ -1446,6 +1491,201 @@ function BillingTab({ bills, customerId }: { bills: CustBill[]; customerId: stri
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Photos Tab ───────────────────────────────────────────────────────────────
+
+type GalleryPhoto = {
+  id: string;
+  source: "onboarding" | "visit";
+  storage_path: string;
+  url: string | null;
+  taken_at: string;
+  caption: string | null;
+  tag: string | null;
+  visit_id: string | null;
+  visit_date: string | null;
+};
+
+const PHOTO_TAG_LABELS: Record<string, string> = {
+  before: "Before",
+  after: "After",
+  issue: "Issue",
+  general: "Visit",
+};
+
+function PhotosTab({ customerId }: { customerId: string }) {
+  const { data, isLoading } = useSWR<{ data: GalleryPhoto[] }>(
+    `/api/ops/customers/${customerId}/gallery`,
+    fetcher
+  );
+  const photos: GalleryPhoto[] = data?.data ?? [];
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // The lightbox only shows photos whose signed URL resolved; map a clicked
+  // tile to its position within that filtered subset (indexes can differ).
+  const viewable = photos.filter((p) => p.url);
+  const lightboxPhotos = viewable.map((p) => ({
+    url: p.url as string,
+    alt: p.caption ?? undefined,
+  }));
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="aspect-square bg-stone/20 rounded-xl animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (photos.length === 0) {
+    return (
+      <div className="bg-offwhite rounded-2xl border border-stone/60 p-8 text-center">
+        <Camera size={28} className="text-stone mx-auto mb-2" />
+        <p className="text-sm text-sage">
+          No photos yet — onboarding baseline and visit photos will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+        {photos.map((p) => {
+          const badge =
+            p.source === "onboarding"
+              ? "Onboarding"
+              : p.tag
+              ? PHOTO_TAG_LABELS[p.tag] ?? "Visit"
+              : "Visit";
+          return (
+            <div
+              key={p.id}
+              className={`relative aspect-square bg-cream rounded-xl border border-stone/40 overflow-hidden transition-colors ${
+                p.url ? "cursor-pointer hover:border-forest/60" : ""
+              }`}
+              onClick={() => {
+                if (!p.url) return;
+                const idx = viewable.findIndex((v) => v.id === p.id);
+                if (idx >= 0) setLightboxIndex(idx);
+              }}
+            >
+              {p.url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.url}
+                  alt={p.caption ?? "Garden photo"}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-[10px] text-sage text-center px-1 break-all flex items-center justify-center w-full h-full">
+                  {p.storage_path.split("/").pop()}
+                </span>
+              )}
+              <span className="absolute top-1 left-1 text-[9px] font-medium px-1.5 py-0.5 rounded-md bg-charcoal/70 text-offwhite">
+                {badge}
+              </span>
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1">
+                <p className="text-[9px] text-offwhite/90 leading-tight">
+                  {formatDate(p.taken_at)}
+                </p>
+                {p.caption && (
+                  <p className="text-[9px] text-offwhite/80 leading-tight truncate">
+                    {p.caption}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {lightboxIndex !== null && lightboxPhotos.length > 0 && (
+        <PhotoLightbox
+          photos={lightboxPhotos}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Care History Tab ───────────────────────────────────────────────────────
+
+type CareHistoryRow = {
+  id: string;
+  action_name: string | null;
+  applied_at: string | null;
+  was_due: boolean;
+  visit_id: string;
+  visit_date: string | null;
+};
+
+function CareHistoryTab({ customerId }: { customerId: string }) {
+  const { data, isLoading } = useSWR<{ data: CareHistoryRow[] }>(
+    `/api/ops/customers/${customerId}/care-history`,
+    fetcher
+  );
+  const rows: CareHistoryRow[] = data?.data ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="bg-offwhite rounded-2xl border border-stone/60 p-5 animate-pulse space-y-2">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-4 bg-stone/20 rounded" />
+        ))}
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="bg-offwhite rounded-2xl border border-stone/60 p-8 text-center">
+        <Leaf size={28} className="text-stone mx-auto mb-2" />
+        <p className="text-sm text-sage">No input applications recorded yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <Card title="Input Application History">
+      <p className="text-xs text-sage mb-3">
+        {rows.length} application{rows.length !== 1 ? "s" : ""}
+        {rows[0].applied_at ? ` · last on ${formatDate(rows[0].applied_at)}` : ""}
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-sage uppercase text-[10px] tracking-wider border-b border-stone/50">
+              <th className="text-left font-medium py-2 pr-3">Input</th>
+              <th className="text-left font-medium py-2">Applied</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const Icon = CARE_ICONS[r.action_name ?? ""] ?? Leaf;
+              return (
+                <tr key={r.id} className="border-b border-stone/30 last:border-0">
+                  <td className="py-2 pr-3">
+                    <span className="flex items-center gap-1.5 text-charcoal">
+                      <Icon size={14} className="text-sage flex-shrink-0" />
+                      {CARE_LABELS[r.action_name ?? ""] ?? r.action_name ?? "Unknown"}
+                    </span>
+                  </td>
+                  <td className="py-2 text-charcoal whitespace-nowrap">
+                    {r.applied_at ? formatDate(r.applied_at) : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
