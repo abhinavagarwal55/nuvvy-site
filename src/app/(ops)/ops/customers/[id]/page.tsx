@@ -241,11 +241,19 @@ export default function Customer360Page() {
     `/api/ops/requests?customer_id=${customerId}`,
     fetcher
   );
+  const { data: roleData } = useSWR("/api/ops/people/me/role", fetcher);
+  const role = roleData?.data?.role;
+  const isAdmin = role === "admin";
+  // Billing is admin-only (the /api/ops/billing route 403s non-admins). Skip the
+  // fetch entirely for horticulturists so billing data never loads for them.
   const { data: billData, isLoading: billLoading, mutate: mutateBill } = useSWR(
-    `/api/ops/billing?customer_id=${customerId}`,
+    isAdmin ? `/api/ops/billing?customer_id=${customerId}` : null,
     fetcher
   );
-  const { data: roleData } = useSWR("/api/ops/people/me/role", fetcher);
+  // A non-admin deep-linking ?tab=billing is bounced to Overview once role loads.
+  useEffect(() => {
+    if (role && role !== "admin" && tab === "billing") setTab("overview");
+  }, [role, tab]);
   const { data: societiesData } = useSWR("/api/ops/societies", fetcher);
   const { data: customerPhotosData } = useSWR(
     `/api/ops/customers/${customerId}/photos`,
@@ -260,8 +268,6 @@ export default function Customer360Page() {
   const services: Service[] = svcData?.data ?? [];
   const requests: CustRequest[] = reqData?.data ?? [];
   const bills: CustBill[] = billData?.data ?? [];
-  const role = roleData?.data?.role;
-  const isAdmin = role === "admin";
   // admin + horticulturist may change a customer's type (FD-11).
   const canChangeType = role === "admin" || role === "horticulturist";
   const societies: { id: string; name: string }[] = societiesData?.data ?? [];
@@ -410,7 +416,7 @@ export default function Customer360Page() {
 
         {/* Tabs */}
         <div className="flex gap-1 overflow-x-auto pb-1">
-          {CUSTOMER_TAB_KEYS.map((t) => {
+          {CUSTOMER_TAB_KEYS.filter((t) => t !== "billing" || isAdmin).map((t) => {
             return (
               <button
                 key={t}
@@ -466,7 +472,7 @@ export default function Customer360Page() {
         {tab === "requests" && (
           <RequestsTab requests={requests} />
         )}
-        {tab === "billing" && (
+        {tab === "billing" && isAdmin && (
           <BillingTab bills={bills} customerId={customerId} />
         )}
         {tab === "plant_orders" && customer && (
