@@ -37,6 +37,7 @@ type ServiceDetail = {
   assigned_gardener_id: string | null;
   gardener: { id: string; name: string } | null;
   customer: { name: string } | null;
+  internal_notes: string | null;
   checklist_items: { id: string; label: string; completion_status: string }[];
   special_tasks: { id: string; description: string; is_completed: boolean }[];
   care_actions_due: {
@@ -220,7 +221,7 @@ export default function ServiceDetailPage() {
     setReviewing(false);
   }
 
-  async function handleAddTasks(descriptions: string[]) {
+  async function handleAddTasks(descriptions: string[], internalNotes: string) {
     if (!nextServiceId) return;
     for (const desc of descriptions) {
       await fetch(`/api/ops/services/${serviceId}/tasks`, {
@@ -232,6 +233,13 @@ export default function ServiceDetailPage() {
         }),
       });
     }
+    // Internal notes are saved against the same upcoming visit. They are never
+    // pulled into the customer reminder — only the customer-facing tasks above are.
+    await fetch(`/api/ops/services/${nextServiceId}/internal-notes`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ internal_notes: internalNotes }),
+    });
     setShowTaskModal(false);
     load();
   }
@@ -722,6 +730,16 @@ export default function ServiceDetailPage() {
           </Card>
         )}
 
+        {/* Internal notes — team-only, never sent to the customer */}
+        {service.internal_notes && service.internal_notes.trim() && (
+          <Card title="Internal Notes">
+            <p className="text-xs text-sage mb-1.5">Not shared with the customer.</p>
+            <p className="text-sm text-charcoal whitespace-pre-wrap">
+              {service.internal_notes}
+            </p>
+          </Card>
+        )}
+
         {/* Balcony Photos */}
         <Card title={`Balcony Photos (${photos.filter((p) => p.tag !== "issue").length})`}>
           {photos.filter((p) => p.tag !== "issue").length === 0 ? (
@@ -900,8 +918,9 @@ export default function ServiceDetailPage() {
       </div>
 
       {/* Add task modal */}
-      {showTaskModal && (
+      {showTaskModal && nextServiceId && (
         <AddTaskModal
+          nextServiceId={nextServiceId}
           onClose={() => setShowTaskModal(false)}
           onSubmit={handleAddTasks}
         />
@@ -1214,14 +1233,34 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function AddTaskModal({
+  nextServiceId,
   onClose,
   onSubmit,
 }: {
+  nextServiceId: string;
   onClose: () => void;
-  onSubmit: (descriptions: string[]) => void;
+  onSubmit: (descriptions: string[], internalNotes: string) => Promise<void>;
 }) {
   const [tasks, setTasks] = useState<string[]>([""]);
+  const [internalNotes, setInternalNotes] = useState("");
+  const [initialNotes, setInitialNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Prefill the internal note from the target visit so re-opening edits (not overwrites).
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/ops/services/${nextServiceId}/internal-notes`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!active || !j?.data) return;
+        setInternalNotes(j.data.internal_notes ?? "");
+        setInitialNotes(j.data.internal_notes ?? "");
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [nextServiceId]);
 
   function updateTask(index: number, value: string) {
     setTasks((prev) => prev.map((t, i) => (i === index ? value : t)));
@@ -1236,12 +1275,14 @@ function AddTaskModal({
   }
 
   const validTasks = tasks.filter((t) => t.trim().length > 0);
+  const notesChanged = internalNotes.trim() !== initialNotes.trim();
+  const canSubmit = validTasks.length > 0 || notesChanged;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (validTasks.length === 0) return;
+    if (!canSubmit) return;
     setSaving(true);
-    await onSubmit(validTasks);
+    await onSubmit(validTasks, internalNotes);
     setSaving(false);
   }
 
@@ -1252,6 +1293,10 @@ function AddTaskModal({
           Add Tasks for Next Visit
         </h2>
         <form onSubmit={handleSubmit} className="space-y-3">
+          <p className="text-xs text-sage">
+            Tasks are shared with the customer in their visit reminder. Add anything
+            you don&apos;t want the customer to see under Internal notes below.
+          </p>
           {tasks.map((task, i) => (
             <div key={i} className="flex items-start gap-2">
               <span className="text-xs text-sage mt-3 w-5 text-right flex-shrink-0">
@@ -1261,7 +1306,7 @@ function AddTaskModal({
                 className={`${inputCls} flex-1`}
                 value={task}
                 onChange={(e) => updateTask(i, e.target.value)}
-                placeholder="e.g. Check pest on money plant"
+                placeholder="e.g. Prune the money plant"
                 autoFocus={i === tasks.length - 1}
               />
               {tasks.length > 1 && (
@@ -1282,6 +1327,22 @@ function AddTaskModal({
           >
             + Add another task
           </button>
+
+          {/* Internal notes — team-only, never sent to the customer reminder */}
+          <div className="pt-2 border-t border-stone/40">
+            <label className="block text-xs font-medium text-charcoal mb-1">
+              Internal notes
+              <span className="font-normal text-sage"> · not shared with customer</span>
+            </label>
+            <textarea
+              className={`${inputCls} w-full resize-y`}
+              rows={3}
+              value={internalNotes}
+              onChange={(e) => setInternalNotes(e.target.value)}
+              placeholder="e.g. Customer sensitive about over-watering. Watch the fiddle-leaf for pests."
+            />
+          </div>
+
           <div className="flex gap-3 pt-1">
             <button
               type="button"
@@ -1292,12 +1353,10 @@ function AddTaskModal({
             </button>
             <button
               type="submit"
-              disabled={saving || validTasks.length === 0}
+              disabled={saving || !canSubmit}
               className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
             >
-              {saving
-                ? "Adding…"
-                : `Add ${validTasks.length} Task${validTasks.length !== 1 ? "s" : ""}`}
+              {saving ? "Saving…" : "Save"}
             </button>
           </div>
         </form>

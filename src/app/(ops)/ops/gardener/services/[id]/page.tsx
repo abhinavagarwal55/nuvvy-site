@@ -67,6 +67,7 @@ type ServiceDetail = {
   started_at: string | null;
   not_completed_reason: string | null;
   customer: { id: string; name: string; phone_number: string | null } | null;
+  internal_notes: string | null;
   checklist_items: ChecklistItem[];
   special_tasks: SpecialTask[];
   care_actions_due: CareActionDue[];
@@ -501,6 +502,15 @@ export default function ServiceExecutionPage() {
       />
 
       <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
+        {/* Internal notes from the horticulturist — team-only, read-only here */}
+        {service.internal_notes && service.internal_notes.trim() && (
+          <SectionCard title="Notes from Horticulturist">
+            <p className="text-sm text-charcoal whitespace-pre-wrap">
+              {service.internal_notes}
+            </p>
+          </SectionCard>
+        )}
+
         {/* 1. Special Tasks for Today */}
         {hasSpecialTasks && (
           <SectionCard title="Special Tasks for Today">
