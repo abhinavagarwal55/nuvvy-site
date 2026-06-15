@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   basePath: basePath,
   assetPrefix: basePath,
   eslint: { ignoreDuringBuilds: true },
+  // Keep pdfkit unbundled so its runtime font-metric files (e.g. Helvetica.afm)
+  // resolve via the real node_modules path instead of a rewritten __dirname.
+  serverExternalPackages: ["pdfkit"],
   experimental: {
     staleTimes: {
       dynamic: 0, // Don't cache dynamic layouts/pages in router cache

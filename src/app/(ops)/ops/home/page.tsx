@@ -173,6 +173,19 @@ function SkeletonStatCard() {
 }
 
 function AdminView({ data }: { data: AdminDashboard }) {
+  const cm = data.billing.current_month;
+  // Plant-order billing totals for the same month, combined with care plans.
+  const { data: poJson } = useSWR(
+    `/api/ops/billing/plant-orders?month=${cm.month}`,
+    fetcher
+  );
+  const po = poJson?.data?.totals ?? { revenue: 0, paid: 0, outstanding: 0 };
+  const combined = {
+    billed: cm.billed + po.revenue,
+    received: cm.paid + po.paid,
+    pending: cm.due + po.outstanding,
+  };
+
   return (
     <>
       {/* Action required */}
@@ -233,28 +246,23 @@ function AdminView({ data }: { data: AdminDashboard }) {
         </div>
       </div>
 
-      {/* This month — billing totals */}
+      {/* This month — combined billing totals (Care Plans + Plant Orders) */}
       <Link href="/ops/billing">
         <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 hover:border-forest/40 transition-colors">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-sage uppercase tracking-widest">
-              Billing · {data.billing.current_month.month_label}
+              All Billing · {cm.month_label}
             </p>
             <span className="text-xs text-forest">Open Billing →</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <BillingTotal label="Billed" amount={data.billing.current_month.billed} />
-            <BillingTotal
-              label="Paid"
-              amount={data.billing.current_month.paid}
-              accent="forest"
-            />
-            <BillingTotal
-              label="Due"
-              amount={data.billing.current_month.due}
-              accent="terra"
-            />
+            <BillingTotal label="Billed" amount={combined.billed} />
+            <BillingTotal label="Received" amount={combined.received} accent="forest" />
+            <BillingTotal label="Pending" amount={combined.pending} accent="terra" />
           </div>
+          <p className="text-[10px] text-sage mt-2">
+            Care plans + plant orders combined
+          </p>
         </div>
       </Link>
 

@@ -3,9 +3,21 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
+import {
+  PLANT_INVOICE_SERVICE_LINES_KEY,
+  parseServiceLines,
+} from "@/lib/billing/plant-invoice-template";
+
+/** Today as YYYY-MM-DD in IST, matching the rest of the billing module. */
+function todayIst(): string {
+  const now = new Date();
+  const ist = new Date(now.getTime() + (5 * 60 + 30) * 60 * 1000);
+  return ist.toISOString().slice(0, 10);
+}
 
 // ---------------------------------------------------------------------------
-// GET /api/ops/invoices?customer_id=xxx&status=xxx
+// GET /api/ops/invoices?customer_id=xxx&plant_order_id=xxx&status=xxx
+// Read — admin or horticulturist (the plant-order detail page reads this).
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   let auth;
@@ -26,7 +38,9 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from("invoices")
-    .select("id, invoice_number, customer_id, plant_order_id, status, subtotal, discount, total, paid_at, finalized_at, created_at, customers(id, name, phone_number)")
+    .select(
+      "id, invoice_number, customer_id, plant_order_id, status, subtotal, discount, total, invoice_date, paid_at, finalized_at, whatsapp_sent_at, created_at, customers(id, name, phone_number)"
+    )
     .order("created_at", { ascending: false });
 
   if (customerId) query = query.eq("customer_id", customerId);
@@ -52,7 +66,9 @@ export async function GET(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ops/invoices — create invoice from a plant order
+// POST /api/ops/invoices — create a sectioned invoice from a plant order.
+// Admin only. Seeds Section B from ALL plant items (blank price) and Section A
+// from the default service lines (blank qty/price). PRD §6.2.
 // ---------------------------------------------------------------------------
 const CreateInvoiceSchema = z.object({
   plant_order_id: z.string().uuid("plant_order_id must be a valid UUID"),
@@ -66,8 +82,8 @@ export async function POST(request: NextRequest) {
     return res as Response;
   }
 
-  if (auth.role === "gardener") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (auth.role !== "admin") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   let body: unknown;
@@ -88,7 +104,7 @@ export async function POST(request: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { plant_order_id } = parsed.data;
 
-  // Verify order exists and get customer_id
+  // Verify order exists and get customer_id.
   const { data: order, error: orderError } = await supabase
     .from("plant_orders")
     .select("id, customer_id")
@@ -102,64 +118,64 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: orderError.message }, { status: 500 });
   }
 
-  // Fetch procured items with pricing. (Install fact is installed_at, not a
-  // status — procured covers both installed and not-yet-installed items.)
+  // One non-cancelled invoice per order — return the existing one if present.
+  const { data: existingInvoice } = await supabase
+    .from("invoices")
+    .select("id")
+    .eq("plant_order_id", plant_order_id)
+    .neq("status", "cancelled")
+    .maybeSingle();
+
+  if (existingInvoice) {
+    return NextResponse.json(
+      {
+        error: "An invoice already exists for this order",
+        existing_invoice_id: existingInvoice.id,
+      },
+      { status: 409 }
+    );
+  }
+
+  // Seed Section B from ALL plant items (intent), price blank.
   const { data: items, error: itemsError } = await supabase
     .from("plant_order_items")
-    .select("*")
+    .select("id, plant_name, quantity, note")
     .eq("plant_order_id", plant_order_id)
-    .eq("status", "procured")
-    .not("qty_procured", "is", null)
-    .not("actual_unit_price", "is", null);
+    .order("created_at", { ascending: true });
 
   if (itemsError) {
     return NextResponse.json({ error: itemsError.message }, { status: 500 });
   }
 
-  if (!items || items.length === 0) {
-    return NextResponse.json(
-      { error: "No procured items to invoice" },
-      { status: 409 }
-    );
-  }
+  // Seed Section A from the configured default service lines.
+  const { data: cfg } = await supabase
+    .from("system_config")
+    .select("value")
+    .eq("key", PLANT_INVOICE_SERVICE_LINES_KEY)
+    .maybeSingle();
+  const serviceLines = parseServiceLines(cfg?.value);
 
-  // Generate invoice number
+  // Generate invoice number (NUV-YYYY-####).
   const { data: lastInvoice } = await supabase
     .from("invoices")
     .select("invoice_number")
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   let nextNumber = 1;
-  const currentYear = new Date().getFullYear();
-
+  const currentYear = new Date(todayIst()).getFullYear();
   if (lastInvoice?.invoice_number) {
     const match = lastInvoice.invoice_number.match(/NUV-(\d{4})-(\d+)/);
     if (match) {
       const lastYear = parseInt(match[1], 10);
       const lastNum = parseInt(match[2], 10);
-      if (lastYear === currentYear) {
-        nextNumber = lastNum + 1;
-      }
+      if (lastYear === currentYear) nextNumber = lastNum + 1;
     }
   }
-
   const invoiceNumber = `NUV-${currentYear}-${String(nextNumber).padStart(4, "0")}`;
 
-  // Compute line items and subtotal
-  const invoiceItems = items.map((item, idx) => ({
-    description: `${item.plant_name}${item.nursery_name ? ` (${item.nursery_name})` : ""}`,
-    quantity: item.qty_procured as number,
-    unit_price: item.actual_unit_price as number,
-    total: (item.qty_procured as number) * (item.actual_unit_price as number),
-    plant_order_item_id: item.id,
-    sort_order: idx + 1,
-  }));
-
-  const subtotal = invoiceItems.reduce((sum, li) => sum + li.total, 0);
-
-  // Insert invoice
+  // Insert invoice — all money zero; prices filled later by the editor.
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
     .insert({
@@ -167,9 +183,10 @@ export async function POST(request: NextRequest) {
       customer_id: order.customer_id,
       plant_order_id,
       status: "draft",
-      subtotal,
+      invoice_date: todayIst(),
+      subtotal: 0,
       discount: 0,
-      total: subtotal,
+      total: 0,
       created_by: auth.userId,
     })
     .select()
@@ -179,26 +196,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: invoiceError.message }, { status: 500 });
   }
 
-  // Insert invoice items
-  const itemRows = invoiceItems.map((li) => ({
+  // Build seeded line items: Section A (service) then Section B (plants).
+  const serviceRows = serviceLines.map((description, idx) => ({
     invoice_id: invoice.id,
-    description: li.description,
-    quantity: li.quantity,
-    unit_price: li.unit_price,
-    total: li.total,
-    plant_order_item_id: li.plant_order_item_id,
-    sort_order: li.sort_order,
+    description,
+    quantity: null,
+    unit_price: null,
+    total: 0,
+    section: "service",
+    plant_order_item_id: null,
+    sort_order: idx + 1,
   }));
 
-  const { error: itemInsertError } = await supabase
-    .from("invoice_items")
-    .insert(itemRows);
+  const plantRows = (items ?? []).map((item, idx) => ({
+    invoice_id: invoice.id,
+    description: item.note
+      ? `${item.plant_name} (${item.note})`
+      : item.plant_name,
+    quantity: item.quantity ?? 1,
+    unit_price: null,
+    total: 0,
+    section: "plants",
+    plant_order_item_id: item.id,
+    sort_order: idx + 1,
+  }));
 
-  if (itemInsertError) {
-    return NextResponse.json(
-      { error: itemInsertError.message },
-      { status: 500 }
-    );
+  const itemRows = [...serviceRows, ...plantRows];
+
+  if (itemRows.length > 0) {
+    const { error: itemInsertError } = await supabase
+      .from("invoice_items")
+      .insert(itemRows);
+
+    if (itemInsertError) {
+      return NextResponse.json(
+        { error: itemInsertError.message },
+        { status: 500 }
+      );
+    }
   }
 
   logAuditEvent({
@@ -210,8 +245,8 @@ export async function POST(request: NextRequest) {
     metadata: {
       invoice_number: invoiceNumber,
       plant_order_id,
-      item_count: items.length,
-      subtotal,
+      service_line_count: serviceRows.length,
+      plant_line_count: plantRows.length,
     },
     ip: request.headers.get("x-forwarded-for"),
     userAgent: request.headers.get("user-agent"),

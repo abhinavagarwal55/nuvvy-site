@@ -20,6 +20,19 @@ import {
   renderBillingTemplate,
 } from "@/lib/billing/template";
 import { NewCustomerBadge } from "@/components/ops/NewCustomerBadge";
+import PlantOrderBillingList, {
+  type PlantOrderBillingRow,
+} from "@/components/ops/billing/PlantOrderBillingList";
+import PlantInvoiceTemplateModal from "@/components/ops/billing/PlantInvoiceTemplateModal";
+import {
+  DEFAULT_PLANT_INVOICE_TEMPLATE,
+  DEFAULT_PLANT_INVOICE_SERVICE_LINES,
+  DEFAULT_PLANT_INVOICE_FOOTER_NOTE,
+} from "@/lib/billing/plant-invoice-template";
+
+type BillingTab = "care_plans" | "plant_orders";
+
+type PlantOrderTotals = { revenue: number; paid: number; outstanding: number };
 
 type Row = {
   subscription_id: string;
@@ -80,6 +93,7 @@ function waLink(phone: string, message: string): string {
 }
 
 export default function BillingPage() {
+  const [tab, setTab] = useState<BillingTab>("care_plans");
   const [month, setMonth] = useState<string>(() => currentMonthKey());
   const [rows, setRows] = useState<Row[]>([]);
   const [totals, setTotals] = useState<Totals>({ billed: 0, paid: 0, due: 0 });
@@ -88,8 +102,17 @@ export default function BillingPage() {
   const [role, setRole] = useState<"admin" | "horticulturist" | "gardener" | null>(null);
   const [template, setTemplate] = useState<string>(DEFAULT_BILLING_TEMPLATE);
   const [showTemplate, setShowTemplate] = useState(false);
+  const [showPoTemplate, setShowPoTemplate] = useState(false);
   const [rowError, setRowError] = useState<Record<string, string>>({});
   const [expandedDraft, setExpandedDraft] = useState<Record<string, boolean>>({});
+
+  // Plant Orders tab state
+  const [poRows, setPoRows] = useState<PlantOrderBillingRow[]>([]);
+  const [poTotals, setPoTotals] = useState<PlantOrderTotals>({ revenue: 0, paid: 0, outstanding: 0 });
+  const [poLoading, setPoLoading] = useState(true);
+  const [poTemplate, setPoTemplate] = useState<string>(DEFAULT_PLANT_INVOICE_TEMPLATE);
+  const [poServiceLines, setPoServiceLines] = useState<string[]>(DEFAULT_PLANT_INVOICE_SERVICE_LINES);
+  const [poFooterNote, setPoFooterNote] = useState<string>(DEFAULT_PLANT_INVOICE_FOOTER_NOTE);
 
   const isAdmin = role === "admin";
   const canView = role === "admin" || role === "horticulturist";
@@ -109,6 +132,40 @@ export default function BillingPage() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetch("/api/ops/system-config/plant-invoice-template")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.data?.template) setPoTemplate(d.data.template);
+        if (Array.isArray(d.data?.service_lines)) setPoServiceLines(d.data.service_lines);
+        if (typeof d.data?.footer_note === "string") setPoFooterNote(d.data.footer_note);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadPlantOrders = useCallback(async () => {
+    setPoLoading(true);
+    try {
+      const res = await fetch(`/api/ops/billing/plant-orders?month=${month}`);
+      if (!res.ok) {
+        setPoRows([]);
+        setPoTotals({ revenue: 0, paid: 0, outstanding: 0 });
+        return;
+      }
+      const json = await res.json();
+      setPoRows(json.data?.rows ?? []);
+      setPoTotals(json.data?.totals ?? { revenue: 0, paid: 0, outstanding: 0 });
+    } finally {
+      setPoLoading(false);
+    }
+  }, [month]);
+
+  // Load plant-order totals regardless of active tab so the combined
+  // (all-billing) strip stays accurate. Reruns on month change.
+  useEffect(() => {
+    loadPlantOrders();
+  }, [loadPlantOrders]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -244,7 +301,9 @@ export default function BillingPage() {
           </h1>
           {isAdmin && (
             <button
-              onClick={() => setShowTemplate(true)}
+              onClick={() =>
+                tab === "plant_orders" ? setShowPoTemplate(true) : setShowTemplate(true)
+              }
               className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal rounded-xl text-sm hover:bg-cream"
             >
               <Pencil size={14} /> Edit template
@@ -252,11 +311,64 @@ export default function BillingPage() {
           )}
         </div>
 
+        {/* Combined totals across both business lines */}
+        <div className="mb-3">
+          <p className="text-[10px] text-sage uppercase tracking-wider mb-1">
+            All billing · {monthLabel}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Pill label="Billed" amount={totals.billed + poTotals.revenue} tone="neutral" />
+            <Pill label="Received" amount={totals.paid + poTotals.paid} tone="forest" />
+            <Pill label="Pending" amount={totals.due + poTotals.outstanding} tone="terra" />
+          </div>
+        </div>
+
+        {/* Tab toggle */}
+        <div className="inline-flex rounded-xl border border-stone bg-cream p-0.5 mb-3">
+          {([
+            ["care_plans", "Care Plans"],
+            ["plant_orders", "Plant Orders"],
+          ] as [BillingTab, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                tab === key ? "bg-forest text-offwhite" : "text-charcoal hover:bg-offwhite"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <MonthPicker month={month} label={monthLabel} onChange={setMonth} />
 
-        <TotalsStrip totals={totals} />
+        {tab === "care_plans" ? (
+          <TotalsStrip totals={totals} />
+        ) : (
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Pill label="Revenue" amount={poTotals.revenue} tone="neutral" />
+            <Pill label="Paid" amount={poTotals.paid} tone="forest" />
+            <Pill label="Outstanding" amount={poTotals.outstanding} tone="terra" />
+          </div>
+        )}
       </div>
 
+      {tab === "plant_orders" ? (
+        <div className="px-4 pt-4">
+          {!canView ? (
+            <p className="text-sm text-sage text-center py-10">Loading…</p>
+          ) : (
+            <PlantOrderBillingList
+              rows={poRows}
+              template={poTemplate}
+              loading={poLoading}
+              monthLabel={monthLabel}
+              onChanged={loadPlantOrders}
+            />
+          )}
+        </div>
+      ) : (
       <div className="px-4 pt-4">
         {!canView ? (
           <p className="text-sm text-sage text-center py-10">Loading…</p>
@@ -334,8 +446,9 @@ export default function BillingPage() {
           </>
         )}
       </div>
+      )}
 
-      {showTemplate && isAdmin && (
+      {showTemplate && isAdmin && tab === "care_plans" && (
         <EditTemplateModal
           initial={template}
           sampleRow={rows[0]}
@@ -344,6 +457,21 @@ export default function BillingPage() {
           onSaved={(next) => {
             setTemplate(next);
             setShowTemplate(false);
+          }}
+        />
+      )}
+
+      {showPoTemplate && isAdmin && (
+        <PlantInvoiceTemplateModal
+          initialTemplate={poTemplate}
+          initialServiceLines={poServiceLines}
+          initialFooterNote={poFooterNote}
+          onClose={() => setShowPoTemplate(false)}
+          onSaved={(t, lines, note) => {
+            setPoTemplate(t);
+            setPoServiceLines(lines);
+            setPoFooterNote(note);
+            setShowPoTemplate(false);
           }}
         />
       )}
@@ -406,7 +534,7 @@ function MonthPicker({
 
 function TotalsStrip({ totals }: { totals: Totals }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2 justify-end">
       <Pill label="Billed" amount={totals.billed} tone="neutral" />
       <Pill label="Paid" amount={totals.paid} tone="forest" />
       <Pill label="Due" amount={totals.due} tone="terra" />

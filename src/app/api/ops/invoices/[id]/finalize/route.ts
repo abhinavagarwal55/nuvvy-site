@@ -17,8 +17,8 @@ export async function POST(
     return res as Response;
   }
 
-  if (auth.role === "gardener") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (auth.role !== "admin") {
+    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   const { id } = await params;
