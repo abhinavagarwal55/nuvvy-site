@@ -26,6 +26,7 @@ import {
   ShoppingBag,
   Rows3,
   UserPlus,
+  Receipt,
 } from "lucide-react";
 import { useState } from "react";
 import type { OpsRole } from "@/lib/internal/authz";
@@ -55,6 +56,7 @@ const primaryNav: RoleScopedNavItem[] = [
   { href: "/ops/services", label: "Services", icon: <ClipboardList size={20} /> },
   { href: "/ops/requests", label: "Requests", icon: <AlertCircle size={20} /> },
   { href: "/ops/billing", label: "Billing", icon: <CreditCard size={20} />, adminOnly: true },
+  { href: "/ops/expenses", label: "Expenses", icon: <Receipt size={20} /> },
   { href: "/ops/plant-orders", label: "Plant Orders", icon: <Sprout size={20} /> },
   { href: "/ops/procurement", label: "Procurement", icon: <Truck size={20} /> },
   { href: "/ops/people", label: "People", icon: <UserCog size={20} /> },

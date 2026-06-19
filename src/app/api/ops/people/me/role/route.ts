@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 
-// GET /api/ops/people/me/role — returns the authenticated user's role
+// GET /api/ops/people/me/role — returns the authenticated user's role + id
 export async function GET(request: NextRequest) {
   let auth;
   try {
@@ -10,5 +10,5 @@ export async function GET(request: NextRequest) {
     return res as Response;
   }
 
-  return NextResponse.json({ data: { role: auth.role } });
+  return NextResponse.json({ data: { role: auth.role, user_id: auth.userId } });
 }

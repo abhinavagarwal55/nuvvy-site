@@ -24,13 +24,15 @@ import PlantOrderBillingList, {
   type PlantOrderBillingRow,
 } from "@/components/ops/billing/PlantOrderBillingList";
 import PlantInvoiceTemplateModal from "@/components/ops/billing/PlantInvoiceTemplateModal";
+import PayrollTab from "@/components/ops/billing/PayrollTab";
+import SummaryTab from "@/components/ops/billing/SummaryTab";
 import {
   DEFAULT_PLANT_INVOICE_TEMPLATE,
   DEFAULT_PLANT_INVOICE_SERVICE_LINES,
   DEFAULT_PLANT_INVOICE_FOOTER_NOTE,
 } from "@/lib/billing/plant-invoice-template";
 
-type BillingTab = "care_plans" | "plant_orders";
+type BillingTab = "care_plans" | "plant_orders" | "payroll" | "summary";
 
 type PlantOrderTotals = { revenue: number; paid: number; outstanding: number };
 
@@ -299,7 +301,7 @@ export default function BillingPage() {
           >
             Billing
           </h1>
-          {isAdmin && (
+          {isAdmin && (tab === "care_plans" || tab === "plant_orders") && (
             <button
               onClick={() =>
                 tab === "plant_orders" ? setShowPoTemplate(true) : setShowTemplate(true)
@@ -324,11 +326,19 @@ export default function BillingPage() {
         </div>
 
         {/* Tab toggle */}
-        <div className="inline-flex rounded-xl border border-stone bg-cream p-0.5 mb-3">
-          {([
-            ["care_plans", "Care Plans"],
-            ["plant_orders", "Plant Orders"],
-          ] as [BillingTab, string][]).map(([key, label]) => (
+        <div className="inline-flex flex-wrap rounded-xl border border-stone bg-cream p-0.5 mb-3 gap-0.5">
+          {(
+            [
+              ["care_plans", "Care Plans"],
+              ["plant_orders", "Plant Orders"],
+              ...(isAdmin
+                ? ([
+                    ["payroll", "Payroll & Overheads"],
+                    ["summary", "Summary"],
+                  ] as [BillingTab, string][])
+                : []),
+            ] as [BillingTab, string][]
+          ).map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -345,16 +355,20 @@ export default function BillingPage() {
 
         {tab === "care_plans" ? (
           <TotalsStrip totals={totals} />
-        ) : (
+        ) : tab === "plant_orders" ? (
           <div className="flex flex-wrap gap-2 justify-end">
             <Pill label="Revenue" amount={poTotals.revenue} tone="neutral" />
             <Pill label="Paid" amount={poTotals.paid} tone="forest" />
             <Pill label="Outstanding" amount={poTotals.outstanding} tone="terra" />
           </div>
-        )}
+        ) : null}
       </div>
 
-      {tab === "plant_orders" ? (
+      {tab === "payroll" && isAdmin ? (
+        <PayrollTab month={month} monthLabel={monthLabel} />
+      ) : tab === "summary" && isAdmin ? (
+        <SummaryTab month={month} />
+      ) : tab === "plant_orders" ? (
         <div className="px-4 pt-4">
           {!canView ? (
             <p className="text-sm text-sage text-center py-10">Loading…</p>
