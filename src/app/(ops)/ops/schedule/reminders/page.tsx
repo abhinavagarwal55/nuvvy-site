@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { ChevronLeft, Copy, Check, Pencil, Loader2 } from "lucide-react";
+import { ChevronLeft, Copy, Check, Pencil, Loader2, RotateCcw } from "lucide-react";
 import { formatTime12 } from "@/lib/reminders/template";
 
 type ReminderRow = {
@@ -14,6 +14,7 @@ type ReminderRow = {
   time_window_end: string | null;
   day_label: string;
   draft_message: string;
+  saved_message: string | null;
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -39,16 +40,6 @@ export default function RemindersPage() {
   // role (to show the admin-only template editor)
   const { data: roleData } = useSWR("/api/ops/people/me/role", fetcher);
   const isAdmin = roleData?.data?.role === "admin";
-
-  const [edits, setEdits] = useState<Record<string, string>>({});
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const valueFor = (r: ReminderRow) => edits[r.id] ?? r.draft_message;
-
-  async function copy(r: ReminderRow) {
-    await navigator.clipboard.writeText(valueFor(r));
-    setCopiedId(r.id);
-    setTimeout(() => setCopiedId((c) => (c === r.id ? null : c)), 2000);
-  }
 
   const grouped = useMemo(() => {
     const rows: ReminderRow[] = data?.data ?? [];
@@ -103,52 +94,131 @@ export default function RemindersPage() {
                   <span className="text-sage"> · {longDate}</span>
                 </h2>
                 <div className="space-y-3">
-                  {dayRows.map((r) => {
-                    const time =
-                      r.time_window_start && r.time_window_end
-                        ? `${formatTime12(r.time_window_start)} – ${formatTime12(
-                            r.time_window_end
-                          )}`
-                        : "Time not set";
-                    const copied = copiedId === r.id;
-                    return (
-                      <div
-                        key={r.id}
-                        className="bg-offwhite border border-stone/60 rounded-xl p-3"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <p className="text-sm font-medium text-charcoal">{r.customer_name}</p>
-                            <p className="text-xs text-sage">{time}</p>
-                          </div>
-                          <button
-                            onClick={() => copy(r)}
-                            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-colors ${
-                              copied
-                                ? "bg-forest/10 text-forest"
-                                : "bg-forest text-offwhite hover:bg-garden"
-                            }`}
-                          >
-                            {copied ? <Check size={15} /> : <Copy size={15} />}
-                            {copied ? "Copied" : "Copy"}
-                          </button>
-                        </div>
-                        <textarea
-                          className="w-full text-sm text-charcoal bg-cream border border-stone rounded-lg p-2.5 resize-y focus:outline-none focus:border-forest"
-                          rows={9}
-                          value={valueFor(r)}
-                          onChange={(e) =>
-                            setEdits((prev) => ({ ...prev, [r.id]: e.target.value }))
-                          }
-                        />
-                      </div>
-                    );
-                  })}
+                  {dayRows.map((r) => (
+                    <ReminderCard key={r.id} row={r} onChanged={() => mutate()} />
+                  ))}
                 </div>
               </div>
             );
           })
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ---- Per-visit reminder card (edit + save) ---- */
+function ReminderCard({ row, onChanged }: { row: ReminderRow; onChanged: () => void }) {
+  const baseline = row.saved_message ?? row.draft_message;
+  const [value, setValue] = useState(baseline);
+  const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const time =
+    row.time_window_start && row.time_window_end
+      ? `${formatTime12(row.time_window_start)} – ${formatTime12(row.time_window_end)}`
+      : "Time not set";
+
+  const dirty = value !== baseline;
+  const hasOverride = row.saved_message != null;
+
+  async function copy() {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    const res = await fetch(`/api/ops/schedule/reminders/${row.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: value }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setError(json.error ?? "Failed to save");
+      return;
+    }
+    onChanged();
+  }
+
+  async function reset() {
+    setResetting(true);
+    setError(null);
+    const res = await fetch(`/api/ops/schedule/reminders/${row.id}`, { method: "DELETE" });
+    setResetting(false);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setError(json.error ?? "Failed to reset");
+      return;
+    }
+    setValue(row.draft_message);
+    onChanged();
+  }
+
+  return (
+    <div className="bg-offwhite border border-stone/60 rounded-xl p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <p className="text-sm font-medium text-charcoal flex items-center gap-2">
+            {row.customer_name}
+            {hasOverride && (
+              <span className="text-[10px] uppercase tracking-wide text-forest bg-forest/10 px-1.5 py-0.5 rounded">
+                Edited
+              </span>
+            )}
+          </p>
+          <p className="text-xs text-sage">{time}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={save}
+            disabled={saving || !dirty || !value.trim()}
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-forest text-offwhite hover:bg-garden disabled:opacity-40 disabled:hover:bg-forest transition-colors"
+          >
+            {saving ? <Loader2 size={15} className="animate-spin" /> : null}
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button
+            onClick={copy}
+            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-colors ${
+              copied
+                ? "bg-forest/10 text-forest"
+                : "border border-stone text-charcoal hover:bg-cream"
+            }`}
+          >
+            {copied ? <Check size={15} /> : <Copy size={15} />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </div>
+      <textarea
+        className="w-full text-sm text-charcoal bg-cream border border-stone rounded-lg p-2.5 resize-y focus:outline-none focus:border-forest"
+        rows={9}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <div className="flex items-center gap-3 mt-1.5 min-h-[1.25rem]">
+        {hasOverride && (
+          <button
+            onClick={reset}
+            disabled={resetting}
+            className="flex items-center gap-1 text-xs text-sage hover:text-charcoal disabled:opacity-50"
+          >
+            {resetting ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <RotateCcw size={12} />
+            )}
+            Reset to template
+          </button>
+        )}
+        {error && <span className="text-xs text-terra">{error}</span>}
       </div>
     </div>
   );

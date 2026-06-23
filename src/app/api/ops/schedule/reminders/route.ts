@@ -39,7 +39,9 @@ export async function GET(request: NextRequest) {
   // 1. Upcoming scheduled visits in range
   const { data: visits, error } = await supabase
     .from("service_visits")
-    .select("id, customer_id, scheduled_date, time_window_start, time_window_end, status")
+    .select(
+      "id, customer_id, scheduled_date, time_window_start, time_window_end, status, reminder_message_override"
+    )
     .eq("status", "scheduled")
     .gte("scheduled_date", dateFrom)
     .lte("scheduled_date", dateTo)
@@ -130,6 +132,7 @@ export async function GET(request: NextRequest) {
       time_window_end: v.time_window_end,
       day_label: rel.label,
       draft_message,
+      saved_message: v.reminder_message_override ?? null,
     };
   });
 
