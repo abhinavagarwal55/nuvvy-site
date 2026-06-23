@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { usePerf } from "@/lib/perf/use-perf";
+import ScheduleTodos from "@/components/ops/schedule/ScheduleTodos";
 
 /* ---------- Types ---------- */
 
@@ -1010,6 +1011,9 @@ export default function SchedulePage() {
           </select>
         </div>
       </div>
+
+      {/* Shared ops to-do list — pinned above the week grid */}
+      <ScheduleTodos />
 
       {/* Desktop: weekly grid */}
       <div className="hidden md:block px-4 pt-4">
