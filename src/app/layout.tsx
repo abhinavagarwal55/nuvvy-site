@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Analytics from "@/lib/analytics";
 import { getSiteUrl } from "@/lib/utils/metadata";
 
 const inter = Inter({
@@ -73,7 +72,6 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} antialiased`}>
         {children}
-        <Analytics />
       </body>
     </html>
   );

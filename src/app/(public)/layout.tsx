@@ -1,4 +1,5 @@
 import LandingHeader from "@/components/LandingHeader";
+import Analytics from "@/lib/analytics";
 
 export default function PublicLayout({
   children,
@@ -11,6 +12,7 @@ export default function PublicLayout({
       <main className="pt-6 md:pt-10">
         {children}
       </main>
+      <Analytics />
     </>
   );
 }
