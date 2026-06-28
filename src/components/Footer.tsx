@@ -1,4 +1,5 @@
-import { WHATSAPP_NUMBER, PHONE_DISPLAY, WHATSAPP_MESSAGES, getWhatsAppLink } from "@/config/whatsapp";
+import { getWhatsAppLink, WHATSAPP_NUMBER, PHONE_DISPLAY, WHATSAPP_MESSAGES } from "@/config/whatsapp";
+import TrackedLink from "@/components/TrackedLink";
 
 export default function Footer() {
   const year = new Date().getFullYear();
@@ -28,24 +29,28 @@ export default function Footer() {
             <p className="text-text-muted">Questions? We&apos;re happy to help.</p>
             {PHONE_DISPLAY && (
               <p className="mt-2">
-                <a
+                <TrackedLink
                   href={`tel:+${WHATSAPP_NUMBER}`}
+                  event="call_click"
+                  cta="footer"
                   className="text-ink hover:text-green-700 font-medium"
                 >
                   {PHONE_DISPLAY}
-                </a>
+                </TrackedLink>
               </p>
             )}
             {WHATSAPP_NUMBER && (
               <p className="mt-1">
-                <a
+                <TrackedLink
                   href={getWhatsAppLink(WHATSAPP_MESSAGES.generalChat)}
+                  event="whatsapp_click"
+                  cta="footer"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-text-muted hover:text-ink"
                 >
                   Chat on WhatsApp
-                </a>
+                </TrackedLink>
               </p>
             )}
           </div>

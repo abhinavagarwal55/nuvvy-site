@@ -14,6 +14,7 @@ import {
   type PublicRailWithItems,
 } from "@/lib/catalog/supabaseRailsStore";
 import { getWhatsAppLink, CATALOG_SHORTLIST_REQUEST } from "@/config/whatsapp";
+import TrackedLink from "@/components/TrackedLink";
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
@@ -429,14 +430,16 @@ export default function PlantCatalogPage() {
             <p className="mt-2 text-sm md:text-base text-gray-600 max-w-2xl mx-auto">
               Tell us about your space and our horticulturist will build you a custom shortlist.
             </p>
-            <a
+            <TrackedLink
               href={getWhatsAppLink(CATALOG_SHORTLIST_REQUEST)}
+              event="whatsapp_click"
+              cta="catalog_shortlist"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block mt-4 bg-leaf text-white font-semibold py-3 px-6 rounded-full hover:bg-leaf/90 transition-colors"
             >
               Get a custom shortlist on WhatsApp
-            </a>
+            </TrackedLink>
             <div className="mt-3">
               <a href="/#garden-care" className="text-xs md:text-sm text-gray-600 hover:underline">
                 Already know what you want? See garden care plans →

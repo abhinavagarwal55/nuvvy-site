@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { Droplet, Layers, FlaskConical, Leaf, Wind } from "lucide-react";
 import { getCatalogStore, type PlantDetail } from "@/lib/catalog";
 import { getWhatsAppLink, getCatalogPlantRequest } from "@/config/whatsapp";
+import TrackedLink from "@/components/TrackedLink";
 
 export default function PlantDetailPage() {
   const params = useParams();
@@ -76,7 +77,7 @@ export default function PlantDetailPage() {
     process.env.NEXT_PUBLIC_SITE_URL ||
     (typeof window !== "undefined" ? window.location.origin : "");
   const plantUrl = siteUrl ? `${siteUrl}/plantcatalog/${plant.id}` : undefined;
-  const whatsappHref = getWhatsAppLink(getCatalogPlantRequest(plant.name, plantUrl));
+  const whatsappMessage = getCatalogPlantRequest(plant.name, plantUrl);
 
   return (
     <main className="bg-cream min-h-screen overflow-x-hidden pb-24 md:pb-0">
@@ -143,14 +144,16 @@ export default function PlantDetailPage() {
             )}
 
             {/* Primary CTA — inline on desktop; mobile uses sticky bottom bar */}
-            <a
-              href={whatsappHref}
+            <TrackedLink
+              href={getWhatsAppLink(whatsappMessage)}
+              event="whatsapp_click"
+              cta="plant_detail"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden md:inline-flex items-center justify-center gap-2 bg-leaf text-white font-semibold py-3 px-6 rounded-full hover:bg-leaf/90 transition-colors mb-6"
             >
               Get this plant via Nuvvy
-            </a>
+            </TrackedLink>
 
             {/* Horticulturist Notes - Prominent */}
             {plant.horticulturistNotes && (
@@ -235,14 +238,16 @@ export default function PlantDetailPage() {
         className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-gray-200 px-3 py-3"
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
       >
-        <a
-          href={whatsappHref}
+        <TrackedLink
+          href={getWhatsAppLink(whatsappMessage)}
+          event="whatsapp_click"
+          cta="plant_detail"
           target="_blank"
           rel="noopener noreferrer"
           className="block w-full text-center bg-leaf text-white font-semibold py-3 rounded-full hover:bg-leaf/90 transition-colors"
         >
           Get this plant via Nuvvy
-        </a>
+        </TrackedLink>
       </div>
     </main>
   );

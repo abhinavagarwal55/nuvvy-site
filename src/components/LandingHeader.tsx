@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Menu, X, Phone } from "lucide-react";
 import { WHATSAPP_NUMBER, PHONE_DISPLAY } from "@/config/whatsapp";
+import TrackedLink from "@/components/TrackedLink";
 
 /**
  * Landing page header - sticky header with Nuvvy logo and hamburger menu
@@ -25,14 +26,16 @@ export default function LandingHeader() {
             {/* Phone + Hamburger */}
             <div className="flex items-center gap-1">
               {PHONE_DISPLAY && (
-                <a
+                <TrackedLink
                   href={`tel:+${WHATSAPP_NUMBER}`}
+                  event="call_click"
+                  cta="header"
                   className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-green-700 transition-colors px-2 py-2"
                   aria-label={`Call Nuvvy at ${PHONE_DISPLAY}`}
                 >
                   <Phone className="w-4 h-4" />
                   <span className="hidden sm:inline">{PHONE_DISPLAY}</span>
-                </a>
+                </TrackedLink>
               )}
               <button
                 type="button"
