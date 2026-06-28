@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import { requireOpsAccess } from "@/lib/internal/authz";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import BottomNav from "./BottomNav";
 import type { OpsRole } from "@/lib/internal/authz";
 
@@ -36,11 +37,24 @@ export default async function OpsLayout({
   );
 
   let role: OpsRole | null = null;
+  let canAccessBilling = false;
 
   if (!isPublicRoute) {
     // Protected route — redirect to login if not authenticated
     const auth = await requireOpsAccess(["admin", "horticulturist", "gardener"]);
     role = auth.role;
+    // Billing nav visibility: admins always; horticulturists only when granted.
+    if (role === "admin") {
+      canAccessBilling = true;
+    } else if (role === "horticulturist") {
+      const adminSupabase = createAdminSupabaseClient();
+      const { data } = await adminSupabase
+        .from("profiles")
+        .select("can_access_billing")
+        .eq("id", auth.userId)
+        .single();
+      canAccessBilling = data?.can_access_billing === true;
+    }
   }
   // Public routes (login, gardener PIN page) never show sidebar
 
@@ -49,7 +63,7 @@ export default async function OpsLayout({
       className={`${cormorant.variable} ${dmSans.variable} bg-cream min-h-screen`}
       style={{ fontFamily: "var(--font-dm-sans, sans-serif)" }}
     >
-      {role && <BottomNav role={role} />}
+      {role && <BottomNav role={role} canAccessBilling={canAccessBilling} />}
       <div
         className={`relative min-h-screen ${
           role === "gardener"

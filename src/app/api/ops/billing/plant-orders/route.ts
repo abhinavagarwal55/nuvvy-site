@@ -1,24 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { requireBillingAccess } from "@/lib/auth/ops-auth";
 import { getMonthlyPlantOrderInvoiceSummary } from "@/lib/billing/plant-order-invoice-summary";
 import { currentMonthKey } from "@/lib/billing/template";
 
 // ---------------------------------------------------------------------------
-// GET /api/ops/billing/plant-orders?month=YYYY-MM — admin only
-// Monthly Plant Orders billing summary (PRD §4 / §6.1).
+// GET /api/ops/billing/plant-orders?month=YYYY-MM
+// Monthly Plant Orders billing summary (PRD §4 / §6.1). Admin (full) or a
+// billing-scoped horticulturist (rows only, no revenue totals).
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
-  }
-
-  // Billing module is admin-only.
-  if (auth.role !== "admin") {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -30,6 +26,12 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseAdmin();
   try {
     const summary = await getMonthlyPlantOrderInvoiceSummary(supabase, month);
+    // Scoped users never see revenue aggregates — strip `totals`.
+    if (auth.billingScope === "scoped") {
+      const { totals: _omit, ...rest } = summary;
+      void _omit;
+      return NextResponse.json({ data: rest });
+    }
     return NextResponse.json({ data: summary });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load summary";

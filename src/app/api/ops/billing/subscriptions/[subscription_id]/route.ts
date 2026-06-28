@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { requireBillingAccess } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
 import { monthBounds } from "@/lib/billing/template";
 
@@ -63,7 +63,7 @@ export async function PUT(
 ) {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
   }
@@ -77,10 +77,6 @@ export async function PUT(
     );
   }
   const { month, amount_inr, paid, mark_reminder_sent } = parsed.data;
-
-  if (auth.role !== "admin") {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
-  }
 
   const { subscription_id } = await params;
   const supabase = getSupabaseAdmin();

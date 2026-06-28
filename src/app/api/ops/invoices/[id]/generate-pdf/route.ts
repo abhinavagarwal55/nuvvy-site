@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { requireBillingAccess } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
 import {
   PLANT_INVOICE_FOOTER_NOTE_KEY,
@@ -21,7 +21,7 @@ type ItemRow = {
 
 // ---------------------------------------------------------------------------
 // POST /api/ops/invoices/[id]/generate-pdf — sectioned A/B invoice PDF. PRD §8.
-// Admin only. Allowed for finalized/paid. Sets pdf_generated_at.
+// Admin or billing-scoped horticulturist. Allowed for finalized/paid. Sets pdf_generated_at.
 // ---------------------------------------------------------------------------
 export async function POST(
   request: NextRequest,
@@ -29,13 +29,9 @@ export async function POST(
 ) {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
-  }
-
-  if (auth.role !== "admin") {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   const { id } = await params;

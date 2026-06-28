@@ -10,6 +10,8 @@ export type OpsAuthContext = {
   gardener_id: string | null; // only set if role === 'gardener'
 };
 
+export type BillingScope = "full" | "scoped";
+
 /**
  * requireOpsRole — convenience wrapper around requireOpsAuth that also
  * enforces a role allow-list. Throws a 403 Response if the user's role
@@ -27,6 +29,48 @@ export async function requireOpsRole(
     });
   }
   return auth;
+}
+
+/**
+ * requireBillingAccess — gate for the Billing module's invoicing endpoints.
+ * - admin           => { billingScope: 'full' }  (no DB lookup)
+ * - horticulturist  => single profiles.can_access_billing lookup;
+ *                      true => 'scoped', false => 403
+ * - anyone else     => 403
+ *
+ * 'scoped' callers must be denied revenue totals by the route (the aggregate
+ * `totals` object), and remain 403'd from payroll/summary (those use
+ * requireOpsRole(['admin'])). Catch the thrown Response like requireOpsAuth.
+ */
+export async function requireBillingAccess(
+  request: NextRequest
+): Promise<OpsAuthContext & { billingScope: BillingScope }> {
+  const auth = await requireOpsAuth(request);
+
+  if (auth.role === "admin") {
+    return { ...auth, billingScope: "full" };
+  }
+
+  const forbidden = () =>
+    new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  if (auth.role === "horticulturist") {
+    const adminSupabase = getSupabaseAdmin();
+    const { data } = await adminSupabase
+      .from("profiles")
+      .select("can_access_billing")
+      .eq("id", auth.userId)
+      .single();
+    if (data?.can_access_billing === true) {
+      return { ...auth, billingScope: "scoped" };
+    }
+    throw forbidden();
+  }
+
+  throw forbidden();
 }
 
 /**

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { requireBillingAccess } from "@/lib/auth/ops-auth";
 import { currentMonthKey } from "@/lib/billing/template";
 import { getMonthlyBillingSummary } from "@/lib/billing/monthly-summary";
 
@@ -8,12 +8,9 @@ import { getMonthlyBillingSummary } from "@/lib/billing/monthly-summary";
 export async function GET(request: NextRequest) {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
-  }
-  if (auth.role !== "admin") {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -22,6 +19,12 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const summary = await getMonthlyBillingSummary(supabase, month);
+    // Scoped users never see revenue aggregates — strip `totals`.
+    if (auth.billingScope === "scoped") {
+      const { totals: _omit, ...rest } = summary;
+      void _omit;
+      return NextResponse.json({ data: rest });
+    }
     return NextResponse.json({ data: summary });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load billing";

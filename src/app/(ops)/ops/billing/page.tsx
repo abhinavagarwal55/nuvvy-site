@@ -60,7 +60,7 @@ type ApiResponse = {
     month: string;
     month_label: string;
     rows: Row[];
-    totals: Totals;
+    totals?: Totals; // omitted for scoped (non-admin) billing users
   };
 };
 
@@ -98,10 +98,12 @@ export default function BillingPage() {
   const [tab, setTab] = useState<BillingTab>("care_plans");
   const [month, setMonth] = useState<string>(() => currentMonthKey());
   const [rows, setRows] = useState<Row[]>([]);
-  const [totals, setTotals] = useState<Totals>({ billed: 0, paid: 0, due: 0 });
+  // null = server did not return revenue totals (scoped horticulturist).
+  const [totals, setTotals] = useState<Totals | null>(null);
   const [monthLabel, setMonthLabel] = useState<string>(formatMonthLabel(currentMonthKey()));
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<"admin" | "horticulturist" | "gardener" | null>(null);
+  const [canAccessBilling, setCanAccessBilling] = useState(false);
   const [template, setTemplate] = useState<string>(DEFAULT_BILLING_TEMPLATE);
   const [showTemplate, setShowTemplate] = useState(false);
   const [showPoTemplate, setShowPoTemplate] = useState(false);
@@ -110,19 +112,26 @@ export default function BillingPage() {
 
   // Plant Orders tab state
   const [poRows, setPoRows] = useState<PlantOrderBillingRow[]>([]);
-  const [poTotals, setPoTotals] = useState<PlantOrderTotals>({ revenue: 0, paid: 0, outstanding: 0 });
+  // null = server did not return revenue totals (scoped horticulturist).
+  const [poTotals, setPoTotals] = useState<PlantOrderTotals | null>(null);
   const [poLoading, setPoLoading] = useState(true);
   const [poTemplate, setPoTemplate] = useState<string>(DEFAULT_PLANT_INVOICE_TEMPLATE);
   const [poServiceLines, setPoServiceLines] = useState<string[]>(DEFAULT_PLANT_INVOICE_SERVICE_LINES);
   const [poFooterNote, setPoFooterNote] = useState<string>(DEFAULT_PLANT_INVOICE_FOOTER_NOTE);
 
   const isAdmin = role === "admin";
-  const canView = role === "admin" || role === "horticulturist";
+  // Billing is for admins (full) and horticulturists granted scoped access.
+  const canView = isAdmin || (role === "horticulturist" && canAccessBilling);
+  // Aggregate revenue chips show only when the server returned totals (admin).
+  const showTotals = totals !== null;
 
   useEffect(() => {
     fetch("/api/ops/people/me/role")
       .then((r) => r.json())
-      .then((d) => setRole(d.data?.role ?? null))
+      .then((d) => {
+        setRole(d.data?.role ?? null);
+        setCanAccessBilling(d.data?.can_access_billing === true);
+      })
       .catch(() => {});
   }, []);
 
@@ -152,12 +161,13 @@ export default function BillingPage() {
       const res = await fetch(`/api/ops/billing/plant-orders?month=${month}`);
       if (!res.ok) {
         setPoRows([]);
-        setPoTotals({ revenue: 0, paid: 0, outstanding: 0 });
+        setPoTotals(null);
         return;
       }
       const json = await res.json();
       setPoRows(json.data?.rows ?? []);
-      setPoTotals(json.data?.totals ?? { revenue: 0, paid: 0, outstanding: 0 });
+      // Scoped users receive no `totals` — keep null so chips stay hidden.
+      setPoTotals(json.data?.totals ?? null);
     } finally {
       setPoLoading(false);
     }
@@ -175,13 +185,14 @@ export default function BillingPage() {
       const res = await fetch(`/api/ops/billing/subscriptions?month=${month}`);
       if (!res.ok) {
         setRows([]);
-        setTotals({ billed: 0, paid: 0, due: 0 });
+        setTotals(null);
         setMonthLabel(formatMonthLabel(month));
         return;
       }
       const json: ApiResponse = await res.json();
       setRows(json.data.rows);
-      setTotals(json.data.totals);
+      // Scoped users receive no `totals` — keep null so chips stay hidden.
+      setTotals(json.data.totals ?? null);
       setMonthLabel(json.data.month_label);
     } finally {
       setLoading(false);
@@ -221,7 +232,8 @@ export default function BillingPage() {
       r.subscription_id === row.subscription_id ? { ...r, ...optimistic } : r
     );
     setRows(optimisticRows);
-    setTotals(computeTotals(optimisticRows));
+    // Only maintain aggregate totals when the server provided them (admin).
+    setTotals((t) => (t === null ? null : computeTotals(optimisticRows)));
 
     try {
       const res = await fetch(
@@ -235,7 +247,7 @@ export default function BillingPage() {
       const json = await res.json();
       if (!res.ok) {
         setRows(prev);
-        setTotals(computeTotals(prev));
+        setTotals((t) => (t === null ? null : computeTotals(prev)));
         setRowErr(row.subscription_id, json.error ?? "Update failed");
         return;
       }
@@ -244,13 +256,13 @@ export default function BillingPage() {
         const next = cur.map((r) =>
           r.subscription_id === updated.subscription_id ? updated : r
         );
-        setTotals(computeTotals(next));
+        setTotals((t) => (t === null ? null : computeTotals(next)));
         return next;
       });
       setRowErr(row.subscription_id, null);
     } catch {
       setRows(prev);
-      setTotals(computeTotals(prev));
+      setTotals((t) => (t === null ? null : computeTotals(prev)));
       setRowErr(row.subscription_id, "Network error");
     }
   }
@@ -283,10 +295,12 @@ export default function BillingPage() {
     );
   }
 
-  if (role !== null && role !== "admin") {
+  if (role !== null && !canView) {
     return (
       <div className="min-h-screen bg-cream px-4 py-10">
-        <p className="text-sm text-sage text-center">Billing is admin-only.</p>
+        <p className="text-sm text-sage text-center">
+          You don&apos;t have access to Billing.
+        </p>
       </div>
     );
   }
@@ -313,17 +327,19 @@ export default function BillingPage() {
           )}
         </div>
 
-        {/* Combined totals across both business lines */}
-        <div className="mb-3">
-          <p className="text-[10px] text-sage uppercase tracking-wider mb-1">
-            All billing · {monthLabel}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Pill label="Billed" amount={totals.billed + poTotals.revenue} tone="neutral" />
-            <Pill label="Received" amount={totals.paid + poTotals.paid} tone="forest" />
-            <Pill label="Pending" amount={totals.due + poTotals.outstanding} tone="terra" />
+        {/* Combined totals across both business lines — admin only (revenue). */}
+        {showTotals && totals && (
+          <div className="mb-3">
+            <p className="text-[10px] text-sage uppercase tracking-wider mb-1">
+              All billing · {monthLabel}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Pill label="Billed" amount={totals.billed + (poTotals?.revenue ?? 0)} tone="neutral" />
+              <Pill label="Received" amount={totals.paid + (poTotals?.paid ?? 0)} tone="forest" />
+              <Pill label="Pending" amount={totals.due + (poTotals?.outstanding ?? 0)} tone="terra" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Tab toggle */}
         <div className="inline-flex flex-wrap rounded-xl border border-stone bg-cream p-0.5 mb-3 gap-0.5">
@@ -353,9 +369,9 @@ export default function BillingPage() {
 
         <MonthPicker month={month} label={monthLabel} onChange={setMonth} />
 
-        {tab === "care_plans" ? (
+        {tab === "care_plans" && totals ? (
           <TotalsStrip totals={totals} />
-        ) : tab === "plant_orders" ? (
+        ) : tab === "plant_orders" && poTotals ? (
           <div className="flex flex-wrap gap-2 justify-end">
             <Pill label="Revenue" amount={poTotals.revenue} tone="neutral" />
             <Pill label="Paid" amount={poTotals.paid} tone="forest" />
@@ -402,7 +418,7 @@ export default function BillingPage() {
                   row={row}
                   template={template}
                   month={month}
-                  isAdmin={isAdmin}
+                  canEdit={canView}
                   error={rowError[row.subscription_id]}
                   isDraftOpen={!!expandedDraft[row.subscription_id]}
                   onToggleDraft={() =>
@@ -440,7 +456,7 @@ export default function BillingPage() {
                       row={row}
                       template={template}
                       month={month}
-                      isAdmin={isAdmin}
+                      canEdit={canView}
                       error={rowError[row.subscription_id]}
                       isDraftOpen={!!expandedDraft[row.subscription_id]}
                       onToggleDraft={() =>
@@ -623,7 +639,7 @@ function DesktopRow({
   row,
   template,
   month,
-  isAdmin,
+  canEdit,
   error,
   isDraftOpen,
   onToggleDraft,
@@ -634,7 +650,7 @@ function DesktopRow({
   row: Row;
   template: string;
   month: string;
-  isAdmin: boolean;
+  canEdit: boolean;
   error?: string;
   isDraftOpen: boolean;
   onToggleDraft: () => void;
@@ -668,14 +684,14 @@ function DesktopRow({
             type="number"
             min={0}
             step={1}
-            disabled={!isAdmin}
+            disabled={!canEdit}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             onBlur={() => onAmountSave(amount)}
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
-            className={`${inputCls} ${!isAdmin ? "opacity-60" : ""}`}
+            className={`${inputCls} ${!canEdit ? "opacity-60" : ""}`}
           />
         </td>
         <td className="px-3 py-3">
@@ -695,11 +711,11 @@ function DesktopRow({
           )}
         </td>
         <td className="px-3 py-3">
-          <label className={`inline-flex items-center gap-2 ${isAdmin ? "" : "opacity-60"}`}>
+          <label className={`inline-flex items-center gap-2 ${canEdit ? "" : "opacity-60"}`}>
             <input
               type="checkbox"
               checked={row.is_paid}
-              disabled={!isAdmin}
+              disabled={!canEdit}
               onChange={(e) => onPaidToggle(e.target.checked)}
               className="w-4 h-4 accent-forest"
             />
@@ -734,7 +750,7 @@ function MobileRow({
   row,
   template,
   month,
-  isAdmin,
+  canEdit,
   error,
   isDraftOpen,
   onToggleDraft,
@@ -745,7 +761,7 @@ function MobileRow({
   row: Row;
   template: string;
   month: string;
-  isAdmin: boolean;
+  canEdit: boolean;
   error?: string;
   isDraftOpen: boolean;
   onToggleDraft: () => void;
@@ -771,11 +787,11 @@ function MobileRow({
             {formatPlanFrequency(row.visit_frequency)}
           </p>
         </div>
-        <label className={`flex items-center gap-1.5 ${isAdmin ? "" : "opacity-60"}`}>
+        <label className={`flex items-center gap-1.5 ${canEdit ? "" : "opacity-60"}`}>
           <input
             type="checkbox"
             checked={row.is_paid}
-            disabled={!isAdmin}
+            disabled={!canEdit}
             onChange={(e) => onPaidToggle(e.target.checked)}
             className="w-4 h-4 accent-forest"
           />
@@ -792,14 +808,14 @@ function MobileRow({
             type="number"
             min={0}
             step={1}
-            disabled={!isAdmin}
+            disabled={!canEdit}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             onBlur={() => onAmountSave(amount)}
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
-            className={`${inputCls} ${!isAdmin ? "opacity-60" : ""}`}
+            className={`${inputCls} ${!canEdit ? "opacity-60" : ""}`}
           />
         </div>
         {row.is_paid && row.paid_at && (

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { requireBillingAccess } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
 import {
   PLANT_INVOICE_SERVICE_LINES_KEY,
@@ -17,17 +17,14 @@ function todayIst(): string {
 
 // ---------------------------------------------------------------------------
 // GET /api/ops/invoices?customer_id=xxx&plant_order_id=xxx&status=xxx
-// Read — admin or horticulturist (the plant-order detail page reads this).
+// Read — admin (full) or billing-scoped horticulturist. Returns per-invoice
+// rows only (no aggregate); per-invoice amounts are allowed for scoped users.
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
-  let auth;
   try {
-    auth = await requireOpsAuth(request);
+    await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
-  }
-  if (auth.role === "gardener") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -67,8 +64,8 @@ export async function GET(request: NextRequest) {
 
 // ---------------------------------------------------------------------------
 // POST /api/ops/invoices — create a sectioned invoice from a plant order.
-// Admin only. Seeds Section B from ALL plant items (blank price) and Section A
-// from the default service lines (blank qty/price). PRD §6.2.
+// Admin (full) or billing-scoped horticulturist. Seeds Section B from ALL plant
+// items (blank price) and Section A from the default service lines. PRD §6.2.
 // ---------------------------------------------------------------------------
 const CreateInvoiceSchema = z.object({
   plant_order_id: z.string().uuid("plant_order_id must be a valid UUID"),
@@ -77,13 +74,9 @@ const CreateInvoiceSchema = z.object({
 export async function POST(request: NextRequest) {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
-  }
-
-  if (auth.role !== "admin") {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   let body: unknown;

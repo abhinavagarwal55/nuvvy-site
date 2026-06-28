@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { requireBillingAccess } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
 
 // ---------------------------------------------------------------------------
-// POST /api/ops/invoices/[id]/mark-paid — mark finalized invoice as paid
+// POST /api/ops/invoices/[id]/mark-paid — mark finalized invoice as paid.
+// Admin (full) or billing-scoped horticulturist.
 // ---------------------------------------------------------------------------
 export async function POST(
   request: NextRequest,
@@ -12,13 +13,9 @@ export async function POST(
 ) {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
-  }
-
-  if (auth.role !== "admin") {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   const { id } = await params;

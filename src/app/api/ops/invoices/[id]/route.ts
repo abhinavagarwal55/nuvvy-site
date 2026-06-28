@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { requireBillingAccess } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
 
 type InvoiceItemRow = {
@@ -17,21 +17,17 @@ type InvoiceItemRow = {
 
 // ---------------------------------------------------------------------------
 // GET /api/ops/invoices/[id] — invoice detail with items grouped by section.
-// Read — admin or horticulturist.
+// Read — admin (full) or billing-scoped horticulturist. Per-invoice amounts are
+// allowed for scoped users; only aggregate revenue totals are withheld.
 // ---------------------------------------------------------------------------
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  let auth;
   try {
-    auth = await requireOpsAuth(request);
+    await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
-  }
-
-  if (auth.role === "gardener") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -86,7 +82,7 @@ export async function GET(
 
 // ---------------------------------------------------------------------------
 // PUT /api/ops/invoices/[id] — Save the sectioned invoice. PRD §6.3.
-// Admin only. Allowed in draft AND finalized; rejected for paid/cancelled.
+// Admin or billing-scoped horticulturist. Allowed in draft AND finalized; rejected for paid/cancelled.
 // Save sets status='finalized' (first save) and recomputes all money.
 // ---------------------------------------------------------------------------
 const LineSchema = z.object({
@@ -118,13 +114,9 @@ export async function PUT(
 ) {
   let auth;
   try {
-    auth = await requireOpsAuth(request);
+    auth = await requireBillingAccess(request);
   } catch (res) {
     return res as Response;
-  }
-
-  if (auth.role !== "admin") {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
   const { id } = await params;

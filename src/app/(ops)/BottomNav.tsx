@@ -63,8 +63,14 @@ const primaryNav: RoleScopedNavItem[] = [
   { href: "/ops/plans", label: "Plans", icon: <LayoutGrid size={20} /> },
 ];
 
-function visiblePrimaryNav(role: OpsRole): NavItem[] {
-  return primaryNav.filter((item) => !item.adminOnly || role === "admin");
+function visiblePrimaryNav(role: OpsRole, canAccessBilling: boolean): NavItem[] {
+  return primaryNav.filter((item) => {
+    // Billing is visible to admins, and to horticulturists granted scoped access.
+    if (item.href === "/ops/billing") {
+      return role === "admin" || (role === "horticulturist" && canAccessBilling);
+    }
+    return !item.adminOnly || role === "admin";
+  });
 }
 
 const secondaryNav: NavItem[] = [
@@ -84,7 +90,13 @@ const mobileBottomNav: NavItem[] = [
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
-export default function BottomNav({ role }: { role: OpsRole }) {
+export default function BottomNav({
+  role,
+  canAccessBilling = false,
+}: {
+  role: OpsRole;
+  canAccessBilling?: boolean;
+}) {
   if (role === "gardener") {
     return <MobileNav items={gardenerNav} />;
   }
@@ -92,16 +104,16 @@ export default function BottomNav({ role }: { role: OpsRole }) {
   return (
     <>
       {/* Desktop: left sidebar — hidden on mobile */}
-      <DesktopSidebar role={role} />
+      <DesktopSidebar role={role} canAccessBilling={canAccessBilling} />
       {/* Mobile: bottom nav — hidden on desktop */}
-      <MobileNav items={mobileBottomNav} className="md:hidden" role={role} />
+      <MobileNav items={mobileBottomNav} className="md:hidden" role={role} canAccessBilling={canAccessBilling} />
     </>
   );
 }
 
 // ─── Desktop Sidebar ───────────────────────────────────────────────────────
 
-function DesktopSidebar({ role }: { role: OpsRole }) {
+function DesktopSidebar({ role, canAccessBilling }: { role: OpsRole; canAccessBilling: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -118,7 +130,7 @@ function DesktopSidebar({ role }: { role: OpsRole }) {
 
       {/* Primary nav */}
       <nav className="flex-1 px-3 pt-4 space-y-0.5 overflow-y-auto">
-        {visiblePrimaryNav(role).map((item) => {
+        {visiblePrimaryNav(role, canAccessBilling).map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           return (
@@ -212,10 +224,12 @@ function MobileNav({
   items,
   className = "",
   role,
+  canAccessBilling = false,
 }: {
   items: NavItem[];
   className?: string;
   role?: OpsRole;
+  canAccessBilling?: boolean;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -231,7 +245,7 @@ function MobileNav({
       )}
       {moreOpen && (
         <div className="fixed left-0 right-0 bg-offwhite border-t border-stone rounded-t-2xl z-50 px-4 py-4 space-y-1 max-h-[70vh] overflow-y-auto" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}>
-          {[...visiblePrimaryNav(role ?? "horticulturist").slice(3), ...secondaryNav].map((item) => (
+          {[...visiblePrimaryNav(role ?? "horticulturist", canAccessBilling).slice(3), ...secondaryNav].map((item) => (
             <Link
               key={item.href}
               href={item.href}

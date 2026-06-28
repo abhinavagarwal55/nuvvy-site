@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("profiles")
-    .select("id, full_name, phone, role, status, created_at")
+    .select("id, full_name, phone, role, status, created_at, can_access_billing")
     .in("role", ["admin", "horticulturist", "gardener"])
     .order("created_at", { ascending: false });
 
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     .filter((p) => p.role === "admin")
     .map((p) => p.id);
 
-  let adminEmailMap: Record<string, string | null> = {};
+  const adminEmailMap: Record<string, string | null> = {};
   for (const adminId of adminIds) {
     const { data: authUser } = await supabase.auth.admin.getUserById(adminId);
     if (authUser?.user?.email) {

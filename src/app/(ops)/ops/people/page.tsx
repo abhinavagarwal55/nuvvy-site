@@ -14,6 +14,7 @@ type Person = {
   status: "active" | "inactive";
   created_at: string;
   login_token: string | null;
+  can_access_billing?: boolean;
 };
 
 // ─── Small utilities ───────────────────────────────────────────────────────────
@@ -798,9 +799,11 @@ function EditPersonModal({
   const [fullName, setFullName] = useState(person.full_name ?? "");
   const [phone, setPhone] = useState(person.phone ?? "");
   const [email, setEmail] = useState(person.email ?? "");
+  const [billingAccess, setBillingAccess] = useState(person.can_access_billing === true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const showEmail = person.role !== "gardener";
+  const showBilling = person.role === "horticulturist";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -821,6 +824,21 @@ function EditPersonModal({
         setError(data.error ?? "Failed to update");
         return;
       }
+
+      // Billing access is a separate admin-only flag (audited independently).
+      if (showBilling && billingAccess !== (person.can_access_billing === true)) {
+        const billRes = await fetch(`/api/ops/people/${person.id}/billing-access`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ can_access_billing: billingAccess }),
+        });
+        if (!billRes.ok) {
+          const bd = await billRes.json().catch(() => ({}));
+          setError(bd.error ?? "Failed to update billing access");
+          return;
+        }
+      }
+
       onSaved();
       onClose();
     } finally {
@@ -874,6 +892,27 @@ function EditPersonModal({
               placeholder="+91 98765 43210"
             />
           </div>
+          {showBilling && (
+            <div className="border-t border-stone/40 pt-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={billingAccess}
+                  onChange={(e) => setBillingAccess(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 accent-forest"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-charcoal">
+                    Billing access
+                  </span>
+                  <span className="block text-xs text-sage">
+                    Can run Care Plans &amp; Plant Orders invoicing. Revenue totals,
+                    payroll, and the summary tab stay hidden.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
           {error && <p className="text-sm text-terra">{error}</p>}
           <div className="flex gap-3">
             <button
