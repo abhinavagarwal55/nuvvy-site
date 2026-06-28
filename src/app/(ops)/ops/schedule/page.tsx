@@ -631,6 +631,7 @@ function ScheduleClient() {
             now={now}
             viewMode={viewMode}
             loading={loading}
+            headerOffset={headerH}
             serviceActions={serviceActions}
             eventActions={eventActions}
           />

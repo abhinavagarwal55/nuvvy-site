@@ -129,6 +129,7 @@ export default function DayView({
   now,
   viewMode,
   loading,
+  headerOffset,
   serviceActions,
   eventActions,
 }: {
@@ -139,6 +140,7 @@ export default function DayView({
   now: Date;
   viewMode: "active" | "cancelled";
   loading: boolean;
+  headerOffset: number;
   serviceActions: Pick<ServiceActionProps, "onReschedule" | "onCancel">;
   eventActions: Pick<EventActionProps, "onView" | "onReschedule" | "onCancel">;
 }) {
@@ -327,18 +329,20 @@ export default function DayView({
           </div>
         ) : (
           <>
-            {/* Column headers (per-gardener colour) */}
-            <div className="flex gap-1" style={{ paddingLeft: GUTTER_PX }}>
-              {columns.map((col) => (
-                <div
-                  key={col.key}
-                  className="flex-1 text-center py-1.5 px-1 rounded-t-lg text-xs font-medium truncate text-offwhite"
-                  style={{ backgroundColor: col.color }}
-                  title={col.name}
-                >
-                  {col.name}
-                </div>
-              ))}
+            {/* Column headers (per-gardener colour) — sticky on scroll */}
+            <div className="sticky z-20 bg-cream" style={{ top: headerOffset }}>
+              <div className="flex gap-1 pt-1" style={{ paddingLeft: GUTTER_PX }}>
+                {columns.map((col) => (
+                  <div
+                    key={col.key}
+                    className="flex-1 text-center py-1.5 px-1 rounded-t-lg text-xs font-medium truncate text-offwhite"
+                    style={{ backgroundColor: col.color }}
+                    title={col.name}
+                  >
+                    {col.name}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Untimed tray (per column) */}
