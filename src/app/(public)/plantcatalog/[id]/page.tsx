@@ -1,58 +1,18 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import PlantImageWithShare from "@/components/PlantImageWithShare";
-import { useParams } from "next/navigation";
 import { Droplet, Layers, FlaskConical, Leaf, Wind } from "lucide-react";
-import { getCatalogStore, type PlantDetail } from "@/lib/catalog";
+import { getPlantDetailFromSupabaseByAirtableId } from "@/lib/catalog/supabasePlantStore";
 import { getWhatsAppLink, getCatalogPlantRequest } from "@/config/whatsapp";
+import { getSiteUrl } from "@/lib/utils/metadata";
 import TrackedLink from "@/components/TrackedLink";
 
-export default function PlantDetailPage() {
-  const params = useParams();
-  const plantId = params?.id as string;
-  const [plant, setPlant] = useState<PlantDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadPlant() {
-      if (!plantId) return;
-      const store = getCatalogStore();
-      const plantData = await store.getPlantById(plantId);
-      setPlant(plantData);
-      setLoading(false);
-    }
-    loadPlant();
-  }, [plantId]);
-
-  // Scroll to top when navigating to this page
-  useEffect(() => {
-    // Scroll to top immediately when component mounts or plantId changes
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [plantId]);
-
-  // Also scroll to top when plant data finishes loading (handles async data load)
-  useEffect(() => {
-    if (!loading && plant) {
-      // Use requestAnimationFrame to ensure DOM is fully rendered
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      });
-    }
-  }, [loading, plant]);
-
-  if (loading) {
-    return (
-      <main className="bg-cream min-h-screen">
-        <div className="container mx-auto px-6 py-12 max-w-4xl">
-          <div className="text-center">
-            <p className="text-gray-600">Loading plant details...</p>
-          </div>
-        </div>
-      </main>
-    );
-  }
+export default async function PlantDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const plant = await getPlantDetailFromSupabaseByAirtableId(id);
 
   if (!plant) {
     return (
@@ -73,10 +33,7 @@ export default function PlantDetailPage() {
     );
   }
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "");
-  const plantUrl = siteUrl ? `${siteUrl}/plantcatalog/${plant.id}` : undefined;
+  const plantUrl = `${getSiteUrl().replace(/\/$/, "")}/plantcatalog/${id}`;
   const whatsappMessage = getCatalogPlantRequest(plant.name, plantUrl);
 
   return (

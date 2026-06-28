@@ -1,25 +1,30 @@
 import type { Metadata } from "next";
 import { OG_DEFAULT_IMAGE } from "@/lib/constants";
+import { getSiteUrl } from "@/lib/utils/metadata";
 
 // Public catalog reads `?type=` via useSearchParams — keep route dynamic.
 export const dynamic = "force-dynamic";
 
-// Get site URL for metadata (works at build time)
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  (process.env.NODE_ENV === "production" ? "https://www.nuvvy.in" : "http://localhost:3000");
+const baseUrl = getSiteUrl().replace(/\/$/, "");
 
 const ogImageUrl = OG_DEFAULT_IMAGE.startsWith("http")
   ? OG_DEFAULT_IMAGE
-  : `${siteUrl}${OG_DEFAULT_IMAGE}`;
+  : `${baseUrl}${OG_DEFAULT_IMAGE}`;
+
+const title = "Plant Catalog for Bangalore Balconies | Nuvvy";
+const description =
+  "Browse a curated catalog of indoor and balcony plants for Bangalore homes, with light, watering, and care guidance from Nuvvy's horticulturists.";
 
 export const metadata: Metadata = {
-  title: "Nuvvy Plant Catalog",
-  description: "Curated plants for Bangalore balconies.",
+  title,
+  description,
+  alternates: {
+    canonical: `${baseUrl}/plantcatalog`,
+  },
   openGraph: {
-    title: "Nuvvy Plant Catalog",
-    description: "Curated plants for Bangalore balconies.",
-    url: `${siteUrl}/plantcatalog`,
+    title,
+    description,
+    url: `${baseUrl}/plantcatalog`,
     siteName: "Nuvvy",
     images: [
       {
@@ -34,8 +39,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nuvvy Plant Catalog",
-    description: "Curated plants for Bangalore balconies.",
+    title,
+    description,
     images: [ogImageUrl],
   },
 };
