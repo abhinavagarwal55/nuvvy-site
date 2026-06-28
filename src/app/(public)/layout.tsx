@@ -1,5 +1,6 @@
 import LandingHeader from "@/components/LandingHeader";
 import Analytics from "@/lib/analytics";
+import Clarity from "@/lib/clarity";
 
 export default function PublicLayout({
   children,
@@ -13,6 +14,7 @@ export default function PublicLayout({
         {children}
       </main>
       <Analytics />
+      <Clarity />
     </>
   );
 }
