@@ -101,9 +101,41 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
     }
   }
 
+  // Resolve plan visit_duration_minutes per customer via the active subscription.
+  // Batched (no N+1): active subscriptions for these customers -> their plans.
+  const durationByCustomer: Record<string, number> = {};
+  if (customerIds.length > 0) {
+    const { data: subs } = await ctx.trackQuery(async () => supabase
+      .from("subscriptions")
+      .select("customer_id, plan_id, created_at")
+      .in("customer_id", customerIds)
+      .eq("status", "active")
+      .order("created_at", { ascending: false }));
+    // Keep the latest active subscription per customer (rows are desc by created_at)
+    const planByCustomer: Record<string, string> = {};
+    for (const sub of subs ?? []) {
+      if (!sub.plan_id) continue;
+      if (!(sub.customer_id in planByCustomer)) planByCustomer[sub.customer_id] = sub.plan_id;
+    }
+    const planIds = [...new Set(Object.values(planByCustomer))];
+    let planDurations: Record<string, number> = {};
+    if (planIds.length > 0) {
+      const { data: plans } = await ctx.trackQuery(async () => supabase
+        .from("service_plans")
+        .select("id, visit_duration_minutes")
+        .in("id", planIds));
+      planDurations = Object.fromEntries(
+        (plans ?? []).map((p) => [p.id, p.visit_duration_minutes ?? 60])
+      );
+    }
+    for (const [customerId2, planId] of Object.entries(planByCustomer)) {
+      durationByCustomer[customerId2] = planDurations[planId] ?? 60;
+    }
+  }
+
   // Fetch all gardener assignments from junction table for these services
   const serviceIds = (data ?? []).map((s) => s.id);
-  let gardenersByService: Record<string, string[]> = {};
+  const gardenersByService: Record<string, string[]> = {};
   if (serviceIds.length > 0) {
     const { data: junctionAll } = await ctx.trackQuery(async () => supabase
       .from("service_visit_gardeners")
@@ -122,6 +154,7 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
       ? gardenerNames[s.assigned_gardener_id] ?? "Unknown"
       : null,
     gardener_ids: gardenersByService[s.id] ?? (s.assigned_gardener_id ? [s.assigned_gardener_id] : []),
+    visit_duration_minutes: durationByCustomer[s.customer_id] ?? 60,
   }));
 
   return NextResponse.json({ data: services });
