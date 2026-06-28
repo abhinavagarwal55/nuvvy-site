@@ -142,13 +142,15 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // If no primary gardener yet, set this one as primary
-  if (!service.assigned_gardener_id) {
-    await supabase
-      .from("service_visits")
-      .update({ assigned_gardener_id: parsed.data.gardener_id })
-      .eq("id", id);
-  }
+  // If no primary gardener yet, set this one as primary. Either way, flag the
+  // service as customized so a future voluntary primary change skips it.
+  await supabase
+    .from("service_visits")
+    .update({
+      gardener_customized: true,
+      ...(service.assigned_gardener_id ? {} : { assigned_gardener_id: parsed.data.gardener_id }),
+    })
+    .eq("id", id);
 
   return NextResponse.json({ data }, { status: 201 });
 }
@@ -204,7 +206,8 @@ export async function DELETE(
     return NextResponse.json({ error: "Gardener not assigned to this service" }, { status: 404 });
   }
 
-  // If we removed the primary gardener, promote the next one
+  // If we removed the primary gardener, promote the next one. Flag the service
+  // as customized either way so a future voluntary primary change skips it.
   if (service.assigned_gardener_id === gardenerId) {
     const { data: remaining } = await supabase
       .from("service_visit_gardeners")
@@ -215,7 +218,15 @@ export async function DELETE(
 
     await supabase
       .from("service_visits")
-      .update({ assigned_gardener_id: remaining?.[0]?.gardener_id ?? null })
+      .update({
+        assigned_gardener_id: remaining?.[0]?.gardener_id ?? null,
+        gardener_customized: true,
+      })
+      .eq("id", id);
+  } else {
+    await supabase
+      .from("service_visits")
+      .update({ gardener_customized: true })
       .eq("id", id);
   }
 

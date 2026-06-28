@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Copy, Check, Link2, KeyRound, UserX, UserCheck, Plus, Pencil } from "lucide-react";
+import { Copy, Check, Link2, KeyRound, UserX, UserCheck, Plus, Pencil, AlertTriangle } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -289,6 +289,185 @@ function StatusConfirm({
   );
 }
 
+// ─── Deactivate gardener (impact + reassignment) ───────────────────────────────
+
+type GardenerOption = { id: string; profile_id: string | null; name: string };
+type ImpactCustomer = { id: string; name: string };
+type DeactivationImpact = {
+  primary_customers: ImpactCustomer[];
+  secondary_customers: ImpactCustomer[];
+  future_service_count: number;
+  in_progress: { id: string; scheduled_date: string }[];
+};
+
+// A flat row per impacted customer, tagged with the role the leaving gardener
+// plays for it (drives whether we set a new primary or a new secondary).
+type ImpactRow = { customer: ImpactCustomer; role: "primary" | "secondary" };
+
+function DeactivateGardenerModal({
+  person,
+  impact,
+  gardeners,
+  onClose,
+  onDone,
+}: {
+  person: Person;
+  impact: DeactivationImpact;
+  gardeners: GardenerOption[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  // Exclude the leaving gardener from replacement options.
+  const leavingGardenerId = gardeners.find((g) => g.profile_id === person.id)?.id ?? null;
+  const options = gardeners.filter((g) => g.id !== leavingGardenerId);
+
+  const rows: ImpactRow[] = [
+    ...impact.primary_customers.map((c) => ({ customer: c, role: "primary" as const })),
+    ...impact.secondary_customers.map((c) => ({ customer: c, role: "secondary" as const })),
+  ];
+
+  // customer_id → replacement gardener id ("" = none/clear for secondary; required for primary).
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  const [applyAll, setApplyAll] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function setChoice(customerId: string, value: string) {
+    setChoices((prev) => ({ ...prev, [customerId]: value }));
+  }
+
+  function handleApplyAll(value: string) {
+    setApplyAll(value);
+    if (!value) return;
+    const next: Record<string, string> = {};
+    for (const r of rows) next[r.customer.id] = value;
+    setChoices(next);
+  }
+
+  const allPrimariesChosen = rows
+    .filter((r) => r.role === "primary")
+    .every((r) => (choices[r.customer.id] ?? "") !== "");
+
+  async function handleSubmit() {
+    setError(null);
+    setSaving(true);
+    try {
+      const reassignments = rows.map((r) => {
+        const value = choices[r.customer.id] ?? "";
+        if (r.role === "primary") {
+          return { customer_id: r.customer.id, new_primary_gardener_id: value };
+        }
+        // secondary: "" means clear it.
+        return { customer_id: r.customer.id, new_secondary_gardener_id: value || null };
+      });
+
+      const res = await fetch(`/api/ops/people/${person.id}/reassign-and-deactivate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reassignments, confirm: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Failed to reassign and deactivate");
+        return;
+      }
+      onDone();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 px-4">
+      <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6 mb-16 max-h-[85vh] overflow-y-auto">
+        <h2 className="font-semibold text-charcoal mb-1">Deactivate {person.full_name}</h2>
+        <p className="text-sm text-sage mb-4">
+          Reassign their customers and future services before deactivating.
+        </p>
+
+        {impact.in_progress.length > 0 && (
+          <div className="bg-terra/10 border border-terra/30 rounded-xl px-3 py-2 mb-4 flex items-start gap-2">
+            <AlertTriangle size={16} className="text-terra flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-terra">
+              {impact.in_progress.length} visit{impact.in_progress.length !== 1 ? "s" : ""} in
+              progress — let {impact.in_progress.length !== 1 ? "them" : "it"} complete. They will
+              not be touched.
+            </p>
+          </div>
+        )}
+
+        <p className="text-xs text-sage mb-3">
+          {impact.future_service_count} future scheduled service
+          {impact.future_service_count !== 1 ? "s" : ""} will be reassigned.
+        </p>
+
+        {/* Apply same replacement to all */}
+        {rows.length > 1 && (
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-charcoal mb-1">
+              Apply same replacement to all
+            </label>
+            <select
+              className={inputCls}
+              value={applyAll}
+              onChange={(e) => handleApplyAll(e.target.value)}
+            >
+              <option value="">Choose per customer…</option>
+              {options.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Per-customer pickers */}
+        <div className="space-y-3 mb-4">
+          {rows.map((r) => (
+            <div key={`${r.role}-${r.customer.id}`}>
+              <label className="block text-xs font-medium text-charcoal mb-1">
+                {r.customer.name}{" "}
+                <span className="text-sage">
+                  ({r.role === "primary" ? "primary" : "secondary"})
+                </span>
+              </label>
+              <select
+                className={inputCls}
+                value={choices[r.customer.id] ?? ""}
+                onChange={(e) => setChoice(r.customer.id, e.target.value)}
+              >
+                <option value="">
+                  {r.role === "primary" ? "Select replacement…" : "Remove (no secondary)"}
+                </option>
+                {options.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+
+        {error && <p className="text-sm text-terra mb-3">{error}</p>}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-cream"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving || !allPrimariesChosen}
+            className="flex-1 py-2.5 bg-terra text-offwhite rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-40"
+          >
+            {saving ? "Working…" : "Reassign & deactivate"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Person row ────────────────────────────────────────────────────────────────
 
 function PersonRow({
@@ -376,6 +555,19 @@ export default function PeoplePage() {
   const [setPinTarget, setSetPinTarget] = useState<Person | null>(null);
   const [statusTarget, setStatusTarget] = useState<Person | null>(null);
   const [editTarget, setEditTarget] = useState<Person | null>(null);
+  const [deactivateGardener, setDeactivateGardener] = useState<{
+    person: Person;
+    impact: DeactivationImpact;
+  } | null>(null);
+  const [gardenerOptions, setGardenerOptions] = useState<GardenerOption[]>([]);
+
+  // Active gardeners for replacement pickers (loaded lazily, admin-only view).
+  useEffect(() => {
+    fetch("/api/ops/gardeners")
+      .then((r) => r.json())
+      .then((d) => setGardenerOptions(d.data ?? []))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -401,6 +593,31 @@ export default function PeoplePage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Entry point from the row's Deactivate/Reactivate button. For gardener
+  // deactivation, check impact first and route to the reassignment modal when
+  // they still have references; otherwise fall through to the simple confirm.
+  async function requestToggle(person: Person) {
+    if (person.status === "active" && person.role === "gardener") {
+      try {
+        const res = await fetch(`/api/ops/people/${person.id}/deactivation-impact`);
+        const json = await res.json();
+        const impact: DeactivationImpact | undefined = json.data;
+        const hasImpact =
+          !!impact &&
+          (impact.primary_customers.length > 0 ||
+            impact.secondary_customers.length > 0 ||
+            impact.future_service_count > 0);
+        if (hasImpact && impact) {
+          setDeactivateGardener({ person, impact });
+          return;
+        }
+      } catch {
+        // fall through to simple confirm on lookup failure
+      }
+    }
+    setStatusTarget(person);
+  }
 
   async function handleToggleStatus(person: Person) {
     const newStatus = person.status === "active" ? "inactive" : "active";
@@ -488,7 +705,7 @@ export default function PeoplePage() {
                     person={p}
                     isAdmin={isAdmin}
                     onSetPin={setSetPinTarget}
-                    onToggleStatus={setStatusTarget}
+                    onToggleStatus={requestToggle}
                     onEdit={setEditTarget}
                   />
                 ))}
@@ -502,7 +719,7 @@ export default function PeoplePage() {
                     person={p}
                     isAdmin={isAdmin}
                     onSetPin={setSetPinTarget}
-                    onToggleStatus={setStatusTarget}
+                    onToggleStatus={requestToggle}
                     onEdit={setEditTarget}
                   />
                 ))}
@@ -516,7 +733,7 @@ export default function PeoplePage() {
                     person={p}
                     isAdmin={isAdmin}
                     onSetPin={setSetPinTarget}
-                    onToggleStatus={setStatusTarget}
+                    onToggleStatus={requestToggle}
                     onEdit={setEditTarget}
                   />
                 ))}
@@ -542,6 +759,18 @@ export default function PeoplePage() {
           person={statusTarget}
           onConfirm={() => handleToggleStatus(statusTarget)}
           onCancel={() => setStatusTarget(null)}
+        />
+      )}
+      {deactivateGardener && (
+        <DeactivateGardenerModal
+          person={deactivateGardener.person}
+          impact={deactivateGardener.impact}
+          gardeners={gardenerOptions}
+          onClose={() => setDeactivateGardener(null)}
+          onDone={() => {
+            setDeactivateGardener(null);
+            load();
+          }}
         />
       )}
       {editTarget && (

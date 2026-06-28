@@ -44,6 +44,8 @@ type CustomerDetail = {
   address: string | null;
   status: string;
   customer_type: CustomerType;
+  primary_gardener_id: string | null;
+  secondary_gardener_id: string | null;
   plant_count_range: string | null;
   light_condition: string | null;
   watering_responsibility: string[] | null;
@@ -453,13 +455,19 @@ export default function Customer360Page() {
           </div>
         )}
         {tab === "overview" && !showEdit && (
-          <OverviewTab customer={customer} customerId={customerId} />
+          <OverviewTab
+            customer={customer}
+            customerId={customerId}
+            canEditGardeners={role === "admin" || role === "horticulturist"}
+            onChanged={revalidateAll}
+          />
         )}
         {tab === "overview" && showEdit && customer && (
           <InlineEditForm
             customer={customer}
             customerId={customerId}
             societies={societies}
+            canEditGardeners={role === "admin" || role === "horticulturist"}
             onClose={() => setShowEdit(false)}
             onSaved={() => { setShowEdit(false); revalidateAll(); }}
           />
@@ -592,7 +600,6 @@ const FREQ_LABEL: Record<string, string> = {
 };
 
 type PlanOption = { id: string; name: string; visit_frequency: string; price: number };
-type GardenerOption = { id: string; name: string };
 type SlotInfo = { id: string; day_of_week: number; time_window_start: string; time_window_end: string; gardener_id: string; is_active: boolean };
 
 const editInputCls =
@@ -602,12 +609,14 @@ function InlineEditForm({
   customer,
   customerId,
   societies,
+  canEditGardeners,
   onClose,
   onSaved,
 }: {
   customer: CustomerDetail;
   customerId: string;
   societies: { id: string; name: string }[];
+  canEditGardeners: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -633,7 +642,6 @@ function InlineEditForm({
   const [slotDay, setSlotDay] = useState(0);
   const [slotTimeStart, setSlotTimeStart] = useState("09:00");
   const [slotTimeEnd, setSlotTimeEnd] = useState("10:00");
-  const [slotGardenerId, setSlotGardenerId] = useState("");
   const [changingPlan, setChangingPlan] = useState(false);
   const [changingSlot, setChangingSlot] = useState(false);
 
@@ -660,7 +668,7 @@ function InlineEditForm({
   );
 
   const plans: PlanOption[] = plansData?.data ?? [];
-  const gardeners: GardenerOption[] = gardenersData?.data ?? [];
+  const gardeners: { id: string; name: string }[] = gardenersData?.data ?? [];
   const careActionTypes: { id: string; name: string; default_frequency_days: number }[] = careTypesData?.data ?? [];
   const photos: { id: string; storage_path: string; url?: string | null }[] = photosData?.data ?? [];
   const activeSlot: SlotInfo | null = (slotsData?.data ?? []).find((s: SlotInfo) => s.is_active) ?? null;
@@ -671,7 +679,6 @@ function InlineEditForm({
       setSlotDay(activeSlot.day_of_week);
       setSlotTimeStart(activeSlot.time_window_start);
       setSlotTimeEnd(activeSlot.time_window_end);
-      setSlotGardenerId(activeSlot.gardener_id);
     }
   }, [activeSlot]);
 
@@ -735,7 +742,13 @@ function InlineEditForm({
   }
 
   async function handleChangeSlot() {
-    if (!slotGardenerId) return;
+    // The slot's gardener is the customer's canonical primary — it is edited only
+    // in the "Assigned Gardeners" section (with an impact preview), never here.
+    const gardenerId = customer.primary_gardener_id ?? activeSlot?.gardener_id ?? "";
+    if (!gardenerId) {
+      setError("Assign a gardener first in the Assigned Gardeners section.");
+      return;
+    }
     setChangingSlot(true);
     setError(null);
 
@@ -749,7 +762,7 @@ function InlineEditForm({
           day_of_week: slotDay,
           time_window_start: slotTimeStart,
           time_window_end: slotTimeEnd,
-          gardener_id: slotGardenerId,
+          gardener_id: gardenerId,
         }),
       });
       const json = await res.json();
@@ -761,7 +774,7 @@ function InlineEditForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer_id: customerId,
-          gardener_id: slotGardenerId,
+          gardener_id: gardenerId,
           day_of_week: slotDay,
           time_window_start: slotTimeStart,
           time_window_end: slotTimeEnd,
@@ -1018,7 +1031,6 @@ function InlineEditForm({
           <div className="space-y-1 text-sm">
             <div className="flex justify-between"><span className="text-sage">Day</span><span className="text-charcoal font-medium">{DAY_LABELS[activeSlot.day_of_week]}</span></div>
             <div className="flex justify-between"><span className="text-sage">Time</span><span className="text-charcoal font-medium">{activeSlot.time_window_start} – {activeSlot.time_window_end}</span></div>
-            <div className="flex justify-between"><span className="text-sage">Gardener</span><span className="text-charcoal font-medium">{gardeners.find((g) => g.id === activeSlot.gardener_id)?.name ?? "—"}</span></div>
           </div>
         ) : (
           <p className="text-sm text-stone">No slot assigned</p>
@@ -1045,21 +1057,26 @@ function InlineEditForm({
                 <input type="time" className={editInputCls} value={slotTimeEnd} onChange={(e) => setSlotTimeEnd(e.target.value)} />
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-charcoal mb-1">Gardener</label>
-              <select className={editInputCls} value={slotGardenerId} onChange={(e) => setSlotGardenerId(e.target.value)}>
-                <option value="">Select gardener…</option>
-                {gardeners.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
-              </select>
-            </div>
-            <button onClick={handleChangeSlot} disabled={changingSlot || !slotGardenerId}
+            <button onClick={handleChangeSlot} disabled={changingSlot}
               className="w-full py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40">
               {changingSlot ? "Saving…" : activeSlot ? "Apply Slot Change" : "Create Slot"}
             </button>
-            {activeSlot && <p className="text-xs text-sage">This will cancel future services from the old slot and generate new ones.</p>}
+            <p className="text-xs text-sage">
+              The gardener is set in the Assigned Gardeners section.
+              {activeSlot && " Changing the day/time cancels future services from the old slot and generates new ones."}
+            </p>
           </div>
         )}
       </div>
+
+      {/* Section: Assigned Gardeners */}
+      <AssignedGardenersCard
+        customer={customer}
+        customerId={customerId}
+        gardeners={gardeners}
+        canEdit={canEditGardeners}
+        onChanged={onSaved}
+      />
 
       {/* Section: Care Schedules */}
       <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
@@ -1153,7 +1170,17 @@ function InlineEditForm({
 
 type SlotInfoView = { id: string; day_of_week: number; time_window_start: string; time_window_end: string; gardener_id: string; is_active: boolean };
 
-function OverviewTab({ customer, customerId }: { customer: CustomerDetail; customerId: string }) {
+function OverviewTab({
+  customer,
+  customerId,
+  canEditGardeners,
+  onChanged,
+}: {
+  customer: CustomerDetail;
+  customerId: string;
+  canEditGardeners: boolean;
+  onChanged: () => void;
+}) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // SWR fetches — shared keys with InlineEditForm for cache sharing
@@ -1170,7 +1197,6 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
   const photos: { id: string; storage_path: string; url?: string | null }[] = photosData?.data ?? [];
   const gardeners: { id: string; name: string }[] = gardenersData?.data ?? [];
   const slot: SlotInfoView | null = (slotsData?.data ?? []).find((s: SlotInfoView) => s.is_active) ?? null;
-  const gardenerName = slot ? (gardeners.find((g) => g.id === slot.gardener_id)?.name ?? null) : null;
 
   return (
     <div className="space-y-5">
@@ -1250,12 +1276,20 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
           <>
             <Row label="Day" value={DAY_LABELS[slot.day_of_week] ?? "—"} />
             <Row label="Time" value={`${slot.time_window_start} – ${slot.time_window_end}`} />
-            <Row label="Gardener" value={gardenerName ?? "—"} />
           </>
         ) : (
           <p className="text-sm text-stone">No slot assigned</p>
         )}
       </Card>
+
+      {/* Assigned Gardeners */}
+      <AssignedGardenersCard
+        customer={customer}
+        customerId={customerId}
+        gardeners={gardeners}
+        canEdit={canEditGardeners}
+        onChanged={onChanged}
+      />
 
       {/* Garden Details */}
       <Card title="Garden Details">
@@ -1331,6 +1365,312 @@ function OverviewTab({ customer, customerId }: { customer: CustomerDetail; custo
           <p className="text-sm text-terra leading-relaxed">{customer.deactivation_reason}</p>
         </Card>
       )}
+    </div>
+  );
+}
+
+// ─── Assigned Gardeners (primary + optional secondary co-visit) ─────────────────
+
+type ImpactService = { id: string; scheduled_date: string; current_gardener_id: string | null };
+type AssignImpact = {
+  slot_count: number;
+  default_services: ImpactService[];
+  customized_services: ImpactService[];
+};
+
+function AssignedGardenersCard({
+  customer,
+  customerId,
+  gardeners,
+  canEdit,
+  onChanged,
+}: {
+  customer: CustomerDetail;
+  customerId: string;
+  gardeners: { id: string; name: string }[];
+  canEdit: boolean;
+  onChanged: () => void;
+}) {
+  const [showModal, setShowModal] = useState(false);
+  const nameOf = (id: string | null) =>
+    id ? gardeners.find((g) => g.id === id)?.name ?? "—" : "—";
+
+  return (
+    <div className="bg-offwhite rounded-2xl border border-stone/60 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-medium text-terra uppercase tracking-widest">
+          Assigned Gardeners
+        </p>
+        {canEdit && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="text-xs text-forest hover:text-garden font-medium"
+          >
+            Change gardeners
+          </button>
+        )}
+      </div>
+      <div className="space-y-0.5">
+        <Row label="Primary" value={nameOf(customer.primary_gardener_id)} />
+        <Row
+          label="Secondary"
+          value={customer.secondary_gardener_id ? nameOf(customer.secondary_gardener_id) : "None"}
+        />
+      </div>
+      {showModal && (
+        <AssignGardenersModal
+          customer={customer}
+          customerId={customerId}
+          gardeners={gardeners}
+          onClose={() => setShowModal(false)}
+          onSaved={() => {
+            setShowModal(false);
+            onChanged();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AssignGardenersModal({
+  customer,
+  customerId,
+  gardeners,
+  onClose,
+  onSaved,
+}: {
+  customer: CustomerDetail;
+  customerId: string;
+  gardeners: { id: string; name: string }[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [primaryId, setPrimaryId] = useState(customer.primary_gardener_id ?? "");
+  const [secondaryId, setSecondaryId] = useState(customer.secondary_gardener_id ?? "");
+  const [impact, setImpact] = useState<AssignImpact | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const nameOf = (id: string | null) =>
+    id ? gardeners.find((g) => g.id === id)?.name ?? "Unknown" : "—";
+
+  const sameGardener = secondaryId !== "" && secondaryId === primaryId;
+  const canPreview = primaryId !== "" && !sameGardener;
+
+  function toggle(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handlePreview() {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ops/customers/${customerId}/gardeners`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          primary_gardener_id: primaryId,
+          secondary_gardener_id: secondaryId || null,
+          confirm: false,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Failed to preview");
+        return;
+      }
+      const imp: AssignImpact = json.impact;
+      setImpact(imp);
+      // Default services are checked by default; customized ones excluded.
+      setSelectedIds(new Set(imp.default_services.map((s) => s.id)));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleConfirm() {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ops/customers/${customerId}/gardeners`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          primary_gardener_id: primaryId,
+          secondary_gardener_id: secondaryId || null,
+          confirm: true,
+          apply_service_ids: Array.from(selectedIds),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Failed to save");
+        return;
+      }
+      onSaved();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 px-4">
+      <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6 mb-16 max-h-[85vh] overflow-y-auto">
+        <h2 className="font-semibold text-charcoal mb-1">Change gardeners</h2>
+        <p className="text-sm text-sage mb-4">{customer.name}</p>
+
+        {/* Pickers */}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-charcoal mb-1">
+              Primary gardener <span className="text-terra">*</span>
+            </label>
+            <select
+              className={editInputCls}
+              value={primaryId}
+              onChange={(e) => {
+                setPrimaryId(e.target.value);
+                setImpact(null);
+              }}
+            >
+              <option value="">Select gardener…</option>
+              {gardeners.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-charcoal mb-1">
+              Secondary gardener <span className="text-sage text-[10px]">(optional co-visit)</span>
+            </label>
+            <select
+              className={editInputCls}
+              value={secondaryId}
+              onChange={(e) => {
+                setSecondaryId(e.target.value);
+                setImpact(null);
+              }}
+            >
+              <option value="">None</option>
+              {gardeners
+                .filter((g) => g.id !== primaryId)
+                .map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+            </select>
+          </div>
+        </div>
+
+        {sameGardener && (
+          <p className="text-sm text-terra mt-3">Secondary must differ from primary.</p>
+        )}
+
+        {/* Preview groups */}
+        {impact && (
+          <div className="mt-4 space-y-4">
+            <p className="text-xs text-sage">
+              {impact.slot_count} active slot{impact.slot_count !== 1 ? "s" : ""} will be re-pointed
+              to {nameOf(primaryId)}.
+            </p>
+
+            {/* Will update */}
+            <div>
+              <p className="text-xs font-medium text-charcoal mb-1">
+                Will update ({impact.default_services.length})
+              </p>
+              {impact.default_services.length === 0 ? (
+                <p className="text-xs text-stone">No default future services.</p>
+              ) : (
+                <div className="space-y-1">
+                  {impact.default_services.map((s) => (
+                    <label
+                      key={s.id}
+                      className="flex items-center gap-2 text-sm text-charcoal py-1"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggle(s.id)}
+                        className="accent-forest"
+                      />
+                      <span>{formatDate(s.scheduled_date)}</span>
+                      <span className="text-xs text-sage">
+                        ({nameOf(s.current_gardener_id)})
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Has an override */}
+            {impact.customized_services.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-terra mb-1">
+                  Has an override — keeping as-is ({impact.customized_services.length})
+                </p>
+                <p className="text-[11px] text-sage mb-1">
+                  These were set per-visit. Tick to force them onto the new primary.
+                </p>
+                <div className="space-y-1">
+                  {impact.customized_services.map((s) => (
+                    <label
+                      key={s.id}
+                      className="flex items-center gap-2 text-sm text-charcoal py-1"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggle(s.id)}
+                        className="accent-forest"
+                      />
+                      <span>{formatDate(s.scheduled_date)}</span>
+                      <span className="text-xs text-sage">
+                        ({nameOf(s.current_gardener_id)})
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {error && <p className="text-sm text-terra mt-3">{error}</p>}
+
+        <div className="flex gap-3 mt-5">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal hover:bg-cream"
+          >
+            Cancel
+          </button>
+          {!impact ? (
+            <button
+              onClick={handlePreview}
+              disabled={!canPreview || loading}
+              className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40"
+            >
+              {loading ? "Loading…" : "Preview changes"}
+            </button>
+          ) : (
+            <button
+              onClick={handleConfirm}
+              disabled={loading}
+              className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40"
+            >
+              {loading ? "Saving…" : "Apply changes"}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

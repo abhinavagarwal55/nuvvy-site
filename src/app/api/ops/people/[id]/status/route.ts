@@ -3,6 +3,10 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
+import {
+  resolveGardenerId,
+  computeDeactivationImpact,
+} from "@/lib/services/gardener-assignment";
 
 const Schema = z.object({
   status: z.enum(["active", "inactive"]),
@@ -32,6 +36,29 @@ export async function PUT(
 
   const supabase = getSupabaseAdmin();
   const { status } = parsed.data;
+
+  // Deactivation guard: a gardener with outstanding assignment references cannot
+  // be deactivated here — they must be reassigned via reassign-and-deactivate.
+  if (status === "inactive") {
+    const gardenerId = await resolveGardenerId(supabase, id);
+    if (gardenerId) {
+      const impact = await computeDeactivationImpact(supabase, gardenerId);
+      const blocked =
+        impact.primary_customers.length > 0 ||
+        impact.secondary_customers.length > 0 ||
+        impact.future_service_count > 0;
+      if (blocked) {
+        return NextResponse.json(
+          {
+            error:
+              "This gardener is still assigned to customers or future services. Reassign them before deactivating.",
+            impact,
+          },
+          { status: 409 }
+        );
+      }
+    }
+  }
 
   const updates: Record<string, unknown> = {
     status,

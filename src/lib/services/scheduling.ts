@@ -22,6 +22,7 @@ export interface GenerateServicesInput {
   effectiveFrom: string; // YYYY-MM-DD — the slot's cycle anchor
   fromDate: string; // YYYY-MM-DD — only generate dates on/after this
   weeksAhead?: number; // default 6
+  secondaryGardenerId?: string | null; // co-visit gardener — junction only, never assigned
 }
 
 /**
@@ -53,6 +54,7 @@ export async function generateServices(
     effectiveFrom,
     fromDate,
     weeksAhead = 6,
+    secondaryGardenerId = null,
   } = input;
 
   const intervalDays = FREQ_DAYS[visitFrequency];
@@ -109,10 +111,15 @@ export async function generateServices(
   // Populate junction table so the gardener can see these services on
   // the gardener "today"/"history" views (which filter via this table).
   if (inserted && inserted.length > 0) {
-    const junctionRows = inserted.map((r) => ({
-      service_id: r.id,
-      gardener_id: gardenerId,
-    }));
+    const junctionRows = inserted.flatMap((r) => {
+      const rows = [{ service_id: r.id, gardener_id: gardenerId }];
+      // Secondary is a co-visit gardener: added to the junction only, never to
+      // assigned_gardener_id (primary stays the single owner).
+      if (secondaryGardenerId && secondaryGardenerId !== gardenerId) {
+        rows.push({ service_id: r.id, gardener_id: secondaryGardenerId });
+      }
+      return rows;
+    });
     const { error: junctionErr } = await supabase
       .from("service_visit_gardeners")
       .insert(junctionRows);

@@ -86,7 +86,9 @@ export async function POST(
 
   const { data: updated, error: updateErr } = await supabase
     .from("service_visits")
-    .update({ assigned_gardener_id: parsed.data.gardener_id })
+    // gardener_customized: this service's gardener was set by hand, so a future
+    // voluntary primary change must skip it (deactivation still overrides it).
+    .update({ assigned_gardener_id: parsed.data.gardener_id, gardener_customized: true })
     .eq("id", id)
     .select()
     .single();

@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
   // Verify customer is ACTIVE
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, status")
+    .select("id, status, secondary_gardener_id")
     .eq("id", d.customer_id)
     .single();
 
@@ -138,7 +138,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: slotErr.message }, { status: 500 });
   }
 
-  // Generate services
+  // Keep the customer's canonical primary gardener in sync with the active slot
+  // (invariant: active slot gardener_id == customers.primary_gardener_id).
+  await supabase
+    .from("customers")
+    .update({ primary_gardener_id: d.gardener_id })
+    .eq("id", d.customer_id);
+
+  // Generate services (secondary co-visit gardener flows in from the customer)
   const generatedCount = await generateServices(supabase, {
     slotId: slot.id,
     customerId: d.customer_id,
@@ -151,6 +158,7 @@ export async function POST(request: NextRequest) {
     effectiveFrom: today,
     fromDate: today,
     weeksAhead: 6,
+    secondaryGardenerId: customer.secondary_gardener_id,
   });
 
   const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || null;
@@ -208,6 +216,14 @@ export async function PUT(request: NextRequest) {
   if (!oldSlot) {
     return NextResponse.json({ error: "Slot not found" }, { status: 404 });
   }
+
+  // Read the customer's co-visit secondary gardener so regenerated services
+  // include it (junction only — never the assigned primary).
+  const { data: customerRow } = await supabase
+    .from("customers")
+    .select("secondary_gardener_id")
+    .eq("id", oldSlot.customer_id)
+    .single();
 
   // Get subscription + plan frequency
   const { data: subscription } = await supabase
@@ -274,6 +290,12 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: newSlotErr.message }, { status: 500 });
   }
 
+  // Keep the customer's canonical primary gardener in sync with the new slot.
+  await supabase
+    .from("customers")
+    .update({ primary_gardener_id: d.gardener_id })
+    .eq("id", oldSlot.customer_id);
+
   // 4. Generate services from new slot
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -291,6 +313,7 @@ export async function PUT(request: NextRequest) {
     effectiveFrom: today,
     fromDate: tomorrowStr,
     weeksAhead: 6,
+    secondaryGardenerId: customerRow?.secondary_gardener_id ?? null,
   });
 
   // 5. Now safely delete the old slot's future services. The previous code
