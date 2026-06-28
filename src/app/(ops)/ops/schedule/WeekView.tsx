@@ -21,9 +21,9 @@ type BandBucket = { services: Service[]; events: OpsEvent[] };
 type DayBuckets = Record<Band | "untimed", BandBucket>;
 
 const BAND_LABELS: Record<Band, string> = {
-  morning: "Morning",
-  afternoon: "Afternoon",
-  evening: "Evening",
+  morning: "Morning · 8–12",
+  afternoon: "Afternoon · 12–3",
+  evening: "Evening · 3–6",
 };
 
 function emptyBuckets(): DayBuckets {
@@ -45,6 +45,7 @@ export default function WeekView({
   loading,
   weekKey,
   weekContainsToday,
+  headerOffset,
   serviceActions,
   eventActions,
   onDayHeader,
@@ -58,6 +59,7 @@ export default function WeekView({
   loading: boolean;
   weekKey: string;
   weekContainsToday: boolean;
+  headerOffset: number;
   serviceActions: Pick<ServiceActionProps, "onReschedule" | "onCancel">;
   eventActions: Pick<EventActionProps, "onView" | "onReschedule" | "onCancel">;
   onDayHeader: (date: string) => void;
@@ -182,43 +184,47 @@ export default function WeekView({
 
       {/* Desktop: time-banded weekly grid */}
       <div className="hidden md:block">
-        <div className="grid grid-cols-7 gap-1">
-          {/* Column headers (clickable → Day view) */}
-          {weekDays.map((day) => {
-            const isToday = day.date === today;
-            const counts = dayCounts[day.date];
-            return (
-              <button
-                key={`head-${day.date}`}
-                onClick={() => onDayHeader(day.date)}
-                title="Open day view"
-                className={`text-center py-2 px-1 rounded-t-xl transition-colors ${
-                  isToday
-                    ? "bg-forest text-offwhite"
-                    : "bg-offwhite text-sage hover:bg-cream"
-                }`}
-              >
-                <span className="block text-xs font-medium">
-                  {day.dayLabel} {day.label}
-                </span>
-                <span className="mt-0.5 flex items-center justify-center gap-1.5 text-[10px]">
-                  <span className={isToday ? "text-offwhite/80" : "text-sage"}>
-                    {counts.done} done
+        {/* Sticky day-header row — freezes below the page header on scroll */}
+        <div className="sticky z-20 bg-cream" style={{ top: headerOffset }}>
+          <div className="grid grid-cols-7 gap-1 pb-1">
+            {weekDays.map((day) => {
+              const isToday = day.date === today;
+              const counts = dayCounts[day.date];
+              return (
+                <button
+                  key={`head-${day.date}`}
+                  onClick={() => onDayHeader(day.date)}
+                  title="Open day view"
+                  className={`text-center py-2 px-1 rounded-xl border transition-colors ${
+                    isToday
+                      ? "bg-forest text-offwhite border-forest"
+                      : "bg-offwhite text-sage border-stone/40 hover:bg-cream"
+                  }`}
+                >
+                  <span className="block text-xs font-medium">
+                    {day.dayLabel} {day.label}
                   </span>
-                  {counts.due > 0 && (
-                    <span
-                      className={`px-1 rounded-full font-medium ${
-                        isToday ? "bg-offwhite/20 text-offwhite" : "bg-terra/10 text-terra"
-                      }`}
-                    >
-                      {counts.due} due
+                  <span className="mt-0.5 flex items-center justify-center gap-1.5 text-[10px]">
+                    <span className={isToday ? "text-offwhite/80" : "text-sage"}>
+                      {counts.done} done
                     </span>
-                  )}
-                </span>
-              </button>
-            );
-          })}
+                    {counts.due > 0 && (
+                      <span
+                        className={`px-1 rounded-full font-medium ${
+                          isToday ? "bg-offwhite/20 text-offwhite" : "bg-terra/10 text-terra"
+                        }`}
+                      >
+                        {counts.due} due
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
+        <div className="grid grid-cols-7 gap-1">
           {/* Time bands */}
           {visibleBands.map((band) => (
             <BandRow

@@ -131,12 +131,12 @@ export function formatTime(time: string): string {
 
 export type Band = "morning" | "afternoon" | "evening";
 
-/** Morning < 12:00, Afternoon 12:00–16:59, Evening ≥ 17:00. Null start = no band. */
+/** Morning 8–12, Afternoon 12–3, Evening 3–6 (≥ 15:00). Null start = no band. */
 export function getBand(start: string | null): Band | null {
   const mins = timeToMinutes(start);
   if (mins === null) return null;
   if (mins < 12 * 60) return "morning";
-  if (mins < 17 * 60) return "afternoon";
+  if (mins < 15 * 60) return "afternoon";
   return "evening";
 }
 

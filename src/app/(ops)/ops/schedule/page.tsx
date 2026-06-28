@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
@@ -95,6 +95,20 @@ function ScheduleClient() {
     const qs = params.toString();
     router.replace(qs ? `/ops/schedule?${qs}` : "/ops/schedule", { scroll: false });
   }
+
+  // Measure the sticky page-header height so the Week day-header row can
+  // stick just below it when scrolling.
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerH, setHeaderH] = useState(0);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => setHeaderH(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // View mode: active or cancelled
   const [viewMode, setViewMode] = useState<"active" | "cancelled">("active");
@@ -427,7 +441,7 @@ function ScheduleClient() {
   return (
     <div className="min-h-screen bg-cream pb-24">
       {/* Header */}
-      <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4 sticky top-0 z-10">
+      <div ref={headerRef} className="bg-offwhite border-b border-stone px-4 pt-6 pb-4 sticky top-0 z-30">
         <div className="flex items-center justify-between mb-3">
           <h1
             className="text-2xl text-charcoal"
@@ -603,6 +617,7 @@ function ScheduleClient() {
             loading={loading}
             weekKey={week.from}
             weekContainsToday={weekContainsToday}
+            headerOffset={headerH}
             serviceActions={serviceActions}
             eventActions={eventActions}
             onDayHeader={(date) => setUrl({ view: "day", date })}
