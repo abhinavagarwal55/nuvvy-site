@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { isGardenerAssignedToService } from "@/lib/auth/service-access";
 
 // POST /api/ops/services/[id]/start — set started_at, status = in_progress
 export async function POST(
@@ -27,8 +28,12 @@ export async function POST(
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
 
-  // Gardener can only start their own services
-  if (auth.role === "gardener" && service.assigned_gardener_id !== auth.gardener_id) {
+  // Gardener can only start visits they're assigned to — primary OR secondary
+  if (
+    auth.role === "gardener" &&
+    (!auth.gardener_id ||
+      !(await isGardenerAssignedToService(supabase, id, auth.gardener_id, service.assigned_gardener_id)))
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

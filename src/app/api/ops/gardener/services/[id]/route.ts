@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { isGardenerAssignedToService } from "@/lib/auth/service-access";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { getCachedCareActionTypes } from "@/lib/cache/reference-data";
 
@@ -30,8 +31,12 @@ export async function GET(
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
 
-  // Access check for gardeners
-  if (auth.role === "gardener" && service.assigned_gardener_id !== auth.gardener_id) {
+  // Access check for gardeners — primary OR secondary (junction) can view.
+  if (
+    auth.role === "gardener" &&
+    (!auth.gardener_id ||
+      !(await isGardenerAssignedToService(supabase, id, auth.gardener_id, service.assigned_gardener_id)))
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

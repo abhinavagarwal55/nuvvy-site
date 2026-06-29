@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { isGardenerAssignedToService } from "@/lib/auth/service-access";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { sendNotificationEmail } from "@/lib/email/send-email";
 import { serviceCompletedEmail } from "@/lib/email/templates";
@@ -65,7 +66,8 @@ export async function POST(
 
   if (
     auth.role === "gardener" &&
-    service.assigned_gardener_id !== auth.gardener_id
+    (!auth.gardener_id ||
+      !(await isGardenerAssignedToService(supabase, id, auth.gardener_id, service.assigned_gardener_id)))
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

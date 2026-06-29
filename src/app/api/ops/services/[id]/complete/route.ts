@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { isGardenerAssignedToService } from "@/lib/auth/service-access";
 
 // POST /api/ops/services/[id]/complete
 // Validates photo_count >= 2, sets completed_at, updates care schedules
@@ -28,7 +29,11 @@ export async function POST(
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
 
-  if (auth.role === "gardener" && service.assigned_gardener_id !== auth.gardener_id) {
+  if (
+    auth.role === "gardener" &&
+    (!auth.gardener_id ||
+      !(await isGardenerAssignedToService(supabase, id, auth.gardener_id, service.assigned_gardener_id)))
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
