@@ -22,6 +22,9 @@ export async function generateMetadata({
       return {
         title: "Plant not found | Nuvvy Plant Catalog",
         description: "The requested plant could not be found in our catalog.",
+        alternates: {
+          canonical: `${getSiteUrl().replace(/\/$/, "")}/plantcatalog/${id}`,
+        },
         openGraph: {
           title: "Plant not found | Nuvvy Plant Catalog",
           description: "The requested plant could not be found in our catalog.",
@@ -63,6 +66,9 @@ export async function generateMetadata({
     return {
       title,
       description,
+      alternates: {
+        canonical: `${getSiteUrl().replace(/\/$/, "")}/plantcatalog/${id}`,
+      },
       openGraph: {
         title,
         description,

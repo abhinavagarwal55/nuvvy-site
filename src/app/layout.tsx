@@ -30,7 +30,7 @@ const jsonLd = {
       "@type": "LocalBusiness",
       "name": "Nuvvy",
       "description": "Horticulturist-led balcony and indoor garden care subscription service in Bangalore",
-      "url": "https://nuvvy.in",
+      "url": siteUrl.replace(/\/$/, ""),
       "telephone": telephone,
       "areaServed": ["Whitefield", "Bangalore"],
       "address": {

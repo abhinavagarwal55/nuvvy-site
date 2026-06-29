@@ -11,6 +11,9 @@ const siteUrl = getSiteUrl();
 export const metadata: Metadata = {
   title: "Balcony Garden Care Subscription in Bangalore | Nuvvy",
   description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹999. Professional maintenance, indoor & balcony gardens, fertilizer and pest control included.",
+  alternates: {
+    canonical: siteUrl.replace(/\/$/, ""),
+  },
   openGraph: {
     title: "Balcony Garden Care Subscription in Bangalore | Nuvvy",
     description: "Expert horticulturist-led garden care & plant setup in Bangalore. Monthly subscription from ₹999. Professional maintenance, indoor & balcony gardens, fertilizer and pest control included.",
