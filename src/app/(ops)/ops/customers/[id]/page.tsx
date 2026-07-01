@@ -42,6 +42,7 @@ type CustomerDetail = {
   phone_number: string | null;
   email: string | null;
   address: string | null;
+  unit_number: string | null;
   status: string;
   customer_type: CustomerType;
   primary_gardener_id: string | null;
@@ -624,8 +625,10 @@ function InlineEditForm({
   const [phoneNumber, setPhoneNumber] = useState(customer.phone_number ?? "");
   const [email, setEmail] = useState(customer.email ?? "");
   const [address, setAddress] = useState(customer.address ?? "");
+  const [unitNumber, setUnitNumber] = useState(customer.unit_number ?? "");
   const [societyId, setSocietyId] = useState(customer.society?.id ?? "");
   const [newSocietyName, setNewSocietyName] = useState("");
+  const [newSocietyShort, setNewSocietyShort] = useState("");
   const [plantCountRange, setPlantCountRange] = useState(customer.plant_count_range ?? "");
   const [lightCondition, setLightCondition] = useState(customer.light_condition ?? "");
   const [wateringResponsibility, setWateringResponsibility] = useState<string[]>(customer.watering_responsibility ?? []);
@@ -692,7 +695,10 @@ function InlineEditForm({
         const socRes = await fetch("/api/ops/societies", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newSocietyName.trim() }),
+          body: JSON.stringify({
+            name: newSocietyName.trim(),
+            short_name: newSocietyShort.trim() || undefined,
+          }),
         });
         const socJson = await socRes.json();
         if (socRes.ok && socJson.data?.id) {
@@ -708,6 +714,7 @@ function InlineEditForm({
           phone_number: phoneNumber || undefined,
           email: email || null,
           address: address || null,
+          unit_number: unitNumber.trim() || null,
           society_id: finalSocietyId,
           plant_count_range: plantCountRange || null,
           light_condition: lightCondition || null,
@@ -853,23 +860,35 @@ function InlineEditForm({
             <label className="block text-xs font-medium text-charcoal mb-1">Email <span className="text-sage text-[10px]">(optional)</span></label>
             <input className={editInputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="customer@example.com" />
           </div>
-          <div className="md:col-span-2">
+          <div>
             <label className="block text-xs font-medium text-charcoal mb-1">Address</label>
-            <input className={editInputCls} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. Apt 6092, WoYM" />
+            <input className={editInputCls} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Building name, Area" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-charcoal mb-1">Unit / Flat no.</label>
+            <input className={editInputCls} value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} placeholder="e.g. A-604, Villa 12" />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-medium text-charcoal mb-1">Society</label>
-            <select className={editInputCls} value={societyId} onChange={(e) => { setSocietyId(e.target.value); if (e.target.value) setNewSocietyName(""); }}>
+            <select className={editInputCls} value={societyId} onChange={(e) => { setSocietyId(e.target.value); if (e.target.value) { setNewSocietyName(""); setNewSocietyShort(""); } }}>
               <option value="">Select or add new…</option>
               {societies.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
             </select>
             {!societyId && (
-              <input
-                className={`${editInputCls} mt-2`}
-                value={newSocietyName}
-                onChange={(e) => setNewSocietyName(e.target.value)}
-                placeholder="Or type new society name"
-              />
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  className={editInputCls}
+                  value={newSocietyName}
+                  onChange={(e) => setNewSocietyName(e.target.value)}
+                  placeholder="Or type new society name"
+                />
+                <input
+                  className={editInputCls}
+                  value={newSocietyShort}
+                  onChange={(e) => setNewSocietyShort(e.target.value)}
+                  placeholder="Short name (e.g. WoYM)"
+                />
+              </div>
             )}
           </div>
         </div>
@@ -1245,6 +1264,7 @@ function OverviewTab({
         <Row label="Phone" value={customer.phone_number ?? "—"} />
         <Row label="Email" value={customer.email ?? "—"} />
         <Row label="Address" value={customer.address ?? "—"} />
+        <Row label="Unit" value={customer.unit_number ?? "—"} />
         <Row label="Society" value={customer.society?.name ?? "—"} />
       </Card>
 

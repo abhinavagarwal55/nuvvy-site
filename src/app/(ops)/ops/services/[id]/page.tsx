@@ -36,7 +36,7 @@ type ServiceDetail = {
   reviewed_at: string | null;
   assigned_gardener_id: string | null;
   gardener: { id: string; name: string } | null;
-  customer: { name: string } | null;
+  customer: { name: string; unit_number?: string | null; society_name?: string | null } | null;
   internal_notes: string | null;
   checklist_items: { id: string; label: string; completion_status: string }[];
   special_tasks: { id: string; description: string; is_completed: boolean }[];
@@ -445,6 +445,16 @@ export default function ServiceDetailPage() {
       <div className="px-4 pt-4 space-y-4 max-w-[640px] mx-auto">
         {/* Timing */}
         <Card title="Timing">
+          {(service.customer?.society_name || service.customer?.unit_number) && (
+            <Row
+              label="Location"
+              value={
+                service.customer?.society_name
+                  ? `${service.customer.society_name}${service.customer.unit_number ? ` · ${service.customer.unit_number}` : ""}`
+                  : service.customer!.unit_number!
+              }
+            />
+          )}
           <Row label="Status" value={service.status.replace("_", " ")} />
           <div className="flex items-start justify-between py-1.5 text-sm">
             <span className="text-sage">Gardener{assignedGardeners.length > 1 ? "s" : ""}</span>

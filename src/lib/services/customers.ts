@@ -16,6 +16,7 @@ export const createCustomerSchema = z.object({
   phone_number: z.string().min(1, "Phone number is required"),
   email: z.string().email().optional().or(z.literal("")),
   address: z.string().optional(),
+  unit_number: z.string().optional(),
   society_id: z.string().uuid().optional(),
   society_name: z.string().optional(), // for creating a new society inline
   plant_count_range: z.enum(["0_20", "20_40", "40_plus"]).optional(),
@@ -73,6 +74,7 @@ export async function createDraftCustomer(
       phone_number: input.phone_number,
       email: input.email || null,
       address: input.address ?? null,
+      unit_number: input.unit_number ?? null,
       status: "DRAFT",
       society_id: societyId,
       plant_count_range: input.plant_count_range ?? null,

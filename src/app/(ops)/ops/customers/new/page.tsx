@@ -27,8 +27,10 @@ type Draft = {
   phone_number: string;
   email: string;
   address: string;
+  unit_number: string;
   society_id: string;
   society_name: string; // for new society
+  society_short: string; // optional abbreviation for a new society
   // Step 2
   plant_count_range: string;
   light_condition: string;
@@ -87,8 +89,10 @@ const EMPTY_DRAFT: Draft = {
   phone_number: "",
   email: "",
   address: "",
+  unit_number: "",
   society_id: "",
   society_name: "",
+  society_short: "",
   plant_count_range: "",
   light_condition: "",
   watering_responsibility: [],
@@ -153,6 +157,7 @@ function OnboardingWizardInner() {
           phone_number: c.phone_number ?? "",
           email: c.email ?? "",
           address: c.address ?? "",
+          unit_number: c.unit_number ?? "",
           society_id: c.society_id ?? "",
           plant_count_range: c.plant_count_range ?? "",
           light_condition: c.light_condition ?? "",
@@ -199,6 +204,26 @@ function OnboardingWizardInner() {
     setSaving(true);
     setError(null);
     try {
+      // Resolve an inline-typed society to an id via the single societies
+      // endpoint (dedup + audit + short_name live there), so the pill shows a
+      // clean abbreviation immediately.
+      let societyId = draft.society_id;
+      if (!societyId && draft.society_name.trim()) {
+        const socRes = await fetch("/api/ops/societies", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: draft.society_name.trim(),
+            short_name: draft.society_short.trim() || undefined,
+          }),
+        });
+        const socJson = await socRes.json().catch(() => ({}));
+        if (socRes.ok && socJson.data?.id) {
+          societyId = socJson.data.id;
+          setDraft((prev) => ({ ...prev, society_id: socJson.data.id, society_name: "", society_short: "" }));
+        }
+      }
+
       if (customerId) {
         // Update existing draft
         await fetch(`/api/ops/customers/${customerId}`, {
@@ -209,7 +234,8 @@ function OnboardingWizardInner() {
             phone_number: draft.phone_number,
             email: draft.email || undefined,
             address: draft.address || undefined,
-            society_id: draft.society_id || undefined,
+            unit_number: draft.unit_number || undefined,
+            society_id: societyId || undefined,
             plant_count_range: draft.plant_count_range || undefined,
             light_condition: draft.light_condition || undefined,
             watering_responsibility:
@@ -229,7 +255,8 @@ function OnboardingWizardInner() {
           phone_number: draft.phone_number,
           email: draft.email || undefined,
           address: draft.address || undefined,
-          society_id: draft.society_id || undefined,
+          unit_number: draft.unit_number || undefined,
+          society_id: societyId || undefined,
           society_name: draft.society_name || undefined,
           plant_count_range: draft.plant_count_range || undefined,
           light_condition: draft.light_condition || undefined,
@@ -674,7 +701,18 @@ function Step1CustomerDetails({
           className={inputCls}
           value={draft.address}
           onChange={(e) => update("address", e.target.value)}
-          placeholder="Flat/Tower, Building name, Area"
+          placeholder="Building name, Area"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-charcoal mb-1">
+          Unit / Flat no.
+        </label>
+        <input
+          className={inputCls}
+          value={draft.unit_number}
+          onChange={(e) => update("unit_number", e.target.value)}
+          placeholder="e.g. A-604, Villa 12"
         />
       </div>
       <div>
@@ -686,7 +724,10 @@ function Step1CustomerDetails({
           value={draft.society_id}
           onChange={(e) => {
             update("society_id", e.target.value);
-            if (e.target.value) update("society_name", "");
+            if (e.target.value) {
+              update("society_name", "");
+              update("society_short", "");
+            }
           }}
         >
           <option value="">Select or add new…</option>
@@ -697,12 +738,20 @@ function Step1CustomerDetails({
           ))}
         </select>
         {!draft.society_id && (
-          <input
-            className={`${inputCls} mt-2`}
-            value={draft.society_name}
-            onChange={(e) => update("society_name", e.target.value)}
-            placeholder="Or type new society name"
-          />
+          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input
+              className={inputCls}
+              value={draft.society_name}
+              onChange={(e) => update("society_name", e.target.value)}
+              placeholder="Or type new society name"
+            />
+            <input
+              className={inputCls}
+              value={draft.society_short}
+              onChange={(e) => update("society_short", e.target.value)}
+              placeholder="Short name (e.g. WoYM)"
+            />
+          </div>
         )}
       </div>
     </div>

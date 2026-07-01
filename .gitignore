@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# One-time unit backfill review file (contains customer data)
+scripts/unit-backfill-proposals.csv

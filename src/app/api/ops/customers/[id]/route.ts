@@ -99,6 +99,7 @@ const UpdateCustomerSchema = z.object({
   phone_number: z.string().min(1).optional(),
   email: z.string().email().nullable().optional().or(z.literal("")),
   address: z.string().optional(),
+  unit_number: z.string().nullable().optional(),
   society_id: z.string().uuid().nullable().optional(),
   plant_count_range: z
     .enum(["0_20", "20_40", "40_plus"])

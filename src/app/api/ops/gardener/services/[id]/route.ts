@@ -69,7 +69,7 @@ export async function GET(
     { data: voiceNotes },
     { data: careSchedules },
   ] = await Promise.all([
-    supabase.from("customers").select("id, name, phone_number").eq("id", service.customer_id).single(),
+    supabase.from("customers").select("id, name, phone_number, unit_number, societies(name)").eq("id", service.customer_id).single(),
     supabase
       .from("visit_checklist_items")
       .select("id, label, is_required, order_index, is_completed, completion_status, notes")
@@ -139,7 +139,16 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const responseData: Record<string, any> = {
     ...service,
-    customer: customer ?? null,
+    customer: customer
+      ? {
+          id: customer.id,
+          name: customer.name,
+          phone_number: customer.phone_number,
+          unit_number: customer.unit_number ?? null,
+          society_name:
+            (customer.societies as unknown as { name: string } | null)?.name ?? null,
+        }
+      : null,
       checklist_items: finalChecklist,
       special_tasks: specialTasks ?? [],
       photo_count: (photos ?? []).length,

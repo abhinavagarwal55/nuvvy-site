@@ -64,16 +64,36 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
   ];
 
   let customerNames: Record<string, string> = {};
+  const customerUnit: Record<string, string | null> = {};
+  const customerSocietyId: Record<string, string | null> = {};
   let gardenerNames: Record<string, string> = {};
+  // society_id -> { short_name, name }
+  const societyById: Record<string, { short_name: string | null; name: string }> = {};
 
   if (customerIds.length > 0) {
     const { data: customers } = await ctx.trackQuery(async () => supabase
       .from("customers")
-      .select("id, name")
+      .select("id, name, unit_number, society_id")
       .in("id", customerIds));
     customerNames = Object.fromEntries(
       (customers ?? []).map((c) => [c.id, c.name])
     );
+    for (const c of customers ?? []) {
+      customerUnit[c.id] = c.unit_number ?? null;
+      customerSocietyId[c.id] = c.society_id ?? null;
+    }
+
+    // Batch-fetch societies for the customers on screen (no N+1).
+    const societyIds = [...new Set(Object.values(customerSocietyId).filter(Boolean))] as string[];
+    if (societyIds.length > 0) {
+      const { data: societies } = await ctx.trackQuery(async () => supabase
+        .from("societies")
+        .select("id, short_name, name")
+        .in("id", societyIds));
+      for (const s of societies ?? []) {
+        societyById[s.id] = { short_name: s.short_name ?? null, name: s.name };
+      }
+    }
   }
 
   if (gardenerIds.length > 0) {
@@ -147,15 +167,25 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
     }
   }
 
-  const services = (data ?? []).map((s) => ({
-    ...s,
-    customer_name: customerNames[s.customer_id] ?? "Unknown",
-    gardener_name: s.assigned_gardener_id
-      ? gardenerNames[s.assigned_gardener_id] ?? "Unknown"
-      : null,
-    gardener_ids: gardenersByService[s.id] ?? (s.assigned_gardener_id ? [s.assigned_gardener_id] : []),
-    visit_duration_minutes: durationByCustomer[s.customer_id] ?? 60,
-  }));
+  const services = (data ?? []).map((s) => {
+    const socId = customerSocietyId[s.customer_id];
+    const soc = socId ? societyById[socId] : null;
+    const societyShort = soc
+      ? soc.short_name?.trim() || (soc.name.length > 12 ? soc.name.slice(0, 12) + "…" : soc.name)
+      : null;
+    return {
+      ...s,
+      customer_name: customerNames[s.customer_id] ?? "Unknown",
+      gardener_name: s.assigned_gardener_id
+        ? gardenerNames[s.assigned_gardener_id] ?? "Unknown"
+        : null,
+      gardener_ids: gardenersByService[s.id] ?? (s.assigned_gardener_id ? [s.assigned_gardener_id] : []),
+      visit_duration_minutes: durationByCustomer[s.customer_id] ?? 60,
+      unit_number: customerUnit[s.customer_id] ?? null,
+      society_short: societyShort,
+      society_name: soc?.name ?? null,
+    };
+  });
 
   return NextResponse.json({ data: services });
 });

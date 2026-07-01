@@ -26,7 +26,19 @@ export type Service = {
   started_at: string | null;
   completed_at: string | null;
   visit_duration_minutes: number | null;
+  unit_number: string | null;
+  society_short: string | null;
+  society_name: string | null;
 };
+
+/** Muted pill location line: "{abbrev society} · {unit}". Null when both absent. */
+export function societyLine(svc: Service): string | null {
+  const soc = svc.society_short?.trim() || null;
+  const unit = svc.unit_number?.trim() || null;
+  if (!soc && !unit) return null;
+  if (soc && unit) return `${soc} · ${unit}`;
+  return soc ?? unit;
+}
 
 export type OpsEvent = {
   id: string;
@@ -481,6 +493,11 @@ export function ServicePill({
             <PillDropdown svc={svc} onReschedule={onReschedule} onCancel={onCancel} />
           )}
         </div>
+        {societyLine(svc) && (
+          <p className="text-sage truncate text-[11px] leading-tight mt-0.5">
+            {societyLine(svc)}
+          </p>
+        )}
         <div className="flex items-center justify-between gap-1 mt-0.5">
           <p className="text-charcoal/60 truncate text-xs">
             {svc.gardener_name ?? ""}
@@ -526,6 +543,9 @@ export function ServicePill({
           </span>
         </div>
       </div>
+      {societyLine(svc) && (
+        <p className="text-xs text-sage truncate mt-0.5">{societyLine(svc)}</p>
+      )}
       <div className="flex items-center gap-3 text-xs text-sage mt-0.5">
         {svc.time_window_start && (
           <span className="flex items-center gap-1">
