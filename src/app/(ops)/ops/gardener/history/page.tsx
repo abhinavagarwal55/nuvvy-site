@@ -9,6 +9,7 @@ type HistoryService = {
   customer_name: string;
   customer_address: string | null;
   customer_society: string | null;
+  customer_unit: string | null;
   scheduled_date: string;
   time_window_start: string | null;
   time_window_end: string | null;
@@ -16,15 +17,14 @@ type HistoryService = {
   not_completed_reason: string | null;
 };
 
-function buildAddressLine(
-  address: string | null,
-  society: string | null
+// Prefer the structured "society · unit" location; fall back to free-text address.
+function buildLocationLine(
+  society: string | null,
+  unit: string | null,
+  address: string | null
 ): string | null {
-  if (!address && !society) return null;
-  if (!society) return address;
-  if (!address) return society;
-  if (address.toLowerCase().includes(society.toLowerCase())) return address;
-  return `${address}, ${society}`;
+  const structured = [society, unit].filter(Boolean).join(" · ");
+  return structured || address || null;
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -99,7 +99,7 @@ export default function GardenerHistoryPage() {
                           {svc.customer_name}
                         </p>
                         {(() => {
-                          const line = buildAddressLine(svc.customer_address, svc.customer_society);
+                          const line = buildLocationLine(svc.customer_society, svc.customer_unit, svc.customer_address);
                           return line ? (
                             <p className="flex items-start gap-1 text-xs text-sage mt-0.5 truncate">
                               <MapPin size={10} className="mt-0.5 flex-shrink-0" />

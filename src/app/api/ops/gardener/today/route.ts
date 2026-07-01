@@ -61,17 +61,17 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
   const customerIds = [...new Set((services ?? []).map((s) => s.customer_id))];
   let customerInfo: Record<
     string,
-    { name: string; address: string | null; society: string | null }
+    { name: string; address: string | null; society: string | null; unit: string | null }
   > = {};
   if (customerIds.length > 0) {
     const { data: customers } = await ctx.trackQuery(async () => supabase
       .from("customers")
-      .select("id, name, address, societies(name)")
+      .select("id, name, address, unit_number, societies(name)")
       .in("id", customerIds));
     customerInfo = Object.fromEntries(
       (customers ?? []).map((c) => {
         const society = (c as unknown as { societies: { name: string } | null }).societies;
-        return [c.id, { name: c.name, address: c.address, society: society?.name ?? null }];
+        return [c.id, { name: c.name, address: c.address, society: society?.name ?? null, unit: c.unit_number ?? null }];
       })
     );
   }
@@ -81,6 +81,7 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
     customer_name: customerInfo[s.customer_id]?.name ?? "Unknown",
     customer_address: customerInfo[s.customer_id]?.address ?? null,
     customer_society: customerInfo[s.customer_id]?.society ?? null,
+    customer_unit: customerInfo[s.customer_id]?.unit ?? null,
   }));
 
   return NextResponse.json({ data: result });

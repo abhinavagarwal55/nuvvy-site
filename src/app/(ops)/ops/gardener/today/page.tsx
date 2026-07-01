@@ -11,6 +11,7 @@ type WeekService = {
   customer_name: string;
   customer_address: string | null;
   customer_society: string | null;
+  customer_unit: string | null;
   scheduled_date: string;
   time_window_start: string | null;
   time_window_end: string | null;
@@ -19,16 +20,14 @@ type WeekService = {
   completed_at: string | null;
 };
 
-function buildAddressLine(
-  address: string | null,
-  society: string | null
+// Prefer the structured "society · unit" location; fall back to free-text address.
+function buildLocationLine(
+  society: string | null,
+  unit: string | null,
+  address: string | null
 ): string | null {
-  if (!address && !society) return null;
-  if (!society) return address;
-  if (!address) return society;
-  // Avoid duplicating society if it's already mentioned in the address
-  if (address.toLowerCase().includes(society.toLowerCase())) return address;
-  return `${address}, ${society}`;
+  const structured = [society, unit].filter(Boolean).join(" · ");
+  return structured || address || null;
 }
 
 const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
@@ -160,7 +159,7 @@ function ServiceCard({ service }: { service: WeekService }) {
             {service.customer_name}
           </p>
           {(() => {
-            const line = buildAddressLine(service.customer_address, service.customer_society);
+            const line = buildLocationLine(service.customer_society, service.customer_unit, service.customer_address);
             return line ? (
               <p className="flex items-start gap-1 text-xs text-sage mt-0.5 truncate">
                 <MapPin size={11} className="mt-0.5 flex-shrink-0" />

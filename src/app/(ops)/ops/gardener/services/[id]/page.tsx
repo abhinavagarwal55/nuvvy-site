@@ -15,6 +15,7 @@ import {
   ChevronRight,
   CircleAlert,
   CheckCircle2,
+  MapPin,
 } from "lucide-react";
 import { compressImage } from "@/lib/utils/compress-image";
 import PhotoLightbox from "../../../../components/PhotoLightbox";
@@ -66,7 +67,13 @@ type ServiceDetail = {
   time_window_end: string | null;
   started_at: string | null;
   not_completed_reason: string | null;
-  customer: { id: string; name: string; phone_number: string | null } | null;
+  customer: {
+    id: string;
+    name: string;
+    phone_number: string | null;
+    unit_number?: string | null;
+    society_name?: string | null;
+  } | null;
   internal_notes: string | null;
   checklist_items: ChecklistItem[];
   special_tasks: SpecialTask[];
@@ -357,6 +364,7 @@ export default function ServiceExecutionPage() {
       <div className="min-h-screen bg-cream pb-24">
         <Header
           customerName={service.customer?.name ?? "Customer"}
+          location={customerLocation(service.customer)}
           dayLabel={dayLabel}
           timeLabel={
             service.time_window_start
@@ -441,6 +449,7 @@ export default function ServiceExecutionPage() {
       <div className="min-h-screen bg-cream pb-24">
         <Header
           customerName={service.customer?.name ?? "Customer"}
+          location={customerLocation(service.customer)}
           dayLabel={dayLabel}
           timeLabel={
             service.time_window_start
@@ -492,6 +501,7 @@ export default function ServiceExecutionPage() {
     <div className="min-h-screen bg-cream pb-36">
       <Header
         customerName={service.customer?.name ?? "Customer"}
+        location={customerLocation(service.customer)}
         dayLabel={dayLabel}
         timeLabel={
           service.time_window_start
@@ -971,14 +981,23 @@ const DONTS_LIST = [
 
 // ─── Shared Components ──────────────────────────────────────────────────────
 
+function customerLocation(
+  c: { unit_number?: string | null; society_name?: string | null } | null
+): string | null {
+  if (!c) return null;
+  return [c.society_name, c.unit_number].filter(Boolean).join(" · ") || null;
+}
+
 function Header({
   customerName,
+  location,
   dayLabel,
   timeLabel,
   onBack,
   badge,
 }: {
   customerName: string;
+  location?: string | null;
   dayLabel: string;
   timeLabel?: string;
   onBack: () => void;
@@ -1003,6 +1022,12 @@ function Header({
           >
             {customerName}
           </h1>
+          {location && (
+            <p className="text-xs text-sage flex items-center gap-1 truncate">
+              <MapPin size={11} className="flex-shrink-0" />
+              <span className="truncate">{location}</span>
+            </p>
+          )}
           <p className="text-xs text-sage">
             {dayLabel} {timeLabel && `${timeLabel}`}
           </p>
