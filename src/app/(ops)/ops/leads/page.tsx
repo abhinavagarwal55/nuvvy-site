@@ -4,7 +4,8 @@ import { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
-import { Plus, Search, ChevronRight, UserCheck, UserPlus } from "lucide-react";
+import { Plus, Search, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, UserCheck, UserPlus } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/utils/format-date";
 import LeadCreateModal from "@/components/ops/leads/LeadCreateModal";
 import {
   SOURCE_LABELS,
@@ -88,11 +89,17 @@ function LeadsPageInner() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // ── Browse mode (no search): tab-scoped lead list ──────────────────────────
-  const fetchState = tab === "closed" ? "closed" : "active";
-  const browseKey = searching ? null : `/api/ops/leads?state=${fetchState}`;
-  const { data: browseData, isLoading: browseLoading, mutate: mutateBrowse } = useSWR(browseKey, fetcher);
-  const browseLeads: LeadListItem[] = useMemo(() => browseData?.leads ?? [], [browseData]);
+  // ── Browse mode (no search): load both states so every tab pill can show a
+  // count, regardless of which tab is active. ────────────────────────────────
+  const activeKey = searching ? null : "/api/ops/leads?state=active";
+  const closedKey = searching ? null : "/api/ops/leads?state=closed";
+  const { data: activeData, isLoading: activeLoading, mutate: mutateActive } = useSWR(activeKey, fetcher);
+  const { data: closedData, isLoading: closedLoading, mutate: mutateClosed } = useSWR(closedKey, fetcher);
+  const activeLeads: LeadListItem[] = useMemo(() => activeData?.leads ?? [], [activeData]);
+  const closedLeads: LeadListItem[] = useMemo(() => closedData?.leads ?? [], [closedData]);
+
+  const browseLeads = tab === "closed" ? closedLeads : activeLeads;
+  const browseLoading = tab === "closed" ? closedLoading : activeLoading;
 
   // ── Search mode: look up across both leads AND customers ───────────────────
   const leadSearchKey = searching ? `/api/ops/leads?state=any&q=${encodeURIComponent(searchDebounced)}` : null;
@@ -104,18 +111,31 @@ function LeadsPageInner() {
   const searchLoading = leadHitsLoading || custHitsLoading;
 
   function refresh() {
-    mutateBrowse();
+    mutateActive();
+    mutateClosed();
     mutateLeadHits();
   }
 
   const followUp = useMemo(() => {
-    const due = browseLeads.filter((l) => needsFollowUp(l.next_action_at));
+    const due = activeLeads.filter((l) => needsFollowUp(l.next_action_at));
     const overdue = due
       .filter((l) => isOverdue(l.next_action_at))
       .sort((a, b) => (a.next_action_at ?? "").localeCompare(b.next_action_at ?? ""));
     const today = due.filter((l) => isDueToday(l.next_action_at));
     return { overdue, today };
-  }, [browseLeads]);
+  }, [activeLeads]);
+
+  // Counts for the tab pills (only meaningful once the underlying set loads).
+  const tabCounts: Record<Tab, number> = {
+    active: activeLeads.length,
+    "follow-up-today": followUp.overdue.length + followUp.today.length,
+    closed: closedLeads.length,
+  };
+  const tabCountReady: Record<Tab, boolean> = {
+    active: !!activeData,
+    "follow-up-today": !!activeData,
+    closed: !!closedData,
+  };
 
   return (
     <div className="min-h-screen bg-cream pb-24">
@@ -150,19 +170,31 @@ function LeadsPageInner() {
         {/* Tabs (browse only) */}
         {!searching && (
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {TABS.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setTab(t.value)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
-                  tab === t.value
-                    ? "bg-forest text-offwhite border-forest"
-                    : "bg-cream text-charcoal border-stone"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {TABS.map((t) => {
+              const selected = tab === t.value;
+              return (
+                <button
+                  key={t.value}
+                  onClick={() => setTab(t.value)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
+                    selected
+                      ? "bg-forest text-offwhite border-forest"
+                      : "bg-cream text-charcoal border-stone"
+                  }`}
+                >
+                  {t.label}
+                  {tabCountReady[t.value] && (
+                    <span
+                      className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                        selected ? "bg-offwhite/25 text-offwhite" : "bg-stone/40 text-charcoal"
+                      }`}
+                    >
+                      {tabCounts[t.value]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -184,22 +216,11 @@ function LeadsPageInner() {
           followUp.overdue.length === 0 && followUp.today.length === 0 ? (
             <EmptyState text="Nothing to follow up on today. 🌿" />
           ) : (
-            <>
-              {followUp.overdue.length > 0 && (
-                <LeadGroup title="Overdue" count={followUp.overdue.length} accent="terra">
-                  {followUp.overdue.map((l) => (
-                    <LeadRow key={l.id} lead={l} onClick={() => openLead(l.id)} />
-                  ))}
-                </LeadGroup>
-              )}
-              {followUp.today.length > 0 && (
-                <LeadGroup title="Today" count={followUp.today.length}>
-                  {followUp.today.map((l) => (
-                    <LeadRow key={l.id} lead={l} onClick={() => openLead(l.id)} />
-                  ))}
-                </LeadGroup>
-              )}
-            </>
+            <LeadsTable
+              leads={[...followUp.overdue, ...followUp.today]}
+              onOpen={openLead}
+              initialSort={{ key: "follow_up", dir: "asc" }}
+            />
           )
         ) : browseLeads.length === 0 ? (
           <EmptyState
@@ -210,11 +231,7 @@ function LeadsPageInner() {
             }
           />
         ) : (
-          <div className="space-y-2">
-            {browseLeads.map((l) => (
-              <LeadRow key={l.id} lead={l} onClick={() => openLead(l.id)} />
-            ))}
-          </div>
+          <LeadsTable leads={browseLeads} onOpen={openLead} />
         )}
       </div>
 
@@ -310,6 +327,205 @@ function CustomerRow({ customer }: { customer: CustomerHit }) {
   );
 }
 
+/* ========================================================================== */
+/*  Sortable table (browse + follow-up views)                                 */
+/* ========================================================================== */
+
+type SortKey = "created_at" | "name" | "society" | "source" | "follow_up" | "last_touch" | "status";
+type SortDir = "asc" | "desc";
+type SortState = { key: SortKey; dir: SortDir };
+
+// Date-ish columns default to a sensible direction on first click.
+const DEFAULT_DIR: Record<SortKey, SortDir> = {
+  created_at: "desc",
+  last_touch: "desc",
+  follow_up: "asc",
+  name: "asc",
+  society: "asc",
+  source: "asc",
+  status: "asc",
+};
+
+const STATE_RANK: Record<LeadListItem["state"], number> = {
+  active: 0,
+  converted: 1,
+  closed: 2,
+};
+
+function strCmpNullsLast(a: string | null, b: string | null, mul: number): number {
+  const av = a ?? "";
+  const bv = b ?? "";
+  if (!av && !bv) return 0;
+  if (!av) return 1; // blanks always last, regardless of direction
+  if (!bv) return -1;
+  return mul * av.localeCompare(bv);
+}
+
+function dateCmpNullsLast(a: string | null, b: string | null, mul: number): number {
+  if (!a && !b) return 0;
+  if (!a) return 1; // no-date rows always last
+  if (!b) return -1;
+  return mul * (Date.parse(a) - Date.parse(b));
+}
+
+function compareLeads(a: LeadListItem, b: LeadListItem, sort: SortState): number {
+  const mul = sort.dir === "asc" ? 1 : -1;
+  switch (sort.key) {
+    case "created_at":
+      return mul * (Date.parse(a.created_at) - Date.parse(b.created_at));
+    case "name":
+      return strCmpNullsLast(a.name ?? a.phone, b.name ?? b.phone, mul);
+    case "society":
+      return strCmpNullsLast(a.society_name ?? a.area, b.society_name ?? b.area, mul);
+    case "source":
+      return strCmpNullsLast(
+        a.source ? SOURCE_LABELS[a.source] : null,
+        b.source ? SOURCE_LABELS[b.source] : null,
+        mul
+      );
+    case "follow_up":
+      return dateCmpNullsLast(a.next_action_at, b.next_action_at, mul);
+    case "last_touch":
+      return dateCmpNullsLast(a.last_touch_at, b.last_touch_at, mul);
+    case "status":
+      return mul * (STATE_RANK[a.state] - STATE_RANK[b.state]);
+  }
+}
+
+function followUpClass(date: string | null): string {
+  if (!date) return "text-sage";
+  if (isOverdue(date)) return "text-terra font-medium";
+  if (isDueToday(date)) return "text-garden font-medium";
+  return "text-charcoal";
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  className = "",
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+  className?: string;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th className={`py-2.5 px-3 font-medium ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 hover:text-charcoal transition-colors"
+      >
+        {label}
+        {active ? (
+          sort.dir === "asc" ? (
+            <ChevronUp size={12} className="text-charcoal" />
+          ) : (
+            <ChevronDown size={12} className="text-charcoal" />
+          )
+        ) : (
+          <ChevronsUpDown size={12} className="opacity-30" />
+        )}
+      </button>
+    </th>
+  );
+}
+
+function LeadsTable({
+  leads,
+  onOpen,
+  initialSort,
+}: {
+  leads: LeadListItem[];
+  onOpen: (id: string) => void;
+  initialSort?: SortState;
+}) {
+  const [sort, setSort] = useState<SortState>(initialSort ?? { key: "created_at", dir: "desc" });
+  const sorted = useMemo(() => [...leads].sort((a, b) => compareLeads(a, b, sort)), [leads, sort]);
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: DEFAULT_DIR[key] }
+    );
+  }
+
+  return (
+    <>
+      {/* Desktop table */}
+      <div className="hidden md:block bg-offwhite rounded-2xl border border-stone/60 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-stone bg-cream/50 text-left text-sage">
+              <SortHeader label="Created" sortKey="created_at" sort={sort} onSort={toggleSort} className="px-4" />
+              <SortHeader label="Name" sortKey="name" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Society" sortKey="society" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Follow-up" sortKey="follow_up" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Last touch" sortKey="last_touch" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((lead) => (
+              <tr
+                key={lead.id}
+                className="border-b border-stone/30 last:border-0 hover:bg-cream/40 cursor-pointer transition-colors"
+                onClick={() => onOpen(lead.id)}
+              >
+                <td className="py-3 px-4 text-sage whitespace-nowrap">{formatDateTime(lead.created_at)}</td>
+                <td className="py-3 px-3">
+                  {lead.name ? (
+                    <>
+                      <span className="font-medium text-charcoal">{lead.name}</span>
+                      <span className="block text-xs text-sage">{lead.phone}</span>
+                    </>
+                  ) : (
+                    <span className="font-medium text-sage italic">{lead.phone}</span>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-sage">{lead.society_name ?? lead.area ?? "—"}</td>
+                <td className="py-3 px-3 text-charcoal">
+                  {lead.source ? SOURCE_LABELS[lead.source] : "—"}
+                </td>
+                <td className={`py-3 px-3 whitespace-nowrap ${followUpClass(lead.next_action_at)}`}>
+                  {lead.next_action_at ? formatDate(lead.next_action_at) : "—"}
+                </td>
+                <td className="py-3 px-3 text-sage whitespace-nowrap">{relativeTime(lead.last_touch_at)}</td>
+                <td className="py-3 px-3">
+                  <span
+                    className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                      lead.state === "closed" ? "bg-stone/20 text-sage" : "bg-forest/10 text-forest"
+                    }`}
+                  >
+                    {lead.state === "closed"
+                      ? lead.closed_reason
+                        ? CLOSED_REASON_LABELS[lead.closed_reason]
+                        : "Closed"
+                      : "Active"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-2">
+        {sorted.map((lead) => (
+          <LeadRow key={lead.id} lead={lead} onClick={() => onOpen(lead.id)} />
+        ))}
+      </div>
+    </>
+  );
+}
+
 function LeadRow({ lead, onClick }: { lead: LeadListItem; onClick: () => void }) {
   const overdue = isOverdue(lead.next_action_at);
   const today = isDueToday(lead.next_action_at);
@@ -352,6 +568,7 @@ function LeadRow({ lead, onClick }: { lead: LeadListItem; onClick: () => void })
             </span>
           )}
         </div>
+        <p className="text-[10px] text-stone mt-1">Created {formatDateTime(lead.created_at)}</p>
       </div>
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
         <span className="text-[11px] text-sage">{relativeTime(lead.last_touch_at)}</span>

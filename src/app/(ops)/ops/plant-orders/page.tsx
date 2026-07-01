@@ -3,8 +3,8 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { formatDate } from "@/lib/utils/format-date";
-import { Plus, X, ChevronRight, Loader2 } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/utils/format-date";
+import { Plus, X, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Loader2 } from "lucide-react";
 import PlantSelector from "@/components/ops/PlantSelector";
 import { isOverdue, isDueToday } from "@/components/ops/leads/leadConstants";
 import {
@@ -108,6 +108,72 @@ function followUpClass(date: string | null): string {
   if (isOverdue(date)) return "text-terra font-medium";
   if (isDueToday(date)) return "text-garden font-medium";
   return "text-charcoal";
+}
+
+/* ---- Sorting ---- */
+
+type SortKey =
+  | "created_at"
+  | "customer"
+  | "society"
+  | "plants"
+  | "status"
+  | "follow_up"
+  | "install_due";
+type SortDir = "asc" | "desc";
+type SortState = { key: SortKey; dir: SortDir };
+
+// Date-ish columns feel most useful newest-first on the first click.
+const DATE_SORT_KEYS = new Set<SortKey>(["created_at", "follow_up", "install_due"]);
+function defaultDir(key: SortKey): SortDir {
+  return DATE_SORT_KEYS.has(key) ? "desc" : "asc";
+}
+
+// Pipeline order so "Status" sorts by stage, not alphabetically.
+const STATUS_RANK: Record<PlantOrderStatus, number> = {
+  interested: 0,
+  finalizing: 1,
+  confirmed: 2,
+  scheduled: 3,
+  installed: 4,
+  invoiced: 5,
+  no_longer_interested: 6,
+};
+
+function strCmpNullsLast(a: string | null, b: string | null, mul: number): number {
+  const av = a ?? "";
+  const bv = b ?? "";
+  if (!av && !bv) return 0;
+  if (!av) return 1; // blanks always last, regardless of direction
+  if (!bv) return -1;
+  return mul * av.localeCompare(bv);
+}
+
+function dateCmpNullsLast(a: string | null, b: string | null, mul: number): number {
+  if (!a && !b) return 0;
+  if (!a) return 1; // no-date rows always last
+  if (!b) return -1;
+  return mul * (Date.parse(a) - Date.parse(b));
+}
+
+function compareOrders(a: PlantOrder, b: PlantOrder, sort: SortState): number {
+  const mul = sort.dir === "asc" ? 1 : -1;
+  switch (sort.key) {
+    case "created_at":
+      return mul * (Date.parse(a.created_at) - Date.parse(b.created_at));
+    case "customer":
+      return strCmpNullsLast(a.customer_name, b.customer_name, mul);
+    case "society":
+      return strCmpNullsLast(a.society_name, b.society_name, mul);
+    case "plants":
+      return mul * (a.item_count - b.item_count);
+    case "status":
+      return mul * (STATUS_RANK[a.status] - STATUS_RANK[b.status]);
+    case "follow_up":
+      return dateCmpNullsLast(a.next_follow_up_at, b.next_follow_up_at, mul);
+    case "install_due":
+      return dateCmpNullsLast(a.due_date, b.due_date, mul);
+  }
 }
 
 /* ========================================================================== */
@@ -315,6 +381,42 @@ export default function PlantOrdersPage() {
 /*  Orders List (pipeline)                                                    */
 /* ========================================================================== */
 
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  className = "",
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+  className?: string;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th className={`py-2.5 px-3 font-medium ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 hover:text-charcoal transition-colors"
+      >
+        {label}
+        {active ? (
+          sort.dir === "asc" ? (
+            <ChevronUp size={12} className="text-charcoal" />
+          ) : (
+            <ChevronDown size={12} className="text-charcoal" />
+          )
+        ) : (
+          <ChevronsUpDown size={12} className="opacity-30" />
+        )}
+      </button>
+    </th>
+  );
+}
+
 function OrdersList({
   orders,
   isLoading,
@@ -326,6 +428,20 @@ function OrdersList({
   tab: TabKey;
   onSelect: (id: string) => void;
 }) {
+  const [sort, setSort] = useState<SortState>({ key: "created_at", dir: "desc" });
+  const sortedOrders = useMemo(
+    () => [...orders].sort((a, b) => compareOrders(a, b, sort)),
+    [orders, sort]
+  );
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: defaultDir(key) }
+    );
+  }
+
   if (isLoading) {
     return <p className="text-sm text-sage text-center py-10">Loading...</p>;
   }
@@ -344,22 +460,26 @@ function OrdersList({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-stone bg-cream/50 text-left text-sage">
-              <th className="py-2.5 px-4 font-medium">Customer</th>
-              <th className="py-2.5 px-3 font-medium">Society</th>
-              <th className="py-2.5 px-3 font-medium">Plants</th>
-              <th className="py-2.5 px-3 font-medium">Status</th>
-              <th className="py-2.5 px-3 font-medium">Follow-up</th>
-              <th className="py-2.5 px-3 font-medium">Install due</th>
+              <SortHeader label="Created" sortKey="created_at" sort={sort} onSort={toggleSort} className="px-4" />
+              <SortHeader label="Customer" sortKey="customer" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Society" sortKey="society" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Plants" sortKey="plants" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Follow-up" sortKey="follow_up" sort={sort} onSort={toggleSort} />
+              <SortHeader label="Install due" sortKey="install_due" sort={sort} onSort={toggleSort} />
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => (
+            {sortedOrders.map((order) => (
               <tr
                 key={order.id}
                 className="border-b border-stone/30 last:border-0 hover:bg-cream/40 cursor-pointer transition-colors"
                 onClick={() => onSelect(order.id)}
               >
-                <td className="py-3 px-4 text-charcoal font-medium">
+                <td className="py-3 px-4 text-sage whitespace-nowrap">
+                  {formatDateTime(order.created_at)}
+                </td>
+                <td className="py-3 px-3 text-charcoal font-medium">
                   {order.customer_name ?? "Unknown"}
                 </td>
                 <td className="py-3 px-3 text-sage">{order.society_name ?? "—"}</td>
@@ -387,7 +507,7 @@ function OrdersList({
 
       {/* Mobile cards */}
       <div className="md:hidden space-y-2">
-        {orders.map((order) => (
+        {sortedOrders.map((order) => (
           <div
             key={order.id}
             className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3 space-y-2 cursor-pointer active:bg-cream/60 transition-colors"
@@ -401,6 +521,9 @@ function OrdersList({
                 {order.society_name && (
                   <p className="text-xs text-sage mt-0.5">{order.society_name}</p>
                 )}
+                <p className="text-[10px] text-stone mt-0.5">
+                  Created {formatDateTime(order.created_at)}
+                </p>
               </div>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_BADGE[order.status] ?? "bg-stone/20 text-charcoal"}`}
