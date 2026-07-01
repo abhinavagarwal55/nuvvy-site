@@ -10,7 +10,7 @@ import PhotoLightbox from "../../../components/PhotoLightbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Society = { id: string; name: string };
+type Society = { id: string; name: string; address?: string | null };
 type Plan = {
   id: string;
   name: string;
@@ -695,38 +695,21 @@ function Step1CustomerDetails({
       </div>
       <div>
         <label className="block text-sm font-medium text-charcoal mb-1">
-          Address
-        </label>
-        <input
-          className={inputCls}
-          value={draft.address}
-          onChange={(e) => update("address", e.target.value)}
-          placeholder="Building name, Area"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-charcoal mb-1">
-          Unit / Flat no.
-        </label>
-        <input
-          className={inputCls}
-          value={draft.unit_number}
-          onChange={(e) => update("unit_number", e.target.value)}
-          placeholder="e.g. A-604, Villa 12"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-charcoal mb-1">
           Society
         </label>
         <select
           className={selectCls}
           value={draft.society_id}
           onChange={(e) => {
-            update("society_id", e.target.value);
-            if (e.target.value) {
+            const id = e.target.value;
+            update("society_id", id);
+            if (id) {
               update("society_name", "");
               update("society_short", "");
+              // Auto-populate the address from the society so the operator only
+              // has to enter the flat number.
+              const soc = societies.find((s) => s.id === id);
+              if (soc?.address) update("address", soc.address);
             }
           }}
         >
@@ -753,6 +736,28 @@ function Step1CustomerDetails({
             />
           </div>
         )}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-charcoal mb-1">
+          Address
+        </label>
+        <input
+          className={inputCls}
+          value={draft.address}
+          onChange={(e) => update("address", e.target.value)}
+          placeholder="Building name, Area"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-charcoal mb-1">
+          Unit / Flat no.
+        </label>
+        <input
+          className={inputCls}
+          value={draft.unit_number}
+          onChange={(e) => update("unit_number", e.target.value)}
+          placeholder="e.g. A-604, Villa 12"
+        />
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ import {
   getStatusLabel,
   getServiceHref,
   getBand,
+  societyLine,
   needsAttention,
   timeToMinutes,
   blockDurationMinutes,
@@ -516,6 +517,9 @@ function BlockInner({
           <PillDropdown svc={svc} onReschedule={onReschedule} onCancel={onCancel} />
         )}
       </div>
+      {societyLine(svc) && (
+        <p className="text-[10px] text-sage truncate leading-tight mt-0.5">{societyLine(svc)}</p>
+      )}
       {showBadge && (
         <p className={`mt-0.5 inline-block text-[9px] px-1 rounded-full ${label.cls}`}>
           {label.text}

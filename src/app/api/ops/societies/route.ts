@@ -22,13 +22,14 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Batched customer count (single query, grouped in JS — no N+1).
+  // Batched ACTIVE-customer count (single query, grouped in JS — no N+1).
   const counts: Record<string, number> = {};
   const ids = (data ?? []).map((s) => s.id);
   if (ids.length > 0) {
     const { data: custRows } = await supabase
       .from("customers")
       .select("society_id")
+      .eq("status", "ACTIVE")
       .in("society_id", ids);
     for (const row of custRows ?? []) {
       if (row.society_id) counts[row.society_id] = (counts[row.society_id] ?? 0) + 1;
