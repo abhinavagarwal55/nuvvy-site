@@ -41,6 +41,7 @@ type PlantOrder = {
   customer_name: string | null;
   society_name: string | null;
   item_count: number;
+  total_quantity: number;
   items_summary: string;
   procurement: Procurement;
 };
@@ -166,7 +167,7 @@ function compareOrders(a: PlantOrder, b: PlantOrder, sort: SortState): number {
     case "society":
       return strCmpNullsLast(a.society_name, b.society_name, mul);
     case "plants":
-      return mul * (a.item_count - b.item_count);
+      return mul * (a.total_quantity - b.total_quantity);
     case "status":
       return mul * (STATUS_RANK[a.status] - STATUS_RANK[b.status]);
     case "follow_up":
@@ -484,7 +485,17 @@ function OrdersList({
                 </td>
                 <td className="py-3 px-3 text-sage">{order.society_name ?? "—"}</td>
                 <td className="py-3 px-3 text-charcoal">
-                  {order.items_summary ? truncate(order.items_summary, 36) : "—"}
+                  {order.items_summary ? (
+                    <>
+                      <span className="font-semibold">
+                        {order.total_quantity} plant{order.total_quantity === 1 ? "" : "s"}
+                      </span>
+                      {" · "}
+                      {truncate(order.items_summary, 36)}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="py-3 px-3">
                   <span
@@ -533,7 +544,12 @@ function OrdersList({
             </div>
 
             {order.items_summary && (
-              <p className="text-xs text-charcoal line-clamp-2">{order.items_summary}</p>
+              <p className="text-xs text-charcoal line-clamp-2">
+                <span className="font-semibold">
+                  {order.total_quantity} plant{order.total_quantity === 1 ? "" : "s"}
+                </span>{" "}
+                · {order.items_summary}
+              </p>
             )}
 
             <div className="flex items-center justify-between border-t border-stone/30 pt-2">

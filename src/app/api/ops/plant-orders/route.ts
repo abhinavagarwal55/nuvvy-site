@@ -130,6 +130,7 @@ export async function GET(request: NextRequest) {
       customer_name: customer?.name ?? null,
       society_name: customer?.societies?.name ?? null,
       item_count: orderItems.length,
+      total_quantity: orderItems.reduce((sum, i) => sum + (i.quantity ?? 0), 0),
       items_summary: orderItems.map((i) => `${i.plant_name} x${i.quantity}`).join(", "),
       // Best-effort, read-only procurement rollup (PRD §4).
       procurement: buildRollup(orderItems),
