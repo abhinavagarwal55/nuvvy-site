@@ -128,6 +128,10 @@ SUPABASE_SERVICE_ROLE_KEY=
 # WhatsApp
 NEXT_PUBLIC_WHATSAPP_NUMBER=   # e.g. 919876543210 (no + or spaces)
 
+# Call CTAs — number for tap-to-dial "Call" buttons (visible text + tel: target).
+# Optional; falls back to NEXT_PUBLIC_WHATSAPP_NUMBER when unset (no behavior change).
+NEXT_PUBLIC_CALL_NUMBER=       # e.g. 919901153781 (no + or spaces)
+
 # Amazon Associates (affiliate accessories — WS-A)
 NEXT_PUBLIC_AMAZON_AFFILIATE_TAG=  # e.g. nuvvy-21. Missing tag → CTA falls back to a tagless Amazon URL.
 

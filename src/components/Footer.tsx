@@ -1,4 +1,4 @@
-import { getWhatsAppLink, WHATSAPP_NUMBER, PHONE_DISPLAY, WHATSAPP_MESSAGES } from "@/config/whatsapp";
+import { getWhatsAppLink, WHATSAPP_NUMBER, CALL_NUMBER, CALL_DISPLAY, WHATSAPP_MESSAGES } from "@/config/whatsapp";
 import TrackedLink from "@/components/TrackedLink";
 
 export default function Footer() {
@@ -27,15 +27,15 @@ export default function Footer() {
           {/* Contact */}
           <div className="md:text-right text-sm">
             <p className="text-text-muted">Questions? We&apos;re happy to help.</p>
-            {PHONE_DISPLAY && (
+            {CALL_DISPLAY && (
               <p className="mt-2">
                 <TrackedLink
-                  href={`tel:+${WHATSAPP_NUMBER}`}
+                  href={`tel:+${CALL_NUMBER}`}
                   event="call_click"
                   cta="footer"
                   className="text-ink hover:text-green-700 font-medium"
                 >
-                  {PHONE_DISPLAY}
+                  {CALL_DISPLAY}
                 </TrackedLink>
               </p>
             )}

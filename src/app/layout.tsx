@@ -20,8 +20,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
 };
 
-const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-const telephone = whatsappNumber ? `+${whatsappNumber}` : "+91XXXXXXXXXX";
+const callNumber = process.env.NEXT_PUBLIC_CALL_NUMBER || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+const telephone = callNumber ? `+${callNumber}` : "+91XXXXXXXXXX";
 
 const jsonLd = {
   "@context": "https://schema.org",

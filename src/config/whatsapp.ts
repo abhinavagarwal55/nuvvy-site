@@ -10,6 +10,15 @@ export const PHONE_DISPLAY = WHATSAPP_NUMBER && WHATSAPP_NUMBER.length === 12
   ? `+${WHATSAPP_NUMBER.slice(0, 2)} ${WHATSAPP_NUMBER.slice(2, 7)} ${WHATSAPP_NUMBER.slice(7)}`
   : "";
 
+// Call number for tap-to-dial CTAs — independently configurable, falls back to
+// the WhatsApp number when NEXT_PUBLIC_CALL_NUMBER is unset (no behavior change).
+export const CALL_NUMBER = process.env.NEXT_PUBLIC_CALL_NUMBER || WHATSAPP_NUMBER;
+
+// Display-formatted call number (mirrors PHONE_DISPLAY exactly).
+export const CALL_DISPLAY = CALL_NUMBER && CALL_NUMBER.length === 12
+  ? `+${CALL_NUMBER.slice(0, 2)} ${CALL_NUMBER.slice(2, 7)} ${CALL_NUMBER.slice(7)}`
+  : "";
+
 // Pre-written message templates for different CTAs
 export const WHATSAPP_MESSAGES = {
   balconyAssessment: "Hi, I'd like to book a free 30-minute consultation with a horticulturist about my balcony and understand what would work best for my space.",

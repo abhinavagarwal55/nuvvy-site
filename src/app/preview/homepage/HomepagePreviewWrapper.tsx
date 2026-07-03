@@ -9,7 +9,7 @@ import SnabbitHero from "@/components/heroes/SnabbitHero";
 import SoundFamiliar from "@/components/sections/SoundFamiliar";
 import SimplePricing from "@/components/sections/SimplePricing";
 import type { HomepageContent } from "@/lib/schemas/homepage.schema";
-import { WHATSAPP_MESSAGES, WHATSAPP_NUMBER, getWhatsAppLink } from "@/config/whatsapp";
+import { WHATSAPP_MESSAGES, CALL_NUMBER, getWhatsAppLink } from "@/config/whatsapp";
 import { HOMEPAGE_CONFIG, homepageFlags } from "@/config/homepage";
 import { publicImage } from "@/lib/publicAssets";
 
@@ -706,7 +706,7 @@ export default function HomepagePreviewWrapper({
                 <span>Chat with Nuvvy team on WhatsApp</span>
               </a>
               <a
-                href={`tel:+${WHATSAPP_NUMBER}`}
+                href={`tel:+${CALL_NUMBER}`}
                 className="block mx-auto bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold px-6 py-3 rounded-full text-center transition-colors shadow-lg flex items-center justify-center gap-2 mt-4 max-w-md"
               >
                 <svg
