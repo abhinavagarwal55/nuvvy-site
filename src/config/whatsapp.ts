@@ -12,12 +12,18 @@ export const PHONE_DISPLAY = WHATSAPP_NUMBER && WHATSAPP_NUMBER.length === 12
 
 // Call number for tap-to-dial CTAs — independently configurable, falls back to
 // the WhatsApp number when NEXT_PUBLIC_CALL_NUMBER is unset (no behavior change).
-export const CALL_NUMBER = process.env.NEXT_PUBLIC_CALL_NUMBER || WHATSAPP_NUMBER;
+// Sanitize to digits so a stray "+" or spaces in the env value don't break the
+// tel: link or hide the CTA.
+export const CALL_NUMBER = (process.env.NEXT_PUBLIC_CALL_NUMBER || WHATSAPP_NUMBER || "").replace(/\D/g, "");
 
-// Display-formatted call number (mirrors PHONE_DISPLAY exactly).
-export const CALL_DISPLAY = CALL_NUMBER && CALL_NUMBER.length === 12
+// Display-formatted call number. Uses the 12-digit "+91 XXXXX XXXXX" format
+// when possible; otherwise falls back to "+<digits>" so a set number always
+// renders (never an empty string that would hide the Call CTAs).
+export const CALL_DISPLAY = CALL_NUMBER.length === 12
   ? `+${CALL_NUMBER.slice(0, 2)} ${CALL_NUMBER.slice(2, 7)} ${CALL_NUMBER.slice(7)}`
-  : "";
+  : CALL_NUMBER
+    ? `+${CALL_NUMBER}`
+    : "";
 
 // Pre-written message templates for different CTAs
 export const WHATSAPP_MESSAGES = {
