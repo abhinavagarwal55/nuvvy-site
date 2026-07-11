@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("care_action_types")
-    .select("id, name, default_frequency_days")
+    .select(
+      "id, name, default_frequency_days, display_name, display_name_hi, display_name_kn, needs_translation_review"
+    )
     .order("name");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

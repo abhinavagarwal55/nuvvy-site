@@ -4,6 +4,8 @@ import useSWR from "swr";
 import Link from "next/link";
 import { Clock, ChevronRight, Play, MapPin } from "lucide-react";
 import { usePerf } from "@/lib/perf/use-perf";
+import { useT } from "@/lib/i18n/LocaleProvider";
+import { LanguageSwitcher } from "@/lib/i18n/LanguageSwitcher";
 
 type WeekService = {
   id: string;
@@ -30,28 +32,36 @@ function buildLocationLine(
   return structured || address || null;
 }
 
-const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
-  scheduled: { cls: "bg-cream text-charcoal border-stone", label: "Scheduled" },
-  in_progress: { cls: "bg-forest/10 text-forest border-forest/30", label: "In Progress" },
-  completed: { cls: "bg-[#EAF2EC] text-sage border-sage/30", label: "Completed" },
-  not_completed: { cls: "bg-terra/10 text-terra border-terra/30", label: "Not Completed" },
-  cancelled: { cls: "bg-stone/20 text-sage border-stone/40", label: "Cancelled" },
+// Class per status; the label comes from the dictionary (`status.<key>`) at
+// render time so it localizes with the active locale.
+const STATUS_BADGE: Record<string, string> = {
+  scheduled: "bg-cream text-charcoal border-stone",
+  in_progress: "bg-forest/10 text-forest border-forest/30",
+  completed: "bg-[#EAF2EC] text-sage border-sage/30",
+  not_completed: "bg-terra/10 text-terra border-terra/30",
+  cancelled: "bg-stone/20 text-sage border-stone/40",
 };
 
 function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-function formatDayLabel(dateStr: string, today: string): string {
-  if (dateStr === today) return "Today";
+function formatDayLabel(
+  dateStr: string,
+  today: string,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): string {
+  if (dateStr === today) return t("today.dayToday");
   const d = new Date(dateStr + "T00:00:00");
-  const t = new Date(today + "T00:00:00");
-  const diffDays = Math.round((d.getTime() - t.getTime()) / 86400000);
-  if (diffDays === 1) return "Tomorrow";
+  const base = new Date(today + "T00:00:00");
+  const diffDays = Math.round((d.getTime() - base.getTime()) / 86400000);
+  if (diffDays === 1) return t("today.dayTomorrow");
+  // Dates stay en-IN (numerals/format not localized in V1 — PRD §3.7).
   return d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
 }
 
 export default function GardenerTodayPage() {
+  const t = useT();
   const perfFetcher = usePerf('/api/ops/gardener/today', '/ops/gardener/today');
 
   const { data, error, isLoading } = useSWR(
@@ -88,9 +98,12 @@ export default function GardenerTodayPage() {
     <div className="min-h-screen bg-cream pb-24">
       {/* Header */}
       <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4">
-        <p className="text-xs text-sage uppercase tracking-widest mb-1">
-          This Week
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs text-sage uppercase tracking-widest mb-1">
+            {t("today.thisWeek")}
+          </p>
+          <LanguageSwitcher />
+        </div>
         <h1
           className="text-2xl text-charcoal"
           style={{ fontFamily: "var(--font-cormorant, serif)", fontWeight: 500 }}
@@ -98,26 +111,26 @@ export default function GardenerTodayPage() {
           {todayLabel}
         </h1>
         <p className="text-sm text-sage mt-1">
-          {todayServices.length} visit{todayServices.length !== 1 ? "s" : ""} today
-          {todayDone > 0 && ` · ${todayDone} done`}
+          {t("today.visitsToday", { count: todayServices.length })}
+          {todayDone > 0 && ` · ${t("today.doneCount", { count: todayDone })}`}
         </p>
       </div>
 
       <div className="px-4 pt-4 space-y-5">
         {isLoading ? (
-          <p className="text-sm text-sage text-center py-10">Loading…</p>
+          <p className="text-sm text-sage text-center py-10">{t("common.loading")}</p>
         ) : error ? (
           <p className="text-sm text-terra text-center py-10">
-            Failed to load. Pull to refresh.
+            {t("common.retry")}
           </p>
         ) : services.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-charcoal font-medium">No upcoming visits</p>
-            <p className="text-sm text-sage mt-1">Nothing scheduled for the next 7 days.</p>
+            <p className="text-charcoal font-medium">{t("today.noUpcoming")}</p>
+            <p className="text-sm text-sage mt-1">{t("today.nothingScheduled")}</p>
           </div>
         ) : (
           dates.map((date) => (
-            <Section key={date} title={formatDayLabel(date, today)} count={byDate[date].length}>
+            <Section key={date} title={formatDayLabel(date, today, t)} count={byDate[date].length}>
               {byDate[date].map((s) => (
                 <ServiceCard key={s.id} service={s} />
               ))}
@@ -130,17 +143,16 @@ export default function GardenerTodayPage() {
 }
 
 function ServiceCard({ service }: { service: WeekService }) {
-  const badge = STATUS_BADGE[service.status] ?? {
-    cls: "bg-stone/20 text-charcoal border-stone",
-    label: service.status,
-  };
+  const t = useT();
+  const badgeCls = STATUS_BADGE[service.status] ?? "bg-stone/20 text-charcoal border-stone";
+  const badgeLabel = t(`status.${service.status}`);
 
   return (
     <Link href={`/ops/gardener/services/${service.id}`}>
       <div className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3.5 flex items-center gap-3 active:bg-cream transition-colors min-h-[68px]">
         {/* Status indicator */}
         <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border ${badge.cls}`}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border ${badgeCls}`}
         >
           {service.status === "scheduled" && <Play size={18} />}
           {service.status === "in_progress" && (
@@ -174,9 +186,9 @@ function ServiceCard({ service }: { service: WeekService }) {
               </span>
             )}
             <span
-              className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${badge.cls}`}
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${badgeCls}`}
             >
-              {badge.label}
+              {badgeLabel}
             </span>
           </div>
         </div>

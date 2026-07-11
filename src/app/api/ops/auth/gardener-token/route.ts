@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { createServerSupabaseClient } from "@/lib/supabase/ssr";
 import { verifyPin } from "@/lib/auth/pin";
+import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/cookie";
+import { toLocale } from "@/lib/i18n/locales";
 
 /**
  * POST /api/ops/auth/gardener-token
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
   // 1. Look up gardener by login_token
   const { data: gardener } = await admin
     .from("gardeners")
-    .select("id, profile_id, pin_hash, is_active, pin_version")
+    .select("id, profile_id, pin_hash, is_active, pin_version, preferred_language")
     .eq("login_token", token.trim())
     .single();
 
@@ -119,5 +121,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  // Open the app in the gardener's saved language immediately (no flash of
+  // English). The cookie mirrors gardeners.preferred_language (source of truth).
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set(LANG_COOKIE, toLocale(gardener.preferred_language), {
+    path: "/",
+    maxAge: LANG_COOKIE_MAX_AGE,
+    sameSite: "lax",
+  });
+  return res;
 }

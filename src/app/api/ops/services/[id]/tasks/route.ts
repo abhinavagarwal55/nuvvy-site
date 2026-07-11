@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
+import { translateSpecialTask } from "@/lib/i18n/translateOnWrite";
 
 const CreateTaskSchema = z.object({
   for_service_id: z.string().uuid("Target service is required"),
@@ -49,6 +50,11 @@ export async function POST(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // AI translate-on-write (hi/kn). Inline; failure degrades to original only and
+  // never blocks the save. Row was inserted with translation_status='pending'.
+  await translateSpecialTask(supabase, data.id, parsed.data.description);
+
   return NextResponse.json({ data }, { status: 201 });
 }
 
@@ -84,10 +90,19 @@ export async function PATCH(
 
   const supabase = getSupabaseAdmin();
 
-  // Only allow editing tasks that haven't been completed
+  // Only allow editing tasks that haven't been completed. Editing the source
+  // text invalidates any prior translation — reset to 'pending' and clear the
+  // stale variants immediately so a changed instruction never serves an old
+  // translation, then re-translate.
   const { data, error } = await supabase
     .from("service_special_tasks")
-    .update({ description: parsed.data.description })
+    .update({
+      description: parsed.data.description,
+      description_hi: null,
+      description_kn: null,
+      translation_status: "pending",
+      translated_at: null,
+    })
     .eq("id", parsed.data.task_id)
     .eq("is_completed", false)
     .select()
@@ -95,6 +110,9 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Task not found or already completed" }, { status: 404 });
+
+  await translateSpecialTask(supabase, data.id, parsed.data.description);
+
   return NextResponse.json({ data });
 }
 

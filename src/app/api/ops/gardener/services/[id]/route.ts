@@ -71,13 +71,18 @@ export async function GET(
   ] = await Promise.all([
     supabase.from("customers").select("id, name, phone_number, unit_number, societies(name)").eq("id", service.customer_id).single(),
     supabase
+      // JOIN the template so we pick up label_hi/label_kn — the snapshot holds
+      // English only (history is never rewritten). Falls back to the snapshot
+      // English label when template_item_id is null (template row deleted).
       .from("visit_checklist_items")
-      .select("id, label, is_required, order_index, is_completed, completion_status, notes")
+      .select(
+        "id, label, is_required, order_index, is_completed, completion_status, notes, template_item_id, checklist_template_items(label_hi, label_kn)"
+      )
       .eq("visit_id", id)
       .order("order_index"),
     supabase
       .from("service_special_tasks")
-      .select("id, description, is_completed")
+      .select("id, description, description_hi, description_kn, translation_status, is_completed")
       .eq("for_service_id", id),
     supabase
       .from("visit_photos")
@@ -99,10 +104,23 @@ export async function GET(
     (cs) => cs.next_due_date && cs.next_due_date <= dueBy
   );
 
-  // Get care action type names from cache
+  // Get care action type names from cache (incl. localised display variants).
   const allCareTypes = await getCachedCareActionTypes();
-  const careTypeNames: Record<string, { name: string; freq: number }> = Object.fromEntries(
-    allCareTypes.map((t) => [t.id, { name: t.name, freq: t.default_frequency_days }])
+  const careTypeNames: Record<
+    string,
+    { name: string; freq: number; display: string; display_hi: string | null; display_kn: string | null }
+  > = Object.fromEntries(
+    allCareTypes.map((t) => [
+      t.id,
+      {
+        name: t.name,
+        freq: t.default_frequency_days,
+        // Fall back to the slug if display_name was never set.
+        display: t.display_name ?? t.name,
+        display_hi: t.display_name_hi,
+        display_kn: t.display_name_kn,
+      },
+    ])
   );
 
   // Check which care actions have already been marked done for this service
@@ -117,17 +135,39 @@ export async function GET(
       .map((a) => a.care_action_type_id)
   );
 
-  // For scheduled services with no checklist yet, return the template as a preview
-  let finalChecklist = checklistItems ?? [];
+  // Normalise every checklist row to a flat { label, label_hi, label_kn } shape.
+  // For snapshot rows the variants come from the joined template; the snapshot's
+  // own `label` is the English canonical (and the fallback).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const flattenTemplate = (row: any) => {
+    const tpl = row.checklist_template_items;
+    const t = Array.isArray(tpl) ? tpl[0] : tpl;
+    return {
+      id: row.id,
+      label: row.label,
+      label_hi: t?.label_hi ?? null,
+      label_kn: t?.label_kn ?? null,
+      is_required: row.is_required,
+      order_index: row.order_index,
+      is_completed: row.is_completed,
+      completion_status: row.completion_status,
+      notes: row.notes,
+    };
+  };
+
+  // For scheduled services with no checklist yet, return the template as a preview.
+  let finalChecklist = (checklistItems ?? []).map(flattenTemplate);
   if (finalChecklist.length === 0 && service.status === "scheduled") {
     const { data: templates } = await supabase
       .from("checklist_template_items")
-      .select("id, label, is_required, order_index, category")
+      .select("id, label, label_hi, label_kn, is_required, order_index, category")
       .eq("is_active", true)
       .order("order_index");
     finalChecklist = (templates ?? []).map((t) => ({
       id: t.id,
       label: t.label,
+      label_hi: t.label_hi ?? null,
+      label_kn: t.label_kn ?? null,
       is_required: t.is_required,
       order_index: t.order_index,
       is_completed: false,
@@ -161,28 +201,33 @@ export async function GET(
         })
       ),
       voice_note_count: (voiceNotes ?? []).length,
-      care_actions_due: dueCareActions.map((ca) => ({
-        care_schedule_id: ca.id,
-        care_action_type_id: ca.care_action_type_id,
-        care_action_name: careTypeNames[ca.care_action_type_id]?.name ?? "Unknown",
-        frequency_days: careTypeNames[ca.care_action_type_id]?.freq ?? 0,
-        next_due_date: ca.next_due_date,
-        is_done: doneActionTypes.has(ca.care_action_type_id),
-      })),
+      care_actions_due: dueCareActions.map((ca) => {
+        const info = careTypeNames[ca.care_action_type_id];
+        return {
+          care_schedule_id: ca.id,
+          care_action_type_id: ca.care_action_type_id,
+          // English canonical display + hi/kn variants (client pickVariant).
+          care_action_name: info?.display ?? "Unknown",
+          care_action_name_hi: info?.display_hi ?? null,
+          care_action_name_kn: info?.display_kn ?? null,
+          frequency_days: info?.freq ?? 0,
+          next_due_date: ca.next_due_date,
+          is_done: doneActionTypes.has(ca.care_action_type_id),
+        };
+      }),
       care_actions_performed: await (async () => {
         // For completed services, show what was actually done (not what's currently due)
         if (!existingCareActions || existingCareActions.length === 0) return [];
-        const performedTypeIds = (existingCareActions ?? []).map((a) => a.care_action_type_id);
-        const { data: perfTypes } = await supabase
-          .from("care_action_types")
-          .select("id, name")
-          .in("id", performedTypeIds);
-        const typeMap = Object.fromEntries((perfTypes ?? []).map((t) => [t.id, t.name]));
-        return (existingCareActions ?? []).map((a) => ({
-          care_action_type_id: a.care_action_type_id,
-          care_action_name: typeMap[a.care_action_type_id] ?? "Unknown",
-          marked_done: a.marked_done,
-        }));
+        return (existingCareActions ?? []).map((a) => {
+          const info = careTypeNames[a.care_action_type_id];
+          return {
+            care_action_type_id: a.care_action_type_id,
+            care_action_name: info?.display ?? "Unknown",
+            care_action_name_hi: info?.display_hi ?? null,
+            care_action_name_kn: info?.display_kn ?? null,
+            marked_done: a.marked_done,
+          };
+        });
       })(),
     };
   responseData.gardener = gardener;

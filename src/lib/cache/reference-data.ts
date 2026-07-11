@@ -4,7 +4,16 @@ const TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 // ─── Care Action Types ──────────────────────────────────────────────────────
 
-type CareActionType = { id: string; name: string; default_frequency_days: number };
+type CareActionType = {
+  id: string;
+  name: string;
+  default_frequency_days: number;
+  // Localised display (English canonical + hi/kn variants). Nullable variants
+  // fall back to display_name via pickVariant on the client.
+  display_name: string | null;
+  display_name_hi: string | null;
+  display_name_kn: string | null;
+};
 
 let careActionTypesCache: { data: CareActionType[]; fetchedAt: number } | null = null;
 
@@ -16,7 +25,7 @@ export async function getCachedCareActionTypes(): Promise<CareActionType[]> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("care_action_types")
-    .select("id, name, default_frequency_days")
+    .select("id, name, default_frequency_days, display_name, display_name_hi, display_name_kn")
     .order("name");
 
   const result = data ?? [];

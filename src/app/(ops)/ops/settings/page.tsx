@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { Leaf, Building2, ChevronRight } from "lucide-react";
+import { Leaf, Building2, ChevronRight, ListChecks } from "lucide-react";
 
 const ENTRIES = [
+  {
+    href: "/ops/settings/checklist",
+    icon: ListChecks,
+    title: "Service Checklist",
+    description: "Edit checklist items and their Hindi / Kannada translations.",
+  },
   {
     href: "/ops/settings/care-actions",
     icon: Leaf,
     title: "Care Actions",
-    description: "System-wide default frequency for each care action.",
+    description: "Default frequency and Hindi / Kannada names for each care action.",
   },
   {
     href: "/ops/settings/societies",

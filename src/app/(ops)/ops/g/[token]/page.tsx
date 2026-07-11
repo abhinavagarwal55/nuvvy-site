@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import PinForm from "./PinForm";
+import { LanguageSwitcher } from "@/lib/i18n/LanguageSwitcher";
 
 export default async function GardenerLoginPage({
   params,
@@ -28,6 +29,12 @@ export default async function GardenerLoginPage({
   return (
     <div className="min-h-screen bg-cream flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-[480px]">
+        {/* Language toggle — readable before sign-in; writes the cookie only
+            (pre-auth). Persisted to the DB after login or on next change. */}
+        <div className="mb-6 flex justify-center">
+          <LanguageSwitcher />
+        </div>
+
         {/* Greeting — Cormorant Garamond */}
         <div className="mb-8 text-center">
           <p

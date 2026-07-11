@@ -24,12 +24,16 @@ import {
   clearDraft,
   type IssueType,
 } from "./use-service-draft";
+import { useLocale, useT } from "@/lib/i18n/LocaleProvider";
+import { pickVariant } from "@/lib/i18n/pickVariant";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ChecklistItem = {
   id: string;
   label: string;
+  label_hi: string | null;
+  label_kn: string | null;
   is_required: boolean;
   order_index: number;
   completion_status: string;
@@ -39,6 +43,8 @@ type CareActionDue = {
   care_schedule_id: string;
   care_action_type_id: string;
   care_action_name: string;
+  care_action_name_hi: string | null;
+  care_action_name_kn: string | null;
   frequency_days: number;
   next_due_date: string;
   is_done: boolean;
@@ -47,6 +53,9 @@ type CareActionDue = {
 type SpecialTask = {
   id: string;
   description: string;
+  description_hi: string | null;
+  description_kn: string | null;
+  translation_status: "pending" | "done" | "failed";
   is_completed: boolean;
 };
 
@@ -75,6 +84,9 @@ type ServiceDetail = {
     society_name?: string | null;
   } | null;
   internal_notes: string | null;
+  internal_notes_hi: string | null;
+  internal_notes_kn: string | null;
+  internal_notes_translation_status: "pending" | "done" | "failed";
   checklist_items: ChecklistItem[];
   special_tasks: SpecialTask[];
   care_actions_due: CareActionDue[];
@@ -83,12 +95,41 @@ type ServiceDetail = {
   voice_note_count: number;
 };
 
-const CARE_LABELS: Record<string, string> = {
-  fertilizer: "Apply Fertilizer",
-  vermi_compost: "Apply Vermi Compost",
-  micro_nutrients: "Apply Micro Nutrients",
-  neem_oil: "Apply Neem Oil",
-};
+// Free-text fields (special tasks, internal notes) are AI-translated on write.
+// Safeguard (PRD §8.3): the English original is ALWAYS shown, the machine
+// translation is clearly labelled "auto-translated", and on pending/failed we
+// show the original only — a garbled dosage must never silently replace it.
+function AutoTranslated({
+  original,
+  hi,
+  kn,
+  status,
+  className = "",
+}: {
+  original: string;
+  hi: string | null;
+  kn: string | null;
+  status: "pending" | "done" | "failed";
+  className?: string;
+}) {
+  const { locale } = useLocale();
+  const t = useT();
+  const variant = locale === "hi" ? hi : locale === "kn" ? kn : null;
+  const showTranslation = locale !== "en" && status === "done" && !!variant?.trim();
+
+  if (!showTranslation) {
+    return <p className={`whitespace-pre-wrap ${className}`}>{original}</p>;
+  }
+  return (
+    <div className="space-y-1">
+      <p className={`whitespace-pre-wrap ${className}`}>{variant}</p>
+      <p className="text-[10px] uppercase tracking-wide text-sage">
+        {t("service.autoTranslated")}
+      </p>
+      <p className={`whitespace-pre-wrap text-sage ${className}`}>{original}</p>
+    </div>
+  );
+}
 
 const ISSUE_OPTIONS = [
   { value: "leaves_drooping", label: "Leaves drooping" },
@@ -111,6 +152,8 @@ export default function ServiceExecutionPage() {
   const params = useParams();
   const router = useRouter();
   const serviceId = params.id as string;
+  const { locale } = useLocale();
+  const t = useT();
 
   const { data, error, isLoading, mutate } = useSWR(
     `/api/ops/gardener/services/${serviceId}`,
@@ -379,15 +422,19 @@ export default function ServiceExecutionPage() {
           {/* Internal notes from the horticulturist — team-only, read-only here.
               Shown BEFORE start so the gardener reads the context up front. */}
           {service.internal_notes && service.internal_notes.trim() && (
-            <SectionCard title="Notes from Horticulturist">
-              <p className="text-sm text-charcoal whitespace-pre-wrap">
-                {service.internal_notes}
-              </p>
+            <SectionCard title={t("service.notesFromHorti")}>
+              <AutoTranslated
+                original={service.internal_notes ?? ""}
+                hi={service.internal_notes_hi}
+                kn={service.internal_notes_kn}
+                status={service.internal_notes_translation_status}
+                className="text-sm text-charcoal"
+              />
             </SectionCard>
           )}
 
           {/* Guidelines */}
-          <SectionCard title="Nuvvy Service Guidelines">
+          <SectionCard title={t("service.guidelines")}>
             <div className="space-y-3">
               <div>
                 <p className="text-xs font-medium text-forest uppercase tracking-wide mb-1.5">
@@ -440,7 +487,7 @@ export default function ServiceExecutionPage() {
               <Loader2 size={18} className="animate-spin" />
             ) : (
               <>
-                Start Service <ChevronRight size={16} />
+                {t("service.start")} <ChevronRight size={16} />
               </>
             )}
           </button>
@@ -471,10 +518,14 @@ export default function ServiceExecutionPage() {
         />
         <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
           {service.internal_notes && service.internal_notes.trim() && (
-            <SectionCard title="Notes from Horticulturist">
-              <p className="text-sm text-charcoal whitespace-pre-wrap">
-                {service.internal_notes}
-              </p>
+            <SectionCard title={t("service.notesFromHorti")}>
+              <AutoTranslated
+                original={service.internal_notes ?? ""}
+                hi={service.internal_notes_hi}
+                kn={service.internal_notes_kn}
+                status={service.internal_notes_translation_status}
+                className="text-sm text-charcoal"
+              />
             </SectionCard>
           )}
           <PreviewChecklist service={service} />
@@ -531,16 +582,20 @@ export default function ServiceExecutionPage() {
       <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
         {/* Internal notes from the horticulturist — team-only, read-only here */}
         {service.internal_notes && service.internal_notes.trim() && (
-          <SectionCard title="Notes from Horticulturist">
-            <p className="text-sm text-charcoal whitespace-pre-wrap">
-              {service.internal_notes}
-            </p>
+          <SectionCard title={t("service.notesFromHorti")}>
+              <AutoTranslated
+                original={service.internal_notes ?? ""}
+                hi={service.internal_notes_hi}
+                kn={service.internal_notes_kn}
+                status={service.internal_notes_translation_status}
+                className="text-sm text-charcoal"
+              />
           </SectionCard>
         )}
 
         {/* 1. Special Tasks for Today */}
         {hasSpecialTasks && (
-          <SectionCard title="Special Tasks for Today">
+          <SectionCard title={t("service.specialTasks")}>
             {/* Care actions due */}
             {service.care_actions_due.map((action) => {
               const done = isCareActionDone(action.care_action_type_id);
@@ -567,11 +622,17 @@ export default function ServiceExecutionPage() {
                         done ? "text-sage line-through" : "text-charcoal"
                       }`}
                     >
-                      {CARE_LABELS[action.care_action_name] ??
-                        action.care_action_name}
+                      {pickVariant(
+                        {
+                          en: action.care_action_name,
+                          hi: action.care_action_name_hi,
+                          kn: action.care_action_name_kn,
+                        },
+                        locale
+                      )}
                     </span>
                     <p className="text-xs text-sage">
-                      Due {formatDate(action.next_due_date)}
+                      {t("service.due", { date: formatDate(action.next_due_date) })}
                     </p>
                   </div>
                 </div>
@@ -595,13 +656,18 @@ export default function ServiceExecutionPage() {
                   >
                     {done && <Check size={14} className="text-offwhite" />}
                   </button>
-                  <span
+                  <div
                     className={`text-sm flex-1 ${
                       done ? "text-sage line-through" : "text-charcoal"
                     }`}
                   >
-                    {task.description}
-                  </span>
+                    <AutoTranslated
+                      original={task.description}
+                      hi={task.description_hi}
+                      kn={task.description_kn}
+                      status={task.translation_status}
+                    />
+                  </div>
                 </div>
               );
             })}
@@ -610,7 +676,7 @@ export default function ServiceExecutionPage() {
 
         {/* 2. Regular Checklist */}
         {service.checklist_items.length > 0 && (
-          <SectionCard title="Service Checklist">
+          <SectionCard title={t("service.checklist")}>
             {service.checklist_items.map((item) => {
               const status = getChecklistStatus(item);
               const done = status === "done";
@@ -636,7 +702,7 @@ export default function ServiceExecutionPage() {
                       done ? "text-sage line-through" : "text-charcoal"
                     }`}
                   >
-                    {item.label}
+                    {pickVariant({ en: item.label, hi: item.label_hi, kn: item.label_kn }, locale)}
                   </span>
                 </div>
               );
@@ -925,7 +991,7 @@ export default function ServiceExecutionPage() {
               <Loader2 size={16} className="animate-spin" />
             ) : (
               <>
-                <Check size={16} /> End Service
+                <Check size={16} /> {t("service.end")}
               </>
             )}
           </button>
@@ -1200,12 +1266,8 @@ function VoiceRecorder({
 
 /** Read-only preview of checklist, care actions, and special tasks */
 function PreviewChecklist({ service }: { service: ServiceDetail }) {
-  const CARE_PREVIEW: Record<string, string> = {
-    fertilizer: "Apply Fertilizer",
-    vermi_compost: "Apply Vermi Compost",
-    micro_nutrients: "Apply Micro Nutrients",
-    neem_oil: "Apply Neem Oil",
-  };
+  const { locale } = useLocale();
+  const t = useT();
 
   const hasSpecialItems =
     service.special_tasks.length > 0 || service.care_actions_due.length > 0;
@@ -1213,7 +1275,7 @@ function PreviewChecklist({ service }: { service: ServiceDetail }) {
   return (
     <>
       {hasSpecialItems && (
-        <SectionCard title="Special Tasks for Today">
+        <SectionCard title={t("service.specialTasks")}>
           {service.care_actions_due.map((action) => (
             <div
               key={action.care_action_type_id}
@@ -1222,10 +1284,16 @@ function PreviewChecklist({ service }: { service: ServiceDetail }) {
               <div className="w-5 h-5 rounded-md border-2 border-stone flex-shrink-0" />
               <div>
                 <span className={action.is_done ? "text-sage line-through" : "text-charcoal"}>
-                  {CARE_PREVIEW[action.care_action_name] ??
-                    action.care_action_name}
+                  {pickVariant(
+                    {
+                      en: action.care_action_name,
+                      hi: action.care_action_name_hi,
+                      kn: action.care_action_name_kn,
+                    },
+                    locale
+                  )}
                 </span>
-                <p className="text-xs text-sage">Due {formatDate(action.next_due_date)}</p>
+                <p className="text-xs text-sage">{t("service.due", { date: formatDate(action.next_due_date) })}</p>
               </div>
             </div>
           ))}
@@ -1245,22 +1313,27 @@ function PreviewChecklist({ service }: { service: ServiceDetail }) {
                   <Check size={10} className="text-offwhite" />
                 )}
               </div>
-              <span
+              <div
                 className={
                   task.is_completed
                     ? "text-sage line-through"
                     : "text-charcoal"
                 }
               >
-                {task.description}
-              </span>
+                <AutoTranslated
+                  original={task.description}
+                  hi={task.description_hi}
+                  kn={task.description_kn}
+                  status={task.translation_status}
+                />
+              </div>
             </div>
           ))}
         </SectionCard>
       )}
 
       {service.checklist_items.length > 0 && (
-        <SectionCard title="Service Checklist">
+        <SectionCard title={t("service.checklist")}>
           {service.checklist_items.map((item) => {
             const done = item.completion_status === "done";
             return (
@@ -1276,7 +1349,7 @@ function PreviewChecklist({ service }: { service: ServiceDetail }) {
                   {done && <Check size={10} className="text-offwhite" />}
                 </div>
                 <span className={done ? "text-sage line-through" : "text-charcoal"}>
-                  {item.label}
+                  {pickVariant({ en: item.label, hi: item.label_hi, kn: item.label_kn }, locale)}
                 </span>
               </div>
             );
