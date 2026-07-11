@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
+import { translateChecklistItem } from "@/lib/i18n/translateOnWrite";
 
 // Admin/horticulturist CMS for the fixed service checklist template (D1/D4/D6).
 // Permission split:
@@ -82,6 +83,9 @@ export async function POST(request: NextRequest) {
     .select("id, label, label_hi, label_kn, is_required, is_active, order_index, needs_translation_review")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Auto-translate English → hi/kn on create (failure leaves it for manual edit).
+  await translateChecklistItem(supabase, data.id, data.label);
 
   logAuditEvent({
     actorId: auth.userId,
@@ -178,6 +182,12 @@ export async function PATCH(request: NextRequest) {
     .select("id, label, label_hi, label_kn, is_required, is_active, order_index, needs_translation_review")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Auto re-translate when the English label changed (unless the caller is
+  // supplying its own hi/kn in the same request — that's a manual override).
+  if (englishChanged && !touchesTranslation) {
+    await translateChecklistItem(supabase, body.id, body.label as string);
+  }
 
   logAuditEvent({
     actorId: auth.userId,

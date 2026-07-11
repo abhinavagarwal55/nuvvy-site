@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsAuth } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
 import { computeNextDueDate, todayUtcStr } from "@/lib/services/care-schedule";
+import { translateCareAction } from "@/lib/i18n/translateOnWrite";
 
 // Any subset may be supplied. Structural fields (frequency, English display
 // name) are admin-only; translation fields (hi/kn) are admin + horticulturist.
@@ -88,6 +89,12 @@ export async function PATCH(
     .single();
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  }
+
+  // Auto re-translate when the English display name changed (unless the caller
+  // supplied its own hi/kn in the same request — a manual override).
+  if (englishChanged && !touchesTranslation && body.display_name) {
+    await translateCareAction(supabase, id, body.display_name);
   }
 
   // Recompute next_due_date for all schedules ONLY when frequency changed.

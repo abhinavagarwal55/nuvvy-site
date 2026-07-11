@@ -8,13 +8,13 @@ const ENTRIES = [
     href: "/ops/settings/checklist",
     icon: ListChecks,
     title: "Service Checklist",
-    description: "Edit checklist items and their Hindi / Kannada translations.",
+    description: "Checklist items, Do's & Don'ts, and care-action names — with Hindi / Kannada translations.",
   },
   {
     href: "/ops/settings/care-actions",
     icon: Leaf,
     title: "Care Actions",
-    description: "Default frequency and Hindi / Kannada names for each care action.",
+    description: "System-wide default visit frequency for each care action.",
   },
   {
     href: "/ops/settings/societies",

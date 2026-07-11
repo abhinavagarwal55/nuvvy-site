@@ -59,6 +59,15 @@ type SpecialTask = {
   is_completed: boolean;
 };
 
+type Guideline = {
+  id: string;
+  kind: "do" | "dont";
+  text: string;
+  text_hi: string | null;
+  text_kn: string | null;
+  order_index: number;
+};
+
 type Photo = {
   id: string;
   storage_path: string;
@@ -87,6 +96,7 @@ type ServiceDetail = {
   internal_notes_hi: string | null;
   internal_notes_kn: string | null;
   internal_notes_translation_status: "pending" | "done" | "failed";
+  guidelines: Guideline[];
   checklist_items: ChecklistItem[];
   special_tasks: SpecialTask[];
   care_actions_due: CareActionDue[];
@@ -433,49 +443,48 @@ export default function ServiceExecutionPage() {
             </SectionCard>
           )}
 
-          {/* Guidelines */}
-          <SectionCard title={t("service.guidelines")}>
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs font-medium text-forest uppercase tracking-wide mb-1.5">
-                  Do&apos;s
-                </p>
-                <ul className="space-y-2">
-                  {DOS_LIST.map((item, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-2 text-sm text-charcoal"
-                    >
-                      <Check
-                        size={14}
-                        className="text-forest flex-shrink-0 mt-0.5"
-                      />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="border-t border-stone/30 pt-3">
-                <p className="text-xs font-medium text-terra uppercase tracking-wide mb-1.5">
-                  Don&apos;ts
-                </p>
-                <ul className="space-y-2">
-                  {DONTS_LIST.map((item, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-2 text-sm text-charcoal"
-                    >
-                      <AlertTriangle
-                        size={14}
-                        className="text-terra flex-shrink-0 mt-0.5"
-                      />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </SectionCard>
+          {/* Guidelines — editable, translated Do's / Don'ts from the DB. */}
+          {(() => {
+            const dos = service.guidelines.filter((g) => g.kind === "do");
+            const donts = service.guidelines.filter((g) => g.kind === "dont");
+            if (dos.length === 0 && donts.length === 0) return null;
+            return (
+              <SectionCard title={t("service.guidelines")}>
+                <div className="space-y-3">
+                  {dos.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-forest uppercase tracking-wide mb-1.5">
+                        {t("service.dos")}
+                      </p>
+                      <ul className="space-y-2">
+                        {dos.map((g) => (
+                          <li key={g.id} className="flex items-start gap-2 text-sm text-charcoal">
+                            <Check size={14} className="text-forest flex-shrink-0 mt-0.5" />
+                            <span>{pickVariant({ en: g.text, hi: g.text_hi, kn: g.text_kn }, locale)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {donts.length > 0 && (
+                    <div className="border-t border-stone/30 pt-3">
+                      <p className="text-xs font-medium text-terra uppercase tracking-wide mb-1.5">
+                        {t("service.donts")}
+                      </p>
+                      <ul className="space-y-2">
+                        {donts.map((g) => (
+                          <li key={g.id} className="flex items-start gap-2 text-sm text-charcoal">
+                            <AlertTriangle size={14} className="text-terra flex-shrink-0 mt-0.5" />
+                            <span>{pickVariant({ en: g.text, hi: g.text_hi, kn: g.text_kn }, locale)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </SectionCard>
+            );
+          })()}
 
           {/* Start Service */}
           <button
@@ -1050,17 +1059,6 @@ export default function ServiceExecutionPage() {
 
 // ─── Static Content ──────────────────────────────────────────────────────────
 
-const DOS_LIST = [
-  "Greet the customer at entry.",
-  "After service, tell customer about what you did, issues identified and what you could not do.",
-  "Ask customers about concerns or if they want additional plants.",
-  "Call your horticulturist if you don't know what to do.",
-  "If you apply neem oil, tell customer to not visit garden for 2-3 hours.",
-];
-
-const DONTS_LIST = [
-  "Prune plants without talking to customer first.",
-];
 
 // ─── Shared Components ──────────────────────────────────────────────────────
 

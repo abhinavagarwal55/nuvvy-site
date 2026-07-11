@@ -41,6 +41,70 @@ export async function translateSpecialTask(
 }
 
 /**
+ * Auto-translate a checklist template item's English label into hi/kn and clear
+ * needs_translation_review. On failure the row keeps needs_translation_review=true
+ * (badge shows, translator can fill hi/kn manually).
+ */
+export async function translateChecklistItem(
+  supabase: DB,
+  id: string,
+  text: string
+): Promise<void> {
+  const outcome = await translateToHiKn(text);
+  if (outcome.status === "done") {
+    await supabase
+      .from("checklist_template_items")
+      .update({ label_hi: outcome.hi, label_kn: outcome.kn, needs_translation_review: false })
+      .eq("id", id);
+  }
+}
+
+/**
+ * Auto-translate a care action's English display_name into hi/kn and clear
+ * needs_translation_review. On failure the row is left for manual translation.
+ */
+export async function translateCareAction(
+  supabase: DB,
+  id: string,
+  text: string
+): Promise<void> {
+  const outcome = await translateToHiKn(text);
+  if (outcome.status === "done") {
+    await supabase
+      .from("care_action_types")
+      .update({ display_name_hi: outcome.hi, display_name_kn: outcome.kn, needs_translation_review: false })
+      .eq("id", id);
+  }
+}
+
+/**
+ * Translate a service guideline's text and persist the variants.
+ */
+export async function translateGuideline(
+  supabase: DB,
+  guidelineId: string,
+  text: string
+): Promise<void> {
+  const outcome = await translateToHiKn(text);
+  if (outcome.status === "done") {
+    await supabase
+      .from("service_guidelines")
+      .update({
+        text_hi: outcome.hi,
+        text_kn: outcome.kn,
+        translation_status: "done",
+        translated_at: new Date().toISOString(),
+      })
+      .eq("id", guidelineId);
+  } else {
+    await supabase
+      .from("service_guidelines")
+      .update({ translation_status: "failed", translated_at: new Date().toISOString() })
+      .eq("id", guidelineId);
+  }
+}
+
+/**
  * Translate a visit's internal notes and persist the variants. Pass the English
  * original just written (non-empty). Clearing to empty is handled by the caller
  * (it nulls the variants instead of calling this).

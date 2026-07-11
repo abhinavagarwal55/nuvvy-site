@@ -135,6 +135,14 @@ export async function GET(
       .map((a) => a.care_action_type_id)
   );
 
+  // Editable Do's / Don'ts guidelines (localised variants; client pickVariant).
+  const { data: guidelines } = await supabase
+    .from("service_guidelines")
+    .select("id, kind, text, text_hi, text_kn, order_index")
+    .eq("is_active", true)
+    .order("kind")
+    .order("order_index");
+
   // Normalise every checklist row to a flat { label, label_hi, label_kn } shape.
   // For snapshot rows the variants come from the joined template; the snapshot's
   // own `label` is the English canonical (and the fallback).
@@ -190,6 +198,7 @@ export async function GET(
         }
       : null,
       checklist_items: finalChecklist,
+      guidelines: guidelines ?? [],
       special_tasks: specialTasks ?? [],
       photo_count: (photos ?? []).length,
       photos: await Promise.all(
