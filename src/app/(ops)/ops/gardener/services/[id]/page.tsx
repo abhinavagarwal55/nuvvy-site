@@ -376,6 +376,16 @@ export default function ServiceExecutionPage() {
         />
 
         <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
+          {/* Internal notes from the horticulturist — team-only, read-only here.
+              Shown BEFORE start so the gardener reads the context up front. */}
+          {service.internal_notes && service.internal_notes.trim() && (
+            <SectionCard title="Notes from Horticulturist">
+              <p className="text-sm text-charcoal whitespace-pre-wrap">
+                {service.internal_notes}
+              </p>
+            </SectionCard>
+          )}
+
           {/* Guidelines */}
           <SectionCard title="Nuvvy Service Guidelines">
             <div className="space-y-3">
@@ -460,6 +470,13 @@ export default function ServiceExecutionPage() {
           badge={service.status === "completed" ? "Completed" : "Not Completed"}
         />
         <div className="px-4 pt-4 max-w-[480px] mx-auto space-y-4">
+          {service.internal_notes && service.internal_notes.trim() && (
+            <SectionCard title="Notes from Horticulturist">
+              <p className="text-sm text-charcoal whitespace-pre-wrap">
+                {service.internal_notes}
+              </p>
+            </SectionCard>
+          )}
           <PreviewChecklist service={service} />
           {generalPhotos.length > 0 && (
             <SectionCard title={`Photos (${generalPhotos.length})`}>
