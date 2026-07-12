@@ -26,11 +26,40 @@ const LANG_NAME: Record<Exclude<Locale, "en">, string> = {
   kn: "Kannada",
 };
 
+// Validate the model actually replied in the target script. Small models
+// occasionally emit foreign scripts (Korean/Chinese/Tamil/Arabic/Myanmar…) for
+// an Indic request. We WHITELIST: allow only the target script block plus Latin
+// letters (brand/chemical names), digits, whitespace, and common punctuation —
+// anything else means wrong-script output, which we reject so it degrades to the
+// English original rather than showing a gardener garbage.
+const TARGET_BLOCK = {
+  hi: /[ऀ-ॿ]/, // Devanagari
+  kn: /[ಀ-೿]/, // Kannada
+} as const;
+
+function isRightScript(text: string, target: Exclude<Locale, "en">): boolean {
+  const block = TARGET_BLOCK[target];
+  const lo = target === "hi" ? 0x0900 : 0x0c80;
+  const hi = target === "hi" ? 0x097f : 0x0cff;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0)!;
+    if (cp <= 0x024f) continue; // ASCII + Latin-1 + Latin Extended-A/B
+    if (cp >= 0x2000 && cp <= 0x206f) continue; // general punctuation (– — “ ” … etc.)
+    if (cp === 0x0964 || cp === 0x0965) continue; // danda (shared Indic punctuation)
+    if (cp >= lo && cp <= hi) continue; // the target Indic block
+    return false; // any other script → reject
+  }
+  return block.test(text); // must contain at least one target-script character
+}
+
 function systemPrompt(target: string): string {
   return [
     `You are a translator for a gardening service's field app.`,
     `Translate the user's message from English into ${target}.`,
     `Rules:`,
+    `- Respond using ONLY the ${target} script. Never reply in Korean, Chinese,`,
+    `  Tamil, or any script other than ${target} (English brand/chemical names`,
+    `  in Latin letters are fine).`,
     `- Preserve all numbers, units (ml, g, L, %, days), dates, and chemical/`,
     `  product names EXACTLY as written — do not translate or convert them.`,
     `- Keep it concise and natural for a gardener to read.`,
@@ -38,8 +67,37 @@ function systemPrompt(target: string): string {
   ].join("\n");
 }
 
+async function callOnce(source: string, target: Exclude<Locale, "en">, apiKey: string): Promise<string> {
+  const res = await fetch(OPENAI_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      max_completion_tokens: 2048,
+      messages: [
+        { role: "system", content: systemPrompt(LANG_NAME[target]) },
+        { role: "user", content: source },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Translation API ${res.status}: ${detail.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as {
+    choices?: Array<{ finish_reason?: string; message?: { content?: string | null; refusal?: string | null } }>;
+  };
+  const choice = data.choices?.[0];
+  if (choice?.message?.refusal) throw new Error("Translation refused");
+  if (choice?.finish_reason === "content_filter") throw new Error("Translation blocked");
+  const out = (choice?.message?.content ?? "").trim();
+  if (!out) throw new Error("Empty translation");
+  return out;
+}
+
 /**
- * Translate `text` into the target locale ('hi' | 'kn'). Throws on any failure.
+ * Translate `text` into the target locale ('hi' | 'kn'). Throws on any failure,
+ * including when the model replies in the wrong script after a retry.
  */
 export async function translateText(
   text: string,
@@ -51,39 +109,14 @@ export async function translateText(
   const source = text.trim();
   if (!source) throw new Error("Nothing to translate");
 
-  const res = await fetch(OPENAI_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_completion_tokens: 2048,
-      messages: [
-        { role: "system", content: systemPrompt(LANG_NAME[targetLang]) },
-        { role: "user", content: source },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Translation API ${res.status}: ${detail.slice(0, 200)}`);
+  // Up to 2 attempts — reject wrong-script output rather than persist garbage.
+  let out = await callOnce(source, targetLang, apiKey);
+  if (!isRightScript(out, targetLang)) {
+    out = await callOnce(source, targetLang, apiKey);
+    if (!isRightScript(out, targetLang)) {
+      throw new Error(`Model replied in the wrong script for ${targetLang}`);
+    }
   }
-
-  const data = (await res.json()) as {
-    choices?: Array<{
-      finish_reason?: string;
-      message?: { content?: string | null; refusal?: string | null };
-    }>;
-  };
-  const choice = data.choices?.[0];
-  if (choice?.message?.refusal) throw new Error("Translation refused");
-  if (choice?.finish_reason === "content_filter") throw new Error("Translation blocked");
-
-  const out = (choice?.message?.content ?? "").trim();
-  if (!out) throw new Error("Empty translation");
   return out;
 }
 
