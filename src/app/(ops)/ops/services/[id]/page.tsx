@@ -20,7 +20,28 @@ import {
   Check,
   X,
   AlertTriangle,
+  Languages,
 } from "lucide-react";
+
+// Persistent indicator showing whether a free-text field was auto-translated to
+// Hindi & Kannada for the gardener.
+function TxStatus({ status }: { status?: "pending" | "done" | "failed" }) {
+  if (status === "done")
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-forest">
+        <Languages size={11} /> Translated to हिंदी &amp; ಕನ್ನಡ
+      </span>
+    );
+  if (status === "pending")
+    return <span className="text-[11px] text-sage">Translating…</span>;
+  if (status === "failed")
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-terra">
+        <AlertTriangle size={11} /> Not translated — gardener sees English
+      </span>
+    );
+  return null;
+}
 import PhotoLightbox from "../../../components/PhotoLightbox";
 
 type ServiceDetail = {
@@ -39,8 +60,14 @@ type ServiceDetail = {
   gardener: { id: string; name: string } | null;
   customer: { name: string; unit_number?: string | null; society_name?: string | null } | null;
   internal_notes: string | null;
+  internal_notes_translation_status?: "pending" | "done" | "failed";
   checklist_items: { id: string; label: string; completion_status: string }[];
-  special_tasks: { id: string; description: string; is_completed: boolean }[];
+  special_tasks: {
+    id: string;
+    description: string;
+    is_completed: boolean;
+    translation_status?: "pending" | "done" | "failed";
+  }[];
   care_actions_due: {
     care_action_name: string;
     is_done: boolean;
@@ -771,9 +798,14 @@ export default function ServiceDetailPage() {
                   </form>
                 ) : (
                   <>
-                    <span className="text-charcoal flex-1">{task.description}</span>
+                    <div className="flex-1">
+                      <span className="text-charcoal">{task.description}</span>
+                      <div className="mt-0.5">
+                        <TxStatus status={task.translation_status} />
+                      </div>
+                    </div>
                     {!task.is_completed && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-1 flex-shrink-0 self-start">
                         <button
                           onClick={() => { setEditingTaskId(task.id); setEditingTaskText(task.description); }}
                           className="text-sage hover:text-forest p-1"
@@ -802,6 +834,9 @@ export default function ServiceDetailPage() {
             <p className="text-sm text-charcoal whitespace-pre-wrap">
               {service.internal_notes}
             </p>
+            <div className="mt-1.5">
+              <TxStatus status={service.internal_notes_translation_status} />
+            </div>
           </Card>
         )}
 
