@@ -53,9 +53,9 @@ export async function POST(
 
   // AI translate-on-write (hi/kn). Inline; failure degrades to original only and
   // never blocks the save. Row was inserted with translation_status='pending'.
-  await translateSpecialTask(supabase, data.id, parsed.data.description);
+  const translation_status = await translateSpecialTask(supabase, data.id, parsed.data.description);
 
-  return NextResponse.json({ data }, { status: 201 });
+  return NextResponse.json({ data: { ...data, translation_status } }, { status: 201 });
 }
 
 const UpdateTaskSchema = z.object({
@@ -111,9 +111,9 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Task not found or already completed" }, { status: 404 });
 
-  await translateSpecialTask(supabase, data.id, parsed.data.description);
+  const translation_status = await translateSpecialTask(supabase, data.id, parsed.data.description);
 
-  return NextResponse.json({ data });
+  return NextResponse.json({ data: { ...data, translation_status } });
 }
 
 // DELETE /api/ops/services/[id]/tasks?task_id=xxx — delete a special task

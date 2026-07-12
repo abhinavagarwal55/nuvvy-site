@@ -19,6 +19,7 @@ import {
   Trash2,
   Check,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import PhotoLightbox from "../../../components/PhotoLightbox";
 
@@ -109,6 +110,10 @@ export default function ServiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  // Post-save confirmation banner (incl. translation outcome for notes/tasks).
+  const [translationMsg, setTranslationMsg] = useState<
+    { kind: "success" | "warn"; text: string } | null
+  >(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskText, setEditingTaskText] = useState("");
   const [nextServiceId, setNextServiceId] = useState<string | null>(null);
@@ -223,8 +228,11 @@ export default function ServiceDetailPage() {
 
   async function handleAddTasks(descriptions: string[], internalNotes: string) {
     if (!nextServiceId) return;
+    // Collect the per-item translation outcome so we can confirm to the operator
+    // that the note/tasks were translated for the gardener.
+    const statuses: string[] = [];
     for (const desc of descriptions) {
-      await fetch(`/api/ops/services/${serviceId}/tasks`, {
+      const res = await fetch(`/api/ops/services/${serviceId}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -232,25 +240,49 @@ export default function ServiceDetailPage() {
           description: desc,
         }),
       });
+      const j = await res.json().catch(() => null);
+      if (res.ok && j?.data?.translation_status) statuses.push(j.data.translation_status);
     }
     // Internal notes are saved against the same upcoming visit. They are never
     // pulled into the customer reminder — only the customer-facing tasks above are.
-    await fetch(`/api/ops/services/${nextServiceId}/internal-notes`, {
+    const noteRes = await fetch(`/api/ops/services/${nextServiceId}/internal-notes`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ internal_notes: internalNotes }),
     });
+    const noteJson = await noteRes.json().catch(() => null);
+    if (noteRes.ok && noteJson?.data?.translation_status) {
+      statuses.push(noteJson.data.translation_status);
+    }
+
     setShowTaskModal(false);
+    showTranslationOutcome(statuses);
     load();
   }
 
+  // Show a temporary confirmation banner based on translation outcomes.
+  function showTranslationOutcome(statuses: string[]) {
+    if (statuses.length === 0) {
+      setTranslationMsg({ kind: "success", text: "Saved." });
+    } else if (statuses.every((s) => s === "done")) {
+      setTranslationMsg({ kind: "success", text: "Saved — translated to Hindi & Kannada for the gardener." });
+    } else if (statuses.some((s) => s === "done")) {
+      setTranslationMsg({ kind: "warn", text: "Saved. Some items could not be translated — the gardener will see the English original for those." });
+    } else {
+      setTranslationMsg({ kind: "warn", text: "Saved, but translation failed — the gardener will see the English original. Check the OpenAI key." });
+    }
+    setTimeout(() => setTranslationMsg(null), 6000);
+  }
+
   async function handleUpdateTask(taskId: string, description: string) {
-    await fetch(`/api/ops/services/${serviceId}/tasks`, {
+    const res = await fetch(`/api/ops/services/${serviceId}/tasks`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ task_id: taskId, description }),
     });
+    const j = await res.json().catch(() => null);
     setEditingTaskId(null);
+    if (res.ok && j?.data?.translation_status) showTranslationOutcome([j.data.translation_status]);
     load();
   }
 
@@ -413,6 +445,29 @@ export default function ServiceDetailPage() {
 
   return (
     <div className="min-h-screen bg-cream pb-24">
+      {/* Post-save confirmation (incl. translation outcome). Auto-dismisses. */}
+      {translationMsg && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-[92%] w-[520px]">
+          <div
+            className={`flex items-start gap-2 rounded-2xl px-4 py-3 text-sm shadow-lg border ${
+              translationMsg.kind === "success"
+                ? "bg-forest text-offwhite border-forest"
+                : "bg-terra/10 text-terra border-terra/40"
+            }`}
+          >
+            {translationMsg.kind === "success" ? (
+              <CheckCircle size={18} className="flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+            )}
+            <span className="flex-1">{translationMsg.text}</span>
+            <button onClick={() => setTranslationMsg(null)} aria-label="Dismiss" className="opacity-70 hover:opacity-100">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-offwhite border-b border-stone px-4 pt-6 pb-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">

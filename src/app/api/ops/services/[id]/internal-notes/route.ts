@@ -97,10 +97,11 @@ export async function PUT(
   if (!data) return NextResponse.json({ error: "Service not found" }, { status: 404 });
 
   // AI translate-on-write only when there's text. Inline; failure degrades to
-  // original-only and never blocks the save.
-  if (value !== null) {
-    await translateInternalNotes(supabase, id, value);
-  }
+  // original-only and never blocks the save. null = cleared (no translation).
+  const translation_status =
+    value !== null ? await translateInternalNotes(supabase, id, value) : null;
 
-  return NextResponse.json({ data: { internal_notes: data.internal_notes ?? "" } });
+  return NextResponse.json({
+    data: { internal_notes: data.internal_notes ?? "", translation_status },
+  });
 }

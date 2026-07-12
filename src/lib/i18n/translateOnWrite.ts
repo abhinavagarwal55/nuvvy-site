@@ -20,7 +20,7 @@ export async function translateSpecialTask(
   supabase: DB,
   taskId: string,
   text: string
-): Promise<void> {
+): Promise<"done" | "failed"> {
   const outcome = await translateToHiKn(text);
   if (outcome.status === "done") {
     await supabase
@@ -32,12 +32,13 @@ export async function translateSpecialTask(
         translated_at: new Date().toISOString(),
       })
       .eq("id", taskId);
-  } else {
-    await supabase
-      .from("service_special_tasks")
-      .update({ translation_status: "failed", translated_at: new Date().toISOString() })
-      .eq("id", taskId);
+    return "done";
   }
+  await supabase
+    .from("service_special_tasks")
+    .update({ translation_status: "failed", translated_at: new Date().toISOString() })
+    .eq("id", taskId);
+  return "failed";
 }
 
 /**
@@ -113,7 +114,7 @@ export async function translateInternalNotes(
   supabase: DB,
   visitId: string,
   text: string
-): Promise<void> {
+): Promise<"done" | "failed"> {
   const outcome = await translateToHiKn(text);
   if (outcome.status === "done") {
     await supabase
@@ -125,13 +126,14 @@ export async function translateInternalNotes(
         internal_notes_translated_at: new Date().toISOString(),
       })
       .eq("id", visitId);
-  } else {
-    await supabase
-      .from("service_visits")
-      .update({
-        internal_notes_translation_status: "failed",
-        internal_notes_translated_at: new Date().toISOString(),
-      })
-      .eq("id", visitId);
+    return "done";
   }
+  await supabase
+    .from("service_visits")
+    .update({
+      internal_notes_translation_status: "failed",
+      internal_notes_translated_at: new Date().toISOString(),
+    })
+    .eq("id", visitId);
+  return "failed";
 }
