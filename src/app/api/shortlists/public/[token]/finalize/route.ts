@@ -149,6 +149,41 @@ export async function POST(
       );
     }
 
+    // Step 3b: Snapshot the SENT version's sections onto this CUSTOMER_SUBMITTED
+    // version, and derive each plant's section from the SENT version items (so
+    // the client never has to resend section structure).
+    const { data: sentSections } = await supabase
+      .from("shortlist_version_sections")
+      .select("id, name, sort_order")
+      .eq("shortlist_version_id", latestVersion.id)
+      .order("sort_order", { ascending: true });
+
+    const sentSectionToNew: Record<string, string> = {};
+    let firstNewSectionId: string | null = null;
+    for (const s of sentSections ?? []) {
+      const { data: ns } = await supabase
+        .from("shortlist_version_sections")
+        .insert({ shortlist_version_id: newVersion.id, name: s.name, sort_order: s.sort_order })
+        .select("id")
+        .single();
+      if (ns) {
+        sentSectionToNew[s.id] = ns.id;
+        if (firstNewSectionId === null) firstNewSectionId = ns.id;
+      }
+    }
+
+    // plant_id → SENT section_id (to place the customer's plants in the right section).
+    const { data: sentPlantItems } = await supabase
+      .from("shortlist_version_items")
+      .select("plant_id, section_id")
+      .eq("shortlist_version_id", latestVersion.id)
+      .not("plant_id", "is", null);
+    const plantToSentSection: Record<string, string | null> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sentPlantItems ?? []).forEach((r: any) => {
+      if (r.plant_id) plantToSentSection[r.plant_id] = r.section_id;
+    });
+
     // Step 4: Insert shortlist_version_items — polymorphic (WS-B).
     // Plant items come from the customer's submission body.
     // Accessory items are carried forward from the source SENT version
@@ -160,6 +195,8 @@ export async function POST(
       .map((item) => {
         const quantity =
           item.quantity != null && item.quantity > 0 ? item.quantity : null;
+        const sentSectionId = item.plant_id ? plantToSentSection[item.plant_id] : null;
+        const section_id = (sentSectionId && sentSectionToNew[sentSectionId]) || firstNewSectionId;
         return {
           shortlist_version_id: newVersion.id,
           plant_id: item.plant_id ?? null,
@@ -170,6 +207,7 @@ export async function POST(
           horticulturist_note: null,
           approved: quantity !== null,
           midpoint_price: 0,
+          section_id,
         };
       });
 

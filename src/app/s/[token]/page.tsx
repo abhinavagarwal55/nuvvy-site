@@ -60,9 +60,17 @@ interface Version {
   created_at: string;
 }
 
+interface Section {
+  id: string;
+  name: string;
+  sort_order: number;
+  items: VersionItem[];
+}
+
 interface ShortlistData {
   version: Version;
   items: VersionItem[];
+  sections?: Section[];
   customer_name?: string | null;
   shortlist_title?: string | null;
   shortlist_description?: string | null;
@@ -102,6 +110,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [expandedPlants, setExpandedPlants] = useState<Set<string>>(new Set());
+  const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
 
   // Determine if page is editable based on version status
   const isEditable = data?.version.status_at_time === "SENT_TO_CUSTOMER";
@@ -115,7 +124,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         const result = await safeReadJson(response);
 
         if (!result.ok || result.body?.error) {
-          throw new Error(result.body?.error || "Failed to load shortlist");
+          throw new Error(result.body?.error || "Failed to load curated list");
         }
 
         if (!result.body || !result.body.version || !result.body.items) {
@@ -142,7 +151,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         setItems(itemsMap);
       } catch (err) {
         console.error("Error fetching shortlist:", err);
-        setError(err instanceof Error ? err.message : "Failed to load shortlist");
+        setError(err instanceof Error ? err.message : "Failed to load curated list");
       } finally {
         setLoading(false);
       }
@@ -378,14 +387,14 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
       const result = await safeReadJson(response);
 
       if (!result.ok || result.body?.error) {
-        throw new Error(result.body?.error || "Failed to submit shortlist");
+        throw new Error(result.body?.error || "Failed to submit curated list");
       }
 
       // Success - show confirmation
       setSubmitted(true);
     } catch (err) {
       console.error("Error finalizing shortlist:", err);
-      alert(err instanceof Error ? err.message : "Failed to submit shortlist");
+      alert(err instanceof Error ? err.message : "Failed to submit curated list");
     } finally {
       setIsSubmitting(false);
     }
@@ -396,7 +405,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600">Loading your shortlist...</p>
+          <p className="text-gray-600">Loading your curated list...</p>
         </div>
       </div>
     );
@@ -411,12 +420,12 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center max-w-md">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            {isServiceError ? "Service Unavailable" : "Shortlist Not Found"}
+            {isServiceError ? "Service Unavailable" : "Curated List Not Found"}
           </h1>
           <p className="text-gray-600">
-            {isServiceError 
+            {isServiceError
               ? "This link is temporarily unavailable. Please contact Nuvvy."
-              : (error || "The shortlist you're looking for doesn't exist or is no longer available.")
+              : (error || "The curated list you're looking for doesn't exist or is no longer available.")
             }
           </p>
         </div>
@@ -435,7 +444,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Thanks!</h1>
-          <p className="text-gray-600">We've received your shortlist.</p>
+          <p className="text-gray-600">We've received your curated list.</p>
         </div>
       </div>
     );
@@ -448,13 +457,48 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   // Check if at least one plant has quantity >= 1 (selected for procurement)
   const hasSelectedPlants = Array.from(items.values()).some(item => item.quantity !== null && item.quantity !== undefined && item.quantity >= 1);
 
+  // ── Section pagination (plants only) ───────────────────────────────────────
+  const allPlantItems = data.items.filter(
+    (i) => (i.type ?? (i.catalog_product_id ? "accessory" : "plant")) === "plant"
+  );
+  const rawSections = (data.sections ?? []).filter((s) => s.items.length > 0);
+  const plantSections: Section[] =
+    rawSections.length > 0
+      ? rawSections
+      : allPlantItems.length > 0
+      ? [{ id: "all", name: "Plants", sort_order: 0, items: allPlantItems }]
+      : [];
+  const isMultiSection = plantSections.length > 1;
+  const sectionIdx = Math.min(currentSectionIdx, Math.max(0, plantSections.length - 1));
+  const currentSection = plantSections[sectionIdx];
+  const visiblePlantItems = isMultiSection ? currentSection?.items ?? [] : allPlantItems;
+  const onLastSection = sectionIdx >= plantSections.length - 1;
+  const showFinalArea = !isMultiSection || onLastSection;
+
+  // Subtotal (midpoint + range) for a set of plant items from current selections.
+  const subtotalFor = (secItems: VersionItem[]): { min: number; max: number } => {
+    let min = 0;
+    let max = 0;
+    secItems.forEach((item) => {
+      const qty = items.get(item.id)?.quantity ?? 0;
+      if (qty <= 0) return;
+      const band = parsePriceBand(item.plant?.price_band);
+      if (band) {
+        min += band.min * qty;
+        max += band.max * qty;
+      }
+    });
+    return { min, max };
+  };
+  const sectionSubtotal = currentSection ? subtotalFor(currentSection.items) : { min: 0, max: 0 };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Personalized Hero Header */}
         <div className="mb-6">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
-            {customerName ? `${customerName}, here's your plant shortlist 🌿` : "Here's your plant shortlist 🌿"}
+            {customerName ? `${customerName}, here's your curated plant list 🌿` : "Here's your curated plant list 🌿"}
           </h1>
           <p className="text-base text-gray-600">
             Curated by your Nuvvy horticulturist for your space
@@ -506,15 +550,35 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
             <p className="text-green-800 text-sm flex items-center gap-2">
               <span>✅</span>
-              <span>Shortlist confirmed. Our team is reviewing this and will contact you shortly.</span>
+              <span>Curated list confirmed. Our team is reviewing this and will contact you shortly.</span>
             </p>
+          </div>
+        )}
+
+        {/* Multi-section callout */}
+        {isMultiSection && (
+          <div className="bg-mist border border-leaf/20 rounded-lg p-4 mb-6">
+            <p className="text-sm text-ink text-center">
+              This curated list has {plantSections.length} sections — you&apos;ll review them one at a time.
+            </p>
+          </div>
+        )}
+
+        {/* Current section header (multi only) */}
+        {isMultiSection && currentSection && (
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                Section {sectionIdx + 1} of {plantSections.length}
+              </p>
+              <h2 className="text-xl font-bold text-gray-900">{currentSection.name}</h2>
+            </div>
           </div>
         )}
 
         {/* Plant Items */}
         <div className="space-y-4 mb-6">
-          {data.items
-            .filter((item) => (item.type ?? (item.catalog_product_id ? "accessory" : "plant")) === "plant")
+          {visiblePlantItems
             .map((item) => {
               const itemState = items.get(item.id);
               // Use explicit null check: quantity = null means recommended but not selected
@@ -703,6 +767,50 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             })}
         </div>
 
+        {/* Section subtotal + pagination (multi-section only) */}
+        {isMultiSection && (
+          <div className="mb-6 space-y-4">
+            {(sectionSubtotal.min > 0 || sectionSubtotal.max > 0) && (
+              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm flex justify-between items-center">
+                <span className="text-sm font-semibold text-gray-900">This section&apos;s subtotal</span>
+                <span className="text-lg font-bold text-gray-900">
+                  {formatCurrency(Math.round((sectionSubtotal.min + sectionSubtotal.max) / 2))}
+                </span>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentSectionIdx((i) => Math.max(0, i - 1));
+                  if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+                }}
+                disabled={sectionIdx === 0}
+                className="px-5 py-2.5 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ← Back
+              </button>
+              <span className="text-xs text-gray-500">
+                Section {sectionIdx + 1} of {plantSections.length}
+              </span>
+              {!onLastSection ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentSectionIdx((i) => Math.min(plantSections.length - 1, i + 1));
+                    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+                  }}
+                  className="px-5 py-2.5 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Next section →
+                </button>
+              ) : (
+                <span className="text-xs text-gray-400">Last section</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Bottom Estimated Total — collapses cleanly when nothing to show */}
         {hasItems && hasValidEstimate && (
           <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mb-6">
@@ -720,8 +828,8 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
           </div>
         )}
 
-        {/* ─── WS-B: Accessories ────────────────────────────── */}
-        {(() => {
+        {/* ─── WS-B: Accessories (unchanged; only on the last section) ─────── */}
+        {showFinalArea && (() => {
           const accessories = data.items.filter(
             (i) => (i.type ?? (i.catalog_product_id ? "accessory" : "plant")) === "accessory"
           );
@@ -834,6 +942,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         })()}
 
         {/* Explore-full-catalog CTA */}
+        {showFinalArea && (
         <div className="bg-mist border border-leaf/20 rounded-lg p-5 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1">
@@ -841,7 +950,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                 Want to explore more plants and accessories?
               </h3>
               <p className="text-sm text-gray-600">
-                Browse the full Nuvvy catalog — you can come right back to this shortlist.
+                Browse the full Nuvvy catalog — you can come right back to this curated list.
               </p>
             </div>
             <a
@@ -852,9 +961,10 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             </a>
           </div>
         </div>
+        )}
 
         {/* Primary CTA */}
-        {isEditable && (
+        {isEditable && showFinalArea && (
           <div className="bg-white rounded-lg border-2 border-blue-200 p-6 shadow-sm">
             <div className="flex items-center justify-center gap-2 mb-3">
               <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -867,7 +977,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
               disabled={isSubmitting || !hasSelectedPlants}
               className="w-full px-6 py-4 text-base font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isSubmitting ? "Submitting..." : "Confirm shortlist"}
+              {isSubmitting ? "Submitting..." : "Confirm curated list"}
             </button>
             {!hasSelectedPlants && (
               <p className="text-sm text-amber-600 text-center mt-3">

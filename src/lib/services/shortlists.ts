@@ -151,10 +151,14 @@ export async function createShortlistWithItems(
     return { ok: false, status: 500, error: shortlistError?.message || "Failed to create shortlist" };
   }
 
+  // Every curated list is section-based (Slice 1). Seed a default "Section 1".
+  const defaultSectionId = await ensureDefaultSection(supabase, shortlist.id);
+
   if (input.items && input.items.length > 0) {
     const itemsToInsert = input.items.map((item) => ({
       shortlist_id: shortlist.id,
       plant_id: item.plant_id,
+      section_id: defaultSectionId,
     }));
     const { error: itemsError } = await supabase.from("shortlist_draft_items").insert(itemsToInsert);
     if (itemsError) {
@@ -166,13 +170,137 @@ export async function createShortlistWithItems(
   return { ok: true, data: shortlist };
 }
 
+// ── Sections (draft-side) ─────────────────────────────────────────────────────
+
+/** Max sub-sections per curated list (enforced at the API layer, PRD). */
+export const MAX_SECTIONS = 10;
+
+/** First draft section id (by sort_order) for a list, or null if it has none. */
+export async function getFirstSectionId(
+  supabase: Supabase,
+  shortlistId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("shortlist_draft_sections")
+    .select("id")
+    .eq("shortlist_id", shortlistId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+/** Ensure the list has at least one draft section; return the first section id. */
+export async function ensureDefaultSection(
+  supabase: Supabase,
+  shortlistId: string
+): Promise<string> {
+  const existing = await getFirstSectionId(supabase, shortlistId);
+  if (existing) return existing;
+  const { data } = await supabase
+    .from("shortlist_draft_sections")
+    .insert({ shortlist_id: shortlistId, name: "Section 1", sort_order: 0 })
+    .select("id")
+    .single();
+  if (data?.id) return data.id;
+  // Extremely unlikely (insert failed) — fall back to a re-read.
+  return (await getFirstSectionId(supabase, shortlistId)) ?? "";
+}
+
+/** Create a new draft section (name required). Rejects the 11th section. */
+export async function createSection(
+  supabase: Supabase,
+  shortlistId: string,
+  name: string
+): Promise<ServiceResult<{ id: string }>> {
+  const trimmed = name.trim();
+  if (!trimmed) return { ok: false, status: 400, error: "Section name is required" };
+
+  const { data: sections } = await supabase
+    .from("shortlist_draft_sections")
+    .select("sort_order")
+    .eq("shortlist_id", shortlistId)
+    .order("sort_order", { ascending: false });
+  if ((sections?.length ?? 0) >= MAX_SECTIONS) {
+    return { ok: false, status: 422, error: `A curated list can have at most ${MAX_SECTIONS} sections.` };
+  }
+  const nextOrder = (sections?.[0]?.sort_order ?? -1) + 1;
+
+  const { data, error } = await supabase
+    .from("shortlist_draft_sections")
+    .insert({ shortlist_id: shortlistId, name: trimmed, sort_order: nextOrder })
+    .select("id")
+    .single();
+  if (error || !data) return { ok: false, status: 500, error: error?.message || "Failed to create section" };
+
+  await supabase.from("shortlists").update({ updated_at: new Date().toISOString() }).eq("id", shortlistId);
+  return { ok: true, data: { id: data.id } };
+}
+
+/** Rename and/or reorder a draft section. */
+export async function updateSection(
+  supabase: Supabase,
+  shortlistId: string,
+  sectionId: string,
+  patch: { name?: string; sort_order?: number }
+): Promise<ServiceResult<{ success: true }>> {
+  const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.name !== undefined) {
+    const t = patch.name.trim();
+    if (!t) return { ok: false, status: 400, error: "Section name cannot be empty" };
+    updateData.name = t;
+  }
+  if (patch.sort_order !== undefined) updateData.sort_order = patch.sort_order;
+
+  const { error } = await supabase
+    .from("shortlist_draft_sections")
+    .update(updateData)
+    .eq("id", sectionId)
+    .eq("shortlist_id", shortlistId);
+  if (error) return { ok: false, status: 500, error: error.message || "Failed to update section" };
+
+  await supabase.from("shortlists").update({ updated_at: new Date().toISOString() }).eq("id", shortlistId);
+  return { ok: true, data: { success: true } };
+}
+
+/** Delete a draft section (cascades its items). Rejects deleting the last one. */
+export async function deleteSection(
+  supabase: Supabase,
+  shortlistId: string,
+  sectionId: string
+): Promise<ServiceResult<{ success: true }>> {
+  const { count } = await supabase
+    .from("shortlist_draft_sections")
+    .select("id", { count: "exact", head: true })
+    .eq("shortlist_id", shortlistId);
+  if ((count ?? 0) <= 1) {
+    return { ok: false, status: 422, error: "A curated list must keep at least one section." };
+  }
+
+  const { error } = await supabase
+    .from("shortlist_draft_sections")
+    .delete()
+    .eq("id", sectionId)
+    .eq("shortlist_id", shortlistId);
+  if (error) return { ok: false, status: 500, error: error.message || "Failed to delete section" };
+
+  await supabase.from("shortlists").update({ updated_at: new Date().toISOString() }).eq("id", shortlistId);
+  return { ok: true, data: { success: true } };
+}
+
 // ── Draft items ───────────────────────────────────────────────────────────────
 
-/** Add a plant (by plants.id uuid) to a shortlist's draft. Idempotent on (shortlist, plant). */
+/**
+ * Add a plant (by plants.id uuid) to a shortlist's draft. Idempotent on
+ * (shortlist, plant) — dedupe is list-wide. When `sectionId` is omitted the
+ * plant lands in the list's first section.
+ */
 export async function addPlantDraftItem(
   supabase: Supabase,
   shortlistId: string,
-  plantUuid: string
+  plantUuid: string,
+  sectionId?: string
 ): Promise<ServiceResult<Record<string, unknown>>> {
   const { data: existing } = await supabase
     .from("shortlist_draft_items")
@@ -183,9 +311,11 @@ export async function addPlantDraftItem(
 
   if (existing) return { ok: true, data: existing };
 
+  const targetSection = sectionId ?? (await ensureDefaultSection(supabase, shortlistId));
+
   const { data: item, error } = await supabase
     .from("shortlist_draft_items")
-    .insert({ shortlist_id: shortlistId, plant_id: plantUuid })
+    .insert({ shortlist_id: shortlistId, plant_id: plantUuid, section_id: targetSection })
     .select()
     .single();
 
@@ -292,11 +422,36 @@ export async function reviseShortlist(
     return { ok: false, status: 400, error: "No items found in latest version" };
   }
 
+  const { data: versionSections } = await supabase
+    .from("shortlist_version_sections")
+    .select("id, name, sort_order")
+    .eq("shortlist_version_id", latestVersion.id)
+    .order("sort_order", { ascending: true });
+
+  // Clear the draft: deleting draft sections cascades their items; the explicit
+  // item delete also sweeps any section-less rows (defensive).
+  await supabase.from("shortlist_draft_sections").delete().eq("shortlist_id", shortlistId);
   const { error: deleteError } = await supabase
     .from("shortlist_draft_items")
     .delete()
     .eq("shortlist_id", shortlistId);
   if (deleteError) return { ok: false, status: 500, error: "Failed to clear draft items" };
+
+  // Rehydrate draft sections from the version snapshot, mapping version→draft ids.
+  const vSectionToDraft: Record<string, string> = {};
+  let fallbackSectionId: string | null = null;
+  for (const vs of versionSections ?? []) {
+    const { data: ds } = await supabase
+      .from("shortlist_draft_sections")
+      .insert({ shortlist_id: shortlistId, name: vs.name, sort_order: vs.sort_order })
+      .select("id")
+      .single();
+    if (ds) {
+      vSectionToDraft[vs.id] = ds.id;
+      if (fallbackSectionId === null) fallbackSectionId = ds.id;
+    }
+  }
+  if (fallbackSectionId === null) fallbackSectionId = await ensureDefaultSection(supabase, shortlistId);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const draftItems = versionItems.map((item: any) => ({
@@ -306,6 +461,10 @@ export async function reviseShortlist(
     quantity: item.quantity || null,
     note: item.note || null,
     why_picked_for_balcony: item.why_picked_for_balcony || null,
+    // Plants belong to a section; accessories stay section-less (unchanged).
+    section_id: item.catalog_product_id
+      ? null
+      : (item.section_id && vSectionToDraft[item.section_id]) || fallbackSectionId,
   }));
 
   const { error: insertError } = await supabase.from("shortlist_draft_items").insert(draftItems);
@@ -374,6 +533,26 @@ export async function publishShortlist(
     return { ok: false, status: 500, error: versionError?.message || "Failed to create shortlist version" };
   }
 
+  // Snapshot draft sections → version sections, mapping draft→version ids.
+  const { data: draftSections } = await supabase
+    .from("shortlist_draft_sections")
+    .select("id, name, sort_order")
+    .eq("shortlist_id", shortlistId)
+    .order("sort_order", { ascending: true });
+  const dSectionToVersion: Record<string, string> = {};
+  let firstVersionSectionId: string | null = null;
+  for (const ds of draftSections ?? []) {
+    const { data: vs } = await supabase
+      .from("shortlist_version_sections")
+      .insert({ shortlist_version_id: version.id, name: ds.name, sort_order: ds.sort_order })
+      .select("id")
+      .single();
+    if (vs) {
+      dSectionToVersion[ds.id] = vs.id;
+      if (firstVersionSectionId === null) firstVersionSectionId = vs.id;
+    }
+  }
+
   const versionItems = draftItems
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((item: any) => item.plant_id || item.catalog_product_id)
@@ -390,6 +569,10 @@ export async function publishShortlist(
         horticulturist_note: null,
         approved: quantity !== null,
         midpoint_price: 0,
+        // Plants carry their snapshotted section; accessories stay section-less.
+        section_id: item.catalog_product_id
+          ? null
+          : (item.section_id && dSectionToVersion[item.section_id]) || firstVersionSectionId,
       };
     });
 

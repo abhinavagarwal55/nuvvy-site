@@ -3,11 +3,15 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsRole } from "@/lib/auth/ops-auth";
 import { logAuditEvent } from "@/lib/services/audit";
+import { ensureDefaultSection } from "@/lib/services/shortlists";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const bodySchema = z.object({ template_id: z.string().uuid() });
+const bodySchema = z.object({
+  template_id: z.string().uuid(),
+  section_id: z.string().uuid().optional(),
+});
 
 // Curated-list statuses where the draft is still editable (apply allowed).
 const APPLIABLE_SHORTLIST_STATUSES = ["DRAFT", "SENT_BACK_TO_CUSTOMER"];
@@ -121,6 +125,9 @@ export async function POST(
     (plants ?? []).forEach((p) => existingPlantCatalogIds.add(p.id));
   }
 
+  // Plants land in the requested section (default: the list's first section).
+  const targetSectionId = parsed.data.section_id ?? (await ensureDefaultSection(supabase, shortlistId));
+
   let added = 0;
   let skipped_duplicate = 0;
   let skipped_unavailable = 0;
@@ -163,6 +170,7 @@ export async function POST(
         quantity: t.quantity ?? null,
         note: t.note ?? null,
         why_picked_for_balcony: t.why_picked_for_balcony ?? null,
+        section_id: targetSectionId,
       });
       added++;
     }

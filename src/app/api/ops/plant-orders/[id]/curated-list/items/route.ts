@@ -13,6 +13,7 @@ const bodySchema = z
   .object({
     airtable_id: z.string().optional(),
     plant_uuid: z.string().uuid().optional(),
+    section_id: z.string().uuid().optional(),
   })
   .refine((v) => Boolean(v.airtable_id) || Boolean(v.plant_uuid), {
     message: "airtable_id or plant_uuid is required",
@@ -70,7 +71,12 @@ export async function POST(
     return NextResponse.json({ error: "Plant not found in catalog." }, { status: 404 });
   }
 
-  const result = await addPlantDraftItem(supabase, order.curated_shortlist_id, plant.id);
+  const result = await addPlantDraftItem(
+    supabase,
+    order.curated_shortlist_id,
+    plant.id,
+    parsed.data.section_id
+  );
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
@@ -79,6 +85,7 @@ export async function POST(
   return NextResponse.json({
     data: {
       id: (result.data as { id: string }).id,
+      section_id: (result.data as { section_id?: string }).section_id ?? parsed.data.section_id ?? null,
       plant_id: plant.id,
       plant: {
         id: plant.id,

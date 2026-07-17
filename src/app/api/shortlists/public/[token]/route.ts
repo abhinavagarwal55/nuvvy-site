@@ -153,6 +153,7 @@ export async function GET(
         id,
         plant_id,
         catalog_product_id,
+        section_id,
         quantity,
         note,
         why_picked_for_balcony,
@@ -196,17 +197,47 @@ export async function GET(
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const items = (versionItems || []).map((item: any) => ({
       id: item.id,
       type: item.catalog_product_id ? "accessory" : "plant",
       plant_id: item.plant_id,
       catalog_product_id: item.catalog_product_id,
+      section_id: item.section_id,
       quantity: item.quantity,
       note: item.note,
       why_picked_for_balcony: item.why_picked_for_balcony,
       plant: item.plant,
       catalog_product: item.catalog_product,
     }));
+
+    // Group PLANT items by their snapshotted section (ordered). Accessories are
+    // section-less and stay in the flat `items` list (rendered separately).
+    const { data: versionSections } = await supabase
+      .from("shortlist_version_sections")
+      .select("id, name, sort_order")
+      .eq("shortlist_version_id", versionToLoad.id)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const plantItems = items.filter((i: any) => i.type === "plant");
+    const sections = (versionSections ?? []).map((s: any) => ({
+      id: s.id as string,
+      name: s.name as string,
+      sort_order: s.sort_order as number,
+      items: plantItems.filter((i: any) => i.section_id === s.id),
+    }));
+    // Defensive: if a version predates sections (shouldn't after backfill) OR
+    // some plants have no section, park the orphans in a single default section
+    // so the customer page never drops items.
+    const orphanPlants = plantItems.filter((i: any) => !sections.some((s) => s.items.includes(i)));
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    if (sections.length === 0 && plantItems.length > 0) {
+      sections.push({ id: "default", name: "Plants", sort_order: 0, items: plantItems });
+    } else if (orphanPlants.length > 0 && sections.length > 0) {
+      sections[0].items = [...sections[0].items, ...orphanPlants];
+    }
 
     return NextResponse.json({
       version: {
@@ -216,6 +247,7 @@ export async function GET(
         created_at: versionToLoad.created_at,
       },
       items,
+      sections,
       customer_name: customerName || null,
       shortlist_title: shortlistData?.title || null,
       shortlist_description: shortlistData?.description || null,

@@ -6,6 +6,7 @@ import {
   createShortlistWithItems,
   getExistingPublicUrl,
   updateShortlistMeta,
+  ensureDefaultSection,
 } from "@/lib/services/shortlists";
 
 export const dynamic = "force-dynamic";
@@ -42,14 +43,56 @@ async function loadCuratedList(supabase: Supabase, shortlistId: string) {
     derivedStatus = "CUSTOMER_SUBMITTED";
   }
 
+  let { data: sectionRows } = await supabase
+    .from("shortlist_draft_sections")
+    .select("id, name, sort_order")
+    .eq("shortlist_id", shortlistId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  // Self-heal: a curated list must always have >=1 section (a pre-migration
+  // empty list may have none). Create a default one and re-read.
+  if (!sectionRows || sectionRows.length === 0) {
+    await ensureDefaultSection(supabase, shortlistId);
+    ({ data: sectionRows } = await supabase
+      .from("shortlist_draft_sections")
+      .select("id, name, sort_order")
+      .eq("shortlist_id", shortlistId)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true }));
+  }
+
   const { data: items } = await supabase
     .from("shortlist_draft_items")
     .select(
-      `id, plant_id, catalog_product_id, quantity, note, why_picked_for_balcony, created_at,
+      `id, plant_id, catalog_product_id, section_id, quantity, note, why_picked_for_balcony, created_at,
        plant:plants ( id, name, scientific_name, price_band, thumbnail_url, thumbnail_storage_url )`
     )
     .eq("shortlist_id", shortlistId)
     .order("created_at", { ascending: true });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapped = (items ?? []).map((i: any) => ({
+    id: i.id,
+    plant_id: i.plant_id,
+    catalog_product_id: i.catalog_product_id,
+    section_id: i.section_id,
+    type: i.catalog_product_id ? "accessory" : "plant",
+    quantity: i.quantity,
+    note: i.note,
+    why_picked_for_balcony: i.why_picked_for_balcony,
+    plant: i.plant,
+  }));
+
+  // Group PLANT items under their section (accessories stay in the flat list).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sections = (sectionRows ?? []).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    sort_order: s.sort_order,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    items: mapped.filter((m: any) => m.type === "plant" && m.section_id === s.id),
+  }));
 
   return {
     id: shortlist.id,
@@ -58,17 +101,8 @@ async function loadCuratedList(supabase: Supabase, shortlistId: string) {
     status: derivedStatus,
     current_version_number: shortlist.current_version_number || 0,
     updated_at: shortlist.updated_at,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    items: (items ?? []).map((i: any) => ({
-      id: i.id,
-      plant_id: i.plant_id,
-      catalog_product_id: i.catalog_product_id,
-      type: i.catalog_product_id ? "accessory" : "plant",
-      quantity: i.quantity,
-      note: i.note,
-      why_picked_for_balcony: i.why_picked_for_balcony,
-      plant: i.plant,
-    })),
+    sections,
+    items: mapped,
   };
 }
 
