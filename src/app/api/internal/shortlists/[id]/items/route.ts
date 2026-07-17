@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { logAuditEvent } from "@/lib/services/audit";
+import { addPlantDraftItem } from "@/lib/services/shortlists";
 
 // Force dynamic behavior
 export const dynamic = "force-dynamic";
@@ -129,50 +130,12 @@ export async function POST(
       return NextResponse.json({ data: item, error: null });
     }
 
-    // Plant path — preserve existing behavior exactly
-    const { data: existing } = await supabase
-      .from("shortlist_draft_items")
-      .select("id")
-      .eq("shortlist_id", id)
-      .eq("plant_id", plant_id!)
-      .single();
-
-    if (existing) {
-      return NextResponse.json(
-        { data: existing, error: null },
-        { status: 200 }
-      );
+    // Plant path — shared with the ops curated-list surface.
+    const result = await addPlantDraftItem(supabase, id, plant_id!);
+    if (!result.ok) {
+      return NextResponse.json({ data: null, error: result.error }, { status: result.status });
     }
-
-    const { data: item, error: insertError } = await supabase
-      .from("shortlist_draft_items")
-      .insert({
-        shortlist_id: id,
-        plant_id: plant_id!,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("Error creating item - full Supabase error:", insertError);
-      return NextResponse.json(
-        {
-          data: null,
-          error: insertError.message || insertError.details || "Failed to add plant to shortlist",
-        },
-        { status: 500 }
-      );
-    }
-
-    await supabase
-      .from("shortlists")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    return NextResponse.json({
-      data: item,
-      error: null,
-    });
+    return NextResponse.json({ data: result.data, error: null });
   } catch (err) {
     console.error("Error in POST /api/internal/shortlists/[id]/items - full error:", err);
     const errorMessage = err instanceof Error ? err.message : "Internal server error";

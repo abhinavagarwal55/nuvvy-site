@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createShortlistWithItems } from "@/lib/services/shortlists";
 
 // Force dynamic behavior
 export const dynamic = "force-dynamic";
@@ -123,99 +124,31 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { customer_uuid, title, description, status, items } = body;
-    
-    console.log("Received shortlist creation request:", { customer_uuid, title, status, itemsCount: items?.length || 0 });
-    
-    // Validation
-    if (!customer_uuid) {
-      console.error("customer_uuid is missing or empty:", customer_uuid);
-      return NextResponse.json(
-        { error: "Customer UUID is required" },
-        { status: 400 }
-      );
-    }
-    
-    if (!title?.trim()) {
-      return NextResponse.json(
-        { error: "Title is required" },
-        { status: 400 }
-      );
-    }
-    
+
+    // Legacy CMS create: status MUST be DRAFT and the customer must be ACTIVE.
+    // Both invariants are preserved — createShortlistWithItems enforces the
+    // ACTIVE-customer rule via requireActiveCustomer; the DRAFT check stays here.
     if (!status || status !== "DRAFT") {
-      return NextResponse.json(
-        { error: "Status must be DRAFT" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Status must be DRAFT" }, { status: 400 });
     }
-    
+
     const supabase = getSupabaseAdmin();
-    
-    // Verify customer exists and is ACTIVE
-    const { data: customer, error: customerError } = await supabase
-      .from("customers")
-      .select("id, status")
-      .eq("id", customer_uuid)
-      .single();
-    
-    if (customerError || !customer) {
-      return NextResponse.json(
-        { error: "Customer not found" },
-        { status: 404 }
-      );
+    const result = await createShortlistWithItems(supabase, {
+      customerId: customer_uuid,
+      title,
+      description,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      items: Array.isArray(items) ? items.map((i: any) => ({ plant_id: i.plant_id })) : [],
+      requireActiveCustomer: true,
+    });
+
+    if (!result.ok) {
+      const msg =
+        result.error === "Customer is required" ? "Customer UUID is required" : result.error;
+      return NextResponse.json({ error: msg }, { status: result.status });
     }
-    
-    if (customer.status !== "ACTIVE") {
-      return NextResponse.json(
-        { error: "Shortlists can only be created for ACTIVE customers" },
-        { status: 400 }
-      );
-    }
-    
-    // Create shortlist (items will be created separately in Step 1)
-    const { data: shortlist, error: shortlistError } = await supabase
-      .from("shortlists")
-      .insert({
-        customer_id: customer_uuid,
-        customer_uuid,
-        title: title.trim(),
-        description: description?.trim() || null,
-        status,
-      })
-      .select()
-      .single();
-    
-    if (shortlistError || !shortlist) {
-      console.error("Supabase error creating shortlist:", shortlistError);
-      return NextResponse.json(
-        { error: shortlistError?.message || "Failed to create shortlist" },
-        { status: 500 }
-      );
-    }
-    
-    // If items are provided, create draft items with ONLY shortlist_id and plant_id
-    if (items && Array.isArray(items) && items.length > 0) {
-      const itemsToInsert = items.map((item: any) => ({
-        shortlist_id: shortlist.id,
-        plant_id: item.plant_id,
-      }));
-      
-      const { error: itemsError } = await supabase
-        .from("shortlist_draft_items")
-        .insert(itemsToInsert);
-      
-      if (itemsError) {
-        console.error("Supabase error creating items:", itemsError);
-        // Rollback: delete the shortlist
-        await supabase.from("shortlists").delete().eq("id", shortlist.id);
-        return NextResponse.json(
-          { error: `Failed to create shortlist items: ${itemsError.message}` },
-          { status: 500 }
-        );
-      }
-    }
-    
-    return NextResponse.json({ data: shortlist }, { status: 201 });
+
+    return NextResponse.json({ data: result.data }, { status: 201 });
   } catch (err) {
     console.error("Error in POST /api/internal/shortlists:", err);
     return NextResponse.json(

@@ -350,6 +350,11 @@ export async function DELETE(
     );
   }
 
+  // Unbind any order-scoped curated shortlist first — shortlists.plant_order_id
+  // references this order and would otherwise block the delete. The shortlist
+  // itself is preserved (non-destructive); it simply loses its order link.
+  await supabase.from("shortlists").update({ plant_order_id: null }).eq("plant_order_id", id);
+
   // Cascades to plant_order_items and plant_order_notes via ON DELETE CASCADE.
   const { error } = await supabase.from("plant_orders").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

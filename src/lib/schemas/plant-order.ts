@@ -108,6 +108,13 @@ export const PLANT_ORDER_ITEM_STATUS_LABELS: Record<PlantOrderItemStatus, string
 export const REQUEST_SOURCES = ["customer_requested", "replacement"] as const;
 export const requestSourceSchema = z.enum(REQUEST_SOURCES);
 
+// Provenance of a line item: hand-entered by ops ('manual', the default) or
+// materialized from a confirmed curated plant list ('curated'). Both coexist on
+// an order; reconcile-on-reconfirm only touches non-procured 'curated' rows.
+export const PLANT_ORDER_ITEM_SOURCES = ["manual", "curated"] as const;
+export const plantOrderItemSourceSchema = z.enum(PLANT_ORDER_ITEM_SOURCES);
+export type PlantOrderItemSource = (typeof PLANT_ORDER_ITEM_SOURCES)[number];
+
 // ── Create / update payloads ─────────────────────────────────────────────────
 
 const orderItemInputSchema = z.object({

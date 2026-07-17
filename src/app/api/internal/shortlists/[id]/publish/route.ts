@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { createHash } from "crypto";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { publishShortlist } from "@/lib/services/shortlists";
 
 // Force dynamic behavior
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-// Create Supabase client with service role
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
 
 // POST /api/internal/shortlists/[id]/publish
 export async function POST(
@@ -29,210 +22,24 @@ export async function POST(
     }
 
     const supabase = getSupabaseAdmin();
+    const result = await publishShortlist(supabase, id, request);
 
-    // Fetch shortlist
-    const { data: shortlist, error: shortlistError } = await supabase
-      .from("shortlists")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (shortlistError || !shortlist) {
-      return NextResponse.json(
-        { data: null, error: "Shortlist not found" },
-        { status: 404 }
-      );
+    if (!result.ok) {
+      return NextResponse.json({ data: null, error: result.error }, { status: result.status });
     }
-
-    // Fetch all draft items
-    const { data: draftItems, error: itemsError } = await supabase
-      .from("shortlist_draft_items")
-      .select("*")
-      .eq("shortlist_id", id);
-
-    if (itemsError) {
-      console.error("Error fetching draft items:", itemsError);
-      return NextResponse.json(
-        { data: null, error: "Failed to fetch draft items" },
-        { status: 500 }
-      );
-    }
-
-    if (!draftItems || draftItems.length === 0) {
-      return NextResponse.json(
-        { data: null, error: "Cannot publish shortlist with no items" },
-        { status: 400 }
-      );
-    }
-
-    // Calculate estimated_total: sum of (midpoint_price * quantity) for all items
-    // Since we don't have actual prices, use 0 for midpoint_price per item
-    // This results in estimated_total = 0
-    const estimatedTotal = 0;
-
-    // Create shortlist version
-    // Calculate next version number
-    const currentVersionNumber = shortlist.current_version_number || 0;
-    const nextVersionNumber = currentVersionNumber + 1;
-
-    const { data: version, error: versionError } = await supabase
-      .from("shortlist_versions")
-      .insert({
-        shortlist_id: id,
-        version_number: nextVersionNumber,
-        status_at_time: "SENT_TO_CUSTOMER",
-        created_by_role: "HORTICULTURIST",
-        estimated_total: estimatedTotal,
-      })
-      .select()
-      .single();
-
-    if (versionError || !version) {
-      console.error("Error creating version:", versionError);
-      return NextResponse.json(
-        { data: null, error: versionError?.message || "Failed to create shortlist version" },
-        { status: 500 }
-      );
-    }
-
-    // Copy draft items to version items.
-    // WS-B: polymorphic — each draft item has either plant_id OR
-    // catalog_product_id (CHECK constraint enforces exactly one).
-    // Filter ensures we only copy valid rows (defensive).
-    const versionItems = draftItems
-      .filter((item: any) => item.plant_id || item.catalog_product_id)
-      .map((item: any) => {
-        const quantity = item.quantity != null && item.quantity > 0 ? item.quantity : null;
-        return {
-          shortlist_version_id: version.id,
-          plant_id: item.plant_id ?? null,
-          catalog_product_id: item.catalog_product_id ?? null,
-          quantity: quantity,
-          note: item.note || null,
-          why_picked_for_balcony: item.why_picked_for_balcony || null,
-          horticulturist_note: null,
-          // approved=true requires quantity. Accessories follow the same rule.
-          approved: quantity !== null,
-          midpoint_price: 0,
-        };
-      });
-
-    const { error: versionItemsError } = await supabase
-      .from("shortlist_version_items")
-      .insert(versionItems);
-
-    if (versionItemsError) {
-      console.error("Error creating version items:", versionItemsError);
-      console.error("Version items that failed:", JSON.stringify(versionItems, null, 2));
-      // Rollback: delete the version
-      await supabase.from("shortlist_versions").delete().eq("id", version.id);
-      return NextResponse.json(
-        { data: null, error: `Failed to create version items: ${versionItemsError.message || versionItemsError.details || "Unknown error"}` },
-        { status: 500 }
-      );
-    }
-
-    // Update shortlist status to sent to customer and increment version number
-    const { error: updateError } = await supabase
-      .from("shortlists")
-      .update({ 
-        status: "SENT_TO_CUSTOMER",
-        current_version_number: nextVersionNumber,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (updateError) {
-      console.error("Error updating shortlist status:", updateError);
-      // Note: Version and items are already created, so we don't rollback
-      // The shortlist status update failure is non-critical
-    }
-
-    // Helper to get canonical public base URL (strips internal subdomains/paths)
-    const getPublicBaseUrl = (): string => {
-      // Priority 1: Use explicit NEXT_PUBLIC_BASE_URL if set
-      if (process.env.NEXT_PUBLIC_BASE_URL) {
-        let baseUrl = process.env.NEXT_PUBLIC_BASE_URL.trim();
-        // Strip trailing slash
-        if (baseUrl.endsWith("/")) {
-          baseUrl = baseUrl.slice(0, -1);
-        }
-        // Guard: strip /internal path if present
-        baseUrl = baseUrl.replace(/\/internal\/?$/, "");
-        // Guard: strip internal. subdomain if present
-        baseUrl = baseUrl.replace(/^https?:\/\/internal\./, (match) => match.replace("internal.", ""));
-        return baseUrl;
-      }
-
-      // Priority 2: Derive from request headers
-      const host = request.headers.get("host") || "localhost:3000";
-      const protocol = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
-      
-      // Guard: strip internal. subdomain
-      let cleanHost = host.replace(/^internal\./, "");
-      // Guard: strip /internal path (if host includes path)
-      cleanHost = cleanHost.split("/")[0];
-      
-      const baseUrl = `${protocol}://${cleanHost}`;
-      return baseUrl;
-    };
-
-    // Get or create stable public link
-    const getOrCreateActiveLink = async (shortlistId: string): Promise<string | null> => {
-      // Check for existing active link
-      const { data: existingLink } = await supabase
-        .from("shortlist_public_links")
-        .select("id, token_hash")
-        .eq("shortlist_id", shortlistId)
-        .eq("active", true)
-        .limit(1)
-        .maybeSingle();
-
-      // Generate deterministic token (same for same shortlist_id)
-      const secret = process.env.SHORTLIST_LINK_SECRET || "default-secret-change-in-production";
-      const token = createHash("sha256").update(`${shortlistId}-${secret}`).digest("hex").substring(0, 32);
-      const tokenHash = createHash("sha256").update(token).digest("hex");
-
-      const baseUrl = getPublicBaseUrl();
-
-      if (existingLink) {
-        // Link exists - return URL using deterministic token
-        // /s/:token is the public customer-facing shortlist route
-        return `${baseUrl}/s/${token}`;
-      }
-
-      // No link exists - create one with deterministic token
-      const { data: publicLink, error: linkError } = await supabase
-        .from("shortlist_public_links")
-        .insert({
-          shortlist_id: shortlistId,
-          token_hash: tokenHash,
-          active: true,
-        })
-        .select()
-        .single();
-
-      if (linkError) {
-        console.error("Error creating public link:", linkError);
-        return null;
-      }
-
-      // /s/:token is the public customer-facing shortlist route
-      return `${baseUrl}/s/${token}`;
-    };
-
-    const publicUrl = await getOrCreateActiveLink(id);
 
     return NextResponse.json({
-      data: { success: true, version_id: version.id, version_number: nextVersionNumber, publicUrl },
+      data: {
+        success: true,
+        version_id: result.data.version_id,
+        version_number: result.data.version_number,
+        publicUrl: result.data.publicUrl,
+      },
       error: null,
     });
   } catch (err) {
     console.error("Error in POST /api/internal/shortlists/[id]/publish - full error:", err);
     const errorMessage = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json(
-      { data: null, error: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json({ data: null, error: errorMessage }, { status: 500 });
   }
 }

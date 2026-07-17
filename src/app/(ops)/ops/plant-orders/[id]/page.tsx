@@ -20,6 +20,7 @@ import {
 import { formatDate } from "@/lib/utils/format-date";
 import { isOverdue, isDueToday, relativeTime, formatTimestamp } from "@/components/ops/leads/leadConstants";
 import PlantSelector from "@/components/ops/PlantSelector";
+import CuratedListPanel from "./CuratedListPanel";
 import {
   ORDER_TRANSITIONS,
   PLANT_ORDER_STATUS_LABELS,
@@ -62,6 +63,7 @@ type OrderItem = {
   plant_name: string;
   quantity: number;
   note: string | null;
+  source: "manual" | "curated" | null;
   status: PlantOrderItemStatus;
   qty_procured: number | null;
   actual_unit_price: number | null;
@@ -334,6 +336,23 @@ export default function PlantOrderDetailPage() {
   const procuredCount = order.items.filter((i) => i.status === "procured").length;
   const onTripCount = order.items.filter((i) => i.status === "on_trip").length;
 
+  // Same plant appearing as BOTH a manual and a curated row — flagged, never
+  // auto-merged (LOCKED DESIGN DECISIONS).
+  const duplicatePlantIds = (() => {
+    const manual = new Set<string>();
+    const curated = new Set<string>();
+    order.items.forEach((i) => {
+      if (!i.plant_id) return;
+      if (i.source === "curated") curated.add(i.plant_id);
+      else manual.add(i.plant_id); // null/legacy source treated as manual
+    });
+    const dup = new Set<string>();
+    manual.forEach((pid) => {
+      if (curated.has(pid)) dup.add(pid);
+    });
+    return dup;
+  })();
+
   const followUpDirty = (followUp || "") !== (order.next_follow_up_at || "");
 
   return (
@@ -492,6 +511,16 @@ export default function PlantOrderDetailPage() {
           )}
         </div>
 
+        {/* ── Curated plant list (order-bound shortlist) ────────────────────── */}
+        <CuratedListPanel
+          orderId={order.id}
+          orderStatus={order.status}
+          onChanged={() => {
+            load();
+            loadHistory();
+          }}
+        />
+
         {/* ── Procurement rollup (read-only, links to Procurement) ──────────── */}
         <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
           <div className="flex items-center justify-between mb-1">
@@ -542,7 +571,14 @@ export default function PlantOrderDetailPage() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-charcoal">{item.plant_name}</p>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="text-sm font-medium text-charcoal truncate">{item.plant_name}</p>
+                          {item.source === "curated" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-forest/10 text-forest">
+                              Curated
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className="text-sm font-semibold text-charcoal bg-cream border border-stone/40 px-2.5 py-0.5 rounded-lg">
                             Qty: {item.quantity}
@@ -552,6 +588,11 @@ export default function PlantOrderDetailPage() {
                           </span>
                         </div>
                       </div>
+                      {item.plant_id && duplicatePlantIds.has(item.plant_id) && (
+                        <p className="text-xs text-amber-700 mt-0.5">
+                          Possible duplicate — this plant is on both the manual and curated list.
+                        </p>
+                      )}
                       {item.note && <p className="text-xs text-sage mt-0.5">{item.note}</p>}
                       {item.qty_procured != null && (
                         <p className="text-xs text-forest mt-0.5">

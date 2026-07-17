@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { couplePlantOrderOnCuratedConfirm } from "@/lib/services/shortlists";
 
 // Force dynamic behavior
 export const dynamic = "force-dynamic";
@@ -229,9 +230,24 @@ export async function POST(
       );
     }
 
-    // Step 6: Return success response
+    // Step 6: If this shortlist is bound to a plant order (curated list), run
+    // the order-coupling routine: guarded status advance, confirmation stamp,
+    // PLANT-item materialization, audit. No-op for legacy CMS shortlists.
+    // Wrapped so a coupling failure never breaks the customer's submission.
+    let orderCoupling: Awaited<ReturnType<typeof couplePlantOrderOnCuratedConfirm>> | null = null;
+    try {
+      orderCoupling = await couplePlantOrderOnCuratedConfirm(supabase, {
+        shortlistId,
+        versionId: newVersion.id,
+      });
+    } catch (couplingErr) {
+      console.error("Curated-list order coupling failed (non-fatal):", couplingErr);
+    }
+
+    // Step 7: Return success response
     return NextResponse.json({
       version: nextVersionNumber,
+      order_coupling: orderCoupling,
     });
   } catch (err) {
     console.error("Error in POST /api/shortlists/public/[token]/finalize:", err);
