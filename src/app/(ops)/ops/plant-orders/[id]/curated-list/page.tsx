@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import PlantSelector from "@/components/ops/PlantSelector";
 import TemplatePicker from "@/components/ops/TemplatePicker";
+import AccessoryPicker, { type AccessoryResult } from "@/components/ops/AccessoryPicker";
+import { Package } from "lucide-react";
 
 const INPUT_CLS =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest placeholder:text-stone";
@@ -35,15 +37,30 @@ type CuratedPlant = {
   thumbnail_storage_url: string | null;
 };
 
+type CuratedAccessory = {
+  id: string;
+  name: string;
+  brand: string | null;
+  category: string | null;
+  price_inr: number | null;
+  status: string;
+  thumbnail_url: string | null;
+  thumbnail_storage_url: string | null;
+  image_url?: string | null;
+  image_storage_url?: string | null;
+};
+
 type CuratedItem = {
   id: string;
   plant_id: string | null;
+  catalog_product_id?: string | null;
   section_id: string | null;
   type: "plant" | "accessory";
   quantity: number | null;
   note: string | null;
   why_picked_for_balcony: string | null;
   plant: CuratedPlant | null;
+  catalog_product?: CuratedAccessory | null;
 };
 
 type CuratedSection = {
@@ -51,6 +68,7 @@ type CuratedSection = {
   name: string;
   sort_order: number;
   items: CuratedItem[];
+  accessories: CuratedItem[];
 };
 
 type CuratedData = {
@@ -118,6 +136,7 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
   const [selectorBump, setSelectorBump] = useState<Record<string, number>>({});
   const [focusSectionId, setFocusSectionId] = useState<string | null>(null);
   const sectionInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const [accessoryPickerSection, setAccessoryPickerSection] = useState<string | null>(null);
 
   // After a new section is added, focus + select its name input for inline typing.
   useEffect(() => {
@@ -239,7 +258,7 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
     const ok = await call(
       `/api/ops/plant-orders/${orderId}/curated-list/items/${itemId}`,
       { method: "DELETE" },
-      "Failed to remove plant"
+      "Failed to remove item"
     );
     if (!ok) return;
     setData((prev) =>
@@ -248,11 +267,60 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
             ...prev,
             list: {
               ...prev.list,
-              sections: prev.list.sections.map((s) => ({ ...s, items: s.items.filter((i) => i.id !== itemId) })),
+              sections: prev.list.sections.map((s) => ({
+                ...s,
+                items: s.items.filter((i) => i.id !== itemId),
+                accessories: s.accessories.filter((i) => i.id !== itemId),
+              })),
             },
           }
         : prev
     );
+  }
+
+  async function handleAddAccessory(sectionId: string, product: AccessoryResult) {
+    setError(null);
+    setBusy(true);
+    const res = await fetch(`/api/ops/plant-orders/${orderId}/curated-list/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ catalog_product_id: product.id, section_id: sectionId }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setError(typeof json.error === "string" ? json.error : "Failed to add accessory");
+      return;
+    }
+    const json = await res.json();
+    const added = json.data as { id: string; catalog_product_id: string; catalog_product: CuratedAccessory } | null;
+    if (!added?.id) return;
+    setData((prev) => {
+      if (!prev) return prev;
+      const already = prev.list.sections.some((s) => s.accessories.some((a) => a.id === added.id));
+      if (already) return prev;
+      const newItem: CuratedItem = {
+        id: added.id,
+        plant_id: null,
+        catalog_product_id: added.catalog_product_id,
+        section_id: sectionId,
+        type: "accessory",
+        quantity: null,
+        note: null,
+        why_picked_for_balcony: null,
+        plant: null,
+        catalog_product: added.catalog_product,
+      };
+      return {
+        ...prev,
+        list: {
+          ...prev.list,
+          sections: prev.list.sections.map((s) =>
+            s.id === sectionId ? { ...s, accessories: [...s.accessories, newItem] } : s
+          ),
+        },
+      };
+    });
   }
 
   // ── Sections ────────────────────────────────────────────────────────────────
@@ -713,6 +781,60 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
                 </div>
               )}
 
+              {/* Recommended accessories for this section */}
+              <div className="pt-2 border-t border-stone/30 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Package size={13} className="text-sage" />
+                  <p className="text-[11px] font-medium text-sage uppercase tracking-widest">Recommended accessories</p>
+                </div>
+                {sec.accessories.length === 0 ? (
+                  <p className="text-xs text-stone">
+                    None yet — pots, baskets etc. the customer sees after confirming plants in this section.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {sec.accessories.map((acc) => {
+                      const cp = acc.catalog_product;
+                      const thumb =
+                        cp?.thumbnail_storage_url || cp?.thumbnail_url || cp?.image_storage_url || cp?.image_url || null;
+                      return (
+                        <div key={acc.id} className="flex items-center gap-2.5 border border-stone/40 rounded-lg p-2">
+                          {thumb ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={thumb} alt={cp?.name ?? "Accessory"} className="w-9 h-9 rounded-lg object-cover border border-stone/40 flex-shrink-0" />
+                          ) : (
+                            <div className="w-9 h-9 bg-forest/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <Package size={15} className="text-forest" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-charcoal truncate">{cp?.name ?? "Accessory"}</p>
+                            <p className="text-[11px] text-sage truncate">
+                              {cp?.brand ? `${cp.brand} · ` : ""}
+                              {cp?.category ?? ""}
+                              {cp?.price_inr != null ? ` · ₹${cp.price_inr.toLocaleString("en-IN")}` : ""}
+                            </p>
+                          </div>
+                          {editable && (
+                            <button onClick={() => handleRemove(acc.id)} disabled={busy} className="text-stone hover:text-terra disabled:opacity-40 flex-shrink-0" aria-label="Remove accessory">
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {editable && (
+                  <button
+                    onClick={() => setAccessoryPickerSection(sec.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
+                  >
+                    <Plus size={14} /> Add accessory
+                  </button>
+                )}
+              </div>
+
               {cost && (
                 <div className="pt-2 border-t border-stone/30 flex items-center justify-between">
                   <span className="text-xs text-sage">Section subtotal</span>
@@ -788,6 +910,20 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
             setShowTemplatePicker(false);
             setTemplateTargetSection(null);
           }}
+        />
+      )}
+
+      {accessoryPickerSection && (
+        <AccessoryPicker
+          alreadyAddedIds={
+            new Set(
+              (sections.find((s) => s.id === accessoryPickerSection)?.accessories ?? [])
+                .map((a) => a.catalog_product_id)
+                .filter((x): x is string => Boolean(x))
+            )
+          }
+          onSelect={(product) => handleAddAccessory(accessoryPickerSection, product)}
+          onClose={() => setAccessoryPickerSection(null)}
         />
       )}
     </div>

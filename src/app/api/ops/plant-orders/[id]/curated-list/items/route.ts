@@ -2,22 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { requireOpsRole } from "@/lib/auth/ops-auth";
-import { addPlantDraftItem, updateDraftItems } from "@/lib/services/shortlists";
+import { addPlantDraftItem, addAccessoryDraftItem, updateDraftItems } from "@/lib/services/shortlists";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // PlantSelector returns plants.airtable_id (the plant-order identifier); shortlist
 // draft items key on plants.id (uuid), so we accept either and resolve to the uuid.
+// Accessories are added by catalog_product_id (catalog_products.id uuid).
 const bodySchema = z
   .object({
     airtable_id: z.string().optional(),
     plant_uuid: z.string().uuid().optional(),
+    catalog_product_id: z.string().uuid().optional(),
     section_id: z.string().uuid().optional(),
   })
-  .refine((v) => Boolean(v.airtable_id) || Boolean(v.plant_uuid), {
-    message: "airtable_id or plant_uuid is required",
-  });
+  .refine(
+    (v) => Boolean(v.airtable_id) || Boolean(v.plant_uuid) || Boolean(v.catalog_product_id),
+    { message: "A plant or accessory reference is required" }
+  );
 
 // POST /api/ops/plant-orders/[id]/curated-list/items — add a plant to the list.
 export async function POST(
@@ -57,6 +60,35 @@ export async function POST(
       { error: "The curated list is locked once the order leaves 'interested' / 'finalizing'." },
       { status: 422 }
     );
+  }
+
+  // ── Accessory branch (recommended accessory for a section) ────────────────
+  if (parsed.data.catalog_product_id) {
+    const { data: cp } = await supabase
+      .from("catalog_products")
+      .select("id, name, brand, category, price_inr, status, thumbnail_url, thumbnail_storage_url, image_url, image_storage_url, amazon_asin, amazon_url")
+      .eq("id", parsed.data.catalog_product_id)
+      .maybeSingle();
+    if (!cp || cp.status !== "active") {
+      return NextResponse.json({ error: "This accessory is no longer in the catalog." }, { status: 400 });
+    }
+    const accResult = await addAccessoryDraftItem(
+      supabase,
+      order.curated_shortlist_id,
+      cp.id,
+      parsed.data.section_id
+    );
+    if (!accResult.ok) {
+      return NextResponse.json({ error: accResult.error }, { status: accResult.status });
+    }
+    return NextResponse.json({
+      data: {
+        id: (accResult.data as { id: string }).id,
+        section_id: (accResult.data as { section_id?: string }).section_id ?? parsed.data.section_id ?? null,
+        catalog_product_id: cp.id,
+        catalog_product: cp,
+      },
+    });
   }
 
   // Resolve to the full plant row so we can echo it back for an optimistic

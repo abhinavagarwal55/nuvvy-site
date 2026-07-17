@@ -327,6 +327,42 @@ export async function addPlantDraftItem(
   return { ok: true, data: item };
 }
 
+/**
+ * Add an accessory (by catalog_products.id uuid) to a section's recommended
+ * accessories. Idempotent on (shortlist, catalog_product). Accessories are
+ * ordinary polymorphic draft items tagged with section_id — never procured.
+ */
+export async function addAccessoryDraftItem(
+  supabase: Supabase,
+  shortlistId: string,
+  catalogProductId: string,
+  sectionId?: string
+): Promise<ServiceResult<Record<string, unknown>>> {
+  const { data: existing } = await supabase
+    .from("shortlist_draft_items")
+    .select("id")
+    .eq("shortlist_id", shortlistId)
+    .eq("catalog_product_id", catalogProductId)
+    .maybeSingle();
+
+  if (existing) return { ok: true, data: existing };
+
+  const targetSection = sectionId ?? (await ensureDefaultSection(supabase, shortlistId));
+
+  const { data: item, error } = await supabase
+    .from("shortlist_draft_items")
+    .insert({ shortlist_id: shortlistId, catalog_product_id: catalogProductId, section_id: targetSection })
+    .select()
+    .single();
+
+  if (error || !item) {
+    return { ok: false, status: 500, error: error?.message || "Failed to add accessory" };
+  }
+
+  await supabase.from("shortlists").update({ updated_at: new Date().toISOString() }).eq("id", shortlistId);
+  return { ok: true, data: item };
+}
+
 /** Remove a draft item by id (scoped to the shortlist). */
 export async function removeDraftItem(
   supabase: Supabase,
@@ -461,10 +497,11 @@ export async function reviseShortlist(
     quantity: item.quantity || null,
     note: item.note || null,
     why_picked_for_balcony: item.why_picked_for_balcony || null,
-    // Plants belong to a section; accessories stay section-less (unchanged).
-    section_id: item.catalog_product_id
-      ? null
-      : (item.section_id && vSectionToDraft[item.section_id]) || fallbackSectionId,
+    // Both plants and accessories keep their section; a section-less plant
+    // falls back to the first section, a section-less accessory stays null.
+    section_id:
+      (item.section_id && vSectionToDraft[item.section_id]) ||
+      (item.catalog_product_id ? null : fallbackSectionId),
   }));
 
   const { error: insertError } = await supabase.from("shortlist_draft_items").insert(draftItems);
@@ -569,10 +606,12 @@ export async function publishShortlist(
         horticulturist_note: null,
         approved: quantity !== null,
         midpoint_price: 0,
-        // Plants carry their snapshotted section; accessories stay section-less.
-        section_id: item.catalog_product_id
-          ? null
-          : (item.section_id && dSectionToVersion[item.section_id]) || firstVersionSectionId,
+        // Both plants and accessories carry their snapshotted section. A plant
+        // with no mapped section falls back to the first section; an accessory
+        // with no section stays section-less.
+        section_id:
+          (item.section_id && dSectionToVersion[item.section_id]) ||
+          (item.catalog_product_id ? null : firstVersionSectionId),
       };
     });
 

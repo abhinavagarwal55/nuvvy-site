@@ -211,10 +211,13 @@ export async function POST(
         };
       });
 
-    // Fetch accessory rows from the source SENT version and clone them
+    // Fetch section-scoped accessory rows from the source SENT version and clone
+    // them forward as recommendations (approved=false), preserving section_id so
+    // the post-confirmation accessories step can tailor them to the customer's
+    // selected sections.
     const { data: sourceAccessories } = await supabase
       .from("shortlist_version_items")
-      .select("catalog_product_id, quantity, note, why_picked_for_balcony, horticulturist_note, approved, midpoint_price")
+      .select("catalog_product_id, section_id, quantity, note, why_picked_for_balcony, horticulturist_note, midpoint_price")
       .eq("shortlist_version_id", latestVersion.id)
       .not("catalog_product_id", "is", null);
 
@@ -226,8 +229,9 @@ export async function POST(
       note: row.note,
       why_picked_for_balcony: row.why_picked_for_balcony,
       horticulturist_note: row.horticulturist_note,
-      approved: row.approved ?? false,
+      approved: false,
       midpoint_price: row.midpoint_price ?? 0,
+      section_id: (row.section_id && sentSectionToNew[row.section_id]) || null,
     }));
 
     const versionItems = [...plantVersionItems, ...accessoryVersionItems];

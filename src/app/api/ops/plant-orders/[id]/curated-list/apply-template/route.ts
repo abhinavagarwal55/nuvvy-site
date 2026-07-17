@@ -151,6 +151,7 @@ export async function POST(
         quantity: t.quantity ?? null,
         note: t.note ?? null,
         why_picked_for_balcony: t.why_picked_for_balcony ?? null,
+        section_id: targetSectionId,
       });
       added++;
     } else if (t.plant_id) {

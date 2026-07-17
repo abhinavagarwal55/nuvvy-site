@@ -66,7 +66,8 @@ async function loadCuratedList(supabase: Supabase, shortlistId: string) {
     .from("shortlist_draft_items")
     .select(
       `id, plant_id, catalog_product_id, section_id, quantity, note, why_picked_for_balcony, created_at,
-       plant:plants ( id, name, scientific_name, price_band, thumbnail_url, thumbnail_storage_url )`
+       plant:plants ( id, name, scientific_name, price_band, thumbnail_url, thumbnail_storage_url ),
+       catalog_product:catalog_products ( id, name, brand, category, price_inr, status, thumbnail_url, thumbnail_storage_url, image_url, image_storage_url, amazon_asin, amazon_url )`
     )
     .eq("shortlist_id", shortlistId)
     .order("created_at", { ascending: true });
@@ -82,9 +83,10 @@ async function loadCuratedList(supabase: Supabase, shortlistId: string) {
     note: i.note,
     why_picked_for_balcony: i.why_picked_for_balcony,
     plant: i.plant,
+    catalog_product: i.catalog_product,
   }));
 
-  // Group PLANT items under their section (accessories stay in the flat list).
+  // Group plants AND recommended accessories under their section.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sections = (sectionRows ?? []).map((s: any) => ({
     id: s.id,
@@ -92,6 +94,8 @@ async function loadCuratedList(supabase: Supabase, shortlistId: string) {
     sort_order: s.sort_order,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     items: mapped.filter((m: any) => m.type === "plant" && m.section_id === s.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    accessories: mapped.filter((m: any) => m.type === "accessory" && m.section_id === s.id),
   }));
 
   return {

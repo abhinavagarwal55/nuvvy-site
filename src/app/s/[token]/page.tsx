@@ -65,6 +65,7 @@ interface Section {
   name: string;
   sort_order: number;
   items: VersionItem[];
+  accessories?: VersionItem[];
 }
 
 interface ShortlistData {
@@ -108,9 +109,12 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   const [data, setData] = useState<ShortlistData | null>(null);
   const [items, setItems] = useState<Map<string, { quantity: number | null; note: string }>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [expandedPlants, setExpandedPlants] = useState<Set<string>>(new Set());
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+  // Post-confirmation flow: plants → (accessories) → final.
+  const [phase, setPhase] = useState<"plants" | "accessories" | "final">("plants");
+  const [selectedAccessories, setSelectedAccessories] = useState<Set<string>>(new Set());
+  const [savingAccessories, setSavingAccessories] = useState(false);
 
   // Determine if page is editable based on version status
   const isEditable = data?.version.status_at_time === "SENT_TO_CUSTOMER";
@@ -335,6 +339,23 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     });
   };
 
+  // Accessories the customer sees post-confirmation = dedup union of accessories
+  // from every section where they selected >=1 plant.
+  const computeTailoredAccessories = (): VersionItem[] => {
+    if (!data?.sections) return [];
+    const byProduct = new Map<string, VersionItem>();
+    data.sections.forEach((sec) => {
+      const selectedInSection = sec.items.some((pi) => (items.get(pi.id)?.quantity ?? 0) >= 1);
+      if (!selectedInSection) return;
+      (sec.accessories ?? []).forEach((acc) => {
+        if (acc.catalog_product_id && !byProduct.has(acc.catalog_product_id)) {
+          byProduct.set(acc.catalog_product_id, acc);
+        }
+      });
+    });
+    return Array.from(byProduct.values());
+  };
+
   // Handle finalize
   const handleFinalize = async () => {
     // Defensive check: prevent submission if already submitted
@@ -390,14 +411,48 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         throw new Error(result.body?.error || "Failed to submit curated list");
       }
 
-      // Success - show confirmation
-      setSubmitted(true);
+      // Success — proceed to the tailored accessories step, or straight to final.
+      const tailored = computeTailoredAccessories();
+      setPhase(tailored.length > 0 ? "accessories" : "final");
+      if (typeof window !== "undefined") window.scrollTo({ top: 0 });
     } catch (err) {
       console.error("Error finalizing shortlist:", err);
       alert(err instanceof Error ? err.message : "Failed to submit curated list");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Capture the customer's accessory picks (non-binding), then go to final page.
+  const handleSaveAccessories = async () => {
+    setSavingAccessories(true);
+    try {
+      const tailored = computeTailoredAccessories();
+      const selections = tailored
+        .filter((a) => a.catalog_product_id && selectedAccessories.has(a.catalog_product_id))
+        .map((a) => ({ catalog_product_id: a.catalog_product_id as string, section_id: null }));
+      await fetch(`/api/shortlists/public/${token}/accessories`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selections }),
+      });
+    } catch (err) {
+      console.error("Error saving accessory selections:", err);
+      // Non-binding — proceed regardless.
+    } finally {
+      setSavingAccessories(false);
+      setPhase("final");
+      if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+    }
+  };
+
+  const toggleAccessory = (id: string) => {
+    setSelectedAccessories((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // Loading state
@@ -433,8 +488,8 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     );
   }
 
-  // Submitted confirmation state
-  if (submitted) {
+  // Final (terminal) page — after plants (+ optional accessories).
+  if (phase === "final") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center max-w-md bg-white rounded-lg border border-gray-200 p-8">
@@ -443,8 +498,111 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Thanks!</h1>
-          <p className="text-gray-600">We've received your curated list.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Order placed 🌿</h1>
+          <p className="text-gray-600">
+            Hey, this is your final order. Thank you for placing this order and we will deliver to you within two weeks.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Accessories step — recommended accessories from the customer's selected sections.
+  if (phase === "accessories") {
+    const tailored = computeTailoredAccessories();
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          <div className="mb-6">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">A few accessories for your plants 🪴</h1>
+            <p className="text-base text-gray-700">We recommend you buy these accessories from Amazon.</p>
+            <p className="text-xs text-gray-500 mt-2">
+              Nuvvy may earn a small commission when you purchase through these links, at no extra cost to you. We only
+              recommend products our horticulturists trust.
+            </p>
+          </div>
+
+          <div className="space-y-3 mb-6">
+            {tailored.map((item) => {
+              const cp = item.catalog_product;
+              if (!cp) return null;
+              const thumb =
+                cp.thumbnail_storage_url || cp.thumbnail_url || cp.image_storage_url || cp.image_url || null;
+              const buyHref = buildAffiliateUrl({ amazon_asin: cp.amazon_asin, amazon_url: cp.amazon_url });
+              const isSelected = selectedAccessories.has(cp.id);
+              const isUnavailable = cp.status === "inactive" || cp.status === "unavailable";
+              return (
+                <div
+                  key={item.id}
+                  className={`bg-white rounded-lg border p-4 shadow-sm ${isSelected ? "border-leaf ring-1 ring-leaf" : "border-gray-200"}`}
+                >
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {thumb ? (
+                      <Image src={thumb} alt={cp.name} width={110} height={110} className="rounded-lg object-cover flex-shrink-0 self-start" />
+                    ) : (
+                      <div className="w-[110px] h-[110px] rounded-lg bg-gray-100 border border-gray-200 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-ink">{cp.name}</p>
+                      {cp.brand && <p className="text-xs italic text-gray-500">{cp.brand}</p>}
+                      <p className="text-xs text-gray-500 mt-0.5">{CATEGORY_LABELS[cp.category] ?? cp.category}</p>
+                      {cp.price_inr != null ? (
+                        <p className="text-sm font-medium text-leaf mt-1">{formatPriceInr(cp.price_inr)}</p>
+                      ) : (
+                        <p className="text-sm text-gray-500 mt-1">Price on Amazon</p>
+                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        {isUnavailable ? (
+                          <span className="inline-block text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
+                            Currently unavailable on Amazon
+                          </span>
+                        ) : buyHref ? (
+                          <a
+                            href={buyHref}
+                            target="_blank"
+                            rel="sponsored noopener noreferrer"
+                            className="inline-block text-sm font-medium bg-leaf text-white px-3 py-1.5 rounded-md hover:bg-leaf/90"
+                          >
+                            Buy on Amazon
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">Link unavailable — please ask Nuvvy.</span>
+                        )}
+                        <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleAccessory(cp.id)}
+                            className="w-4 h-4 accent-[#22A559]"
+                          />
+                          I want this
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => {
+                setPhase("final");
+                if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+              }}
+              className="px-5 py-3 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Skip
+            </button>
+            <button
+              onClick={handleSaveAccessories}
+              disabled={savingAccessories}
+              className="flex-1 px-6 py-3 text-base font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {savingAccessories ? "Saving..." : "Done"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -828,118 +986,6 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
           </div>
         )}
 
-        {/* ─── WS-B: Accessories (unchanged; only on the last section) ─────── */}
-        {showFinalArea && (() => {
-          const accessories = data.items.filter(
-            (i) => (i.type ?? (i.catalog_product_id ? "accessory" : "plant")) === "accessory"
-          );
-          if (accessories.length === 0) return null;
-          return (
-            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 shadow-sm">
-              <h2 className="text-base font-semibold text-ink uppercase tracking-wide">
-                Accessories we recommend
-              </h2>
-              <p className="text-xs text-gray-500 mt-1 mb-3">
-                Nuvvy may earn a small commission when you purchase through these
-                links, at no extra cost to you. We only recommend products our
-                horticulturists trust.
-              </p>
-              <div className="space-y-3">
-                {accessories.map((item) => {
-                  const cp = item.catalog_product;
-                  if (!cp) return null;
-                  const thumb =
-                    cp.thumbnail_storage_url ||
-                    cp.thumbnail_url ||
-                    cp.image_storage_url ||
-                    cp.image_url ||
-                    null;
-                  const buyHref = buildAffiliateUrl({
-                    amazon_asin: cp.amazon_asin,
-                    amazon_url: cp.amazon_url,
-                  });
-                  const snapshot = cp.price_snapshot_at
-                    ? new Date(cp.price_snapshot_at).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : null;
-                  const isUnavailable =
-                    cp.status === "inactive" || cp.status === "unavailable";
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex flex-col sm:flex-row gap-3 border border-gray-100 rounded-lg p-3"
-                    >
-                      {thumb ? (
-                        <Image
-                          src={thumb}
-                          alt={cp.name}
-                          width={120}
-                          height={120}
-                          className="rounded-lg object-cover flex-shrink-0 self-start"
-                        />
-                      ) : (
-                        <div className="w-[120px] h-[120px] rounded-lg bg-gray-100 border border-gray-200 flex-shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-ink">{cp.name}</p>
-                        {cp.brand && (
-                          <p className="text-xs italic text-gray-500">{cp.brand}</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {CATEGORY_LABELS[cp.category] ?? cp.category}
-                        </p>
-                        {cp.price_inr != null ? (
-                          <p
-                            className="text-sm font-medium text-leaf mt-1"
-                            title={snapshot ? `Price as of ${snapshot}` : undefined}
-                          >
-                            {formatPriceInr(cp.price_inr)}
-                            {snapshot && (
-                              <span className="ml-1 text-[10px] font-normal text-gray-500">
-                                (Amazon, as of {snapshot})
-                              </span>
-                            )}
-                          </p>
-                        ) : (
-                          <p className="text-sm text-gray-500 mt-1">Price on Amazon</p>
-                        )}
-
-                        {/* Buy CTA — accessories live entirely on Amazon, no qty UI here */}
-                        <div className="mt-2">
-                          {isUnavailable ? (
-                            <span className="inline-block text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
-                              Currently unavailable on Amazon
-                            </span>
-                          ) : buyHref ? (
-                            <a
-                              href={buyHref}
-                              target="_blank"
-                              rel="sponsored noopener noreferrer"
-                              className="inline-block text-sm font-medium bg-leaf text-white px-3 py-1.5 rounded-md hover:bg-leaf/90"
-                            >
-                              Buy on Amazon
-                            </a>
-                          ) : (
-                            <span className="text-xs text-gray-400 italic">
-                              Link unavailable — please ask Nuvvy for guidance.
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] text-gray-500 mt-3">
-                Accessory prices are shown on Amazon — see each item for current price.
-              </p>
-            </div>
-          );
-        })()}
 
         {/* Explore-full-catalog CTA */}
         {showFinalArea && (

@@ -222,11 +222,13 @@ export async function GET(
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const plantItems = items.filter((i: any) => i.type === "plant");
+    const accessoryItems = items.filter((i: any) => i.type === "accessory");
     const sections = (versionSections ?? []).map((s: any) => ({
       id: s.id as string,
       name: s.name as string,
       sort_order: s.sort_order as number,
       items: plantItems.filter((i: any) => i.section_id === s.id),
+      accessories: accessoryItems.filter((i: any) => i.section_id === s.id),
     }));
     // Defensive: if a version predates sections (shouldn't after backfill) OR
     // some plants have no section, park the orphans in a single default section
@@ -234,7 +236,7 @@ export async function GET(
     const orphanPlants = plantItems.filter((i: any) => !sections.some((s) => s.items.includes(i)));
     /* eslint-enable @typescript-eslint/no-explicit-any */
     if (sections.length === 0 && plantItems.length > 0) {
-      sections.push({ id: "default", name: "Plants", sort_order: 0, items: plantItems });
+      sections.push({ id: "default", name: "Plants", sort_order: 0, items: plantItems, accessories: [] });
     } else if (orphanPlants.length > 0 && sections.length > 0) {
       sections[0].items = [...sections[0].items, ...orphanPlants];
     }
