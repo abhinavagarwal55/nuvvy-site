@@ -15,8 +15,10 @@ import {
   Pencil,
   AlertTriangle,
   CheckCircle2,
+  ListChecks,
 } from "lucide-react";
 import PlantSelector from "@/components/ops/PlantSelector";
+import TemplatePicker from "@/components/ops/TemplatePicker";
 
 const INPUT_CLS =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest placeholder:text-stone";
@@ -98,6 +100,9 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
   const [form, setForm] = useState<Map<string, { quantity: string; note: string }>>(new Map());
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null);
+  const [applySummary, setApplySummary] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/ops/plant-orders/${orderId}/curated-list`);
@@ -251,6 +256,31 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
     if (ok) await load();
   }
 
+  async function handleApplyTemplate(templateId: string) {
+    setApplyingTemplateId(templateId);
+    setError(null);
+    const res = await fetch(`/api/ops/plant-orders/${orderId}/curated-list/apply-template`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_id: templateId }),
+    });
+    setApplyingTemplateId(null);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setError(typeof json.error === "string" ? json.error : "Failed to apply template");
+      return;
+    }
+    const json = await res.json();
+    const { added, skipped_duplicate, skipped_unavailable } = json.data ?? {};
+    const parts = [`${added ?? 0} added`];
+    if (skipped_duplicate) parts.push(`${skipped_duplicate} skipped (already in list)`);
+    if (skipped_unavailable) parts.push(`${skipped_unavailable} skipped (unavailable)`);
+    setApplySummary(parts.join(", "));
+    setShowTemplatePicker(false);
+    await load();
+    setTimeout(() => setApplySummary(null), 6000);
+  }
+
   async function copyLink() {
     if (!data?.public_url) return;
     try {
@@ -344,6 +374,11 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
         {saved && (
           <div className="bg-forest/5 border border-forest/20 rounded-xl p-3 text-sm text-forest">
             Draft saved.
+          </div>
+        )}
+        {applySummary && (
+          <div className="bg-forest/5 border border-forest/20 rounded-xl p-3 text-sm text-forest">
+            Template applied — {applySummary}.
           </div>
         )}
 
@@ -458,6 +493,15 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
               }}
             />
             <p className="text-[11px] text-sage mt-1">Search the catalog to add plants to this list.</p>
+            <div className="mt-3 pt-3 border-t border-stone/30">
+              <button
+                onClick={() => setShowTemplatePicker(true)}
+                className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
+              >
+                <ListChecks size={14} /> Add from template
+              </button>
+              <p className="text-[11px] text-sage mt-1">Copy a saved template&rsquo;s items into this draft.</p>
+            </div>
           </div>
         )}
 
@@ -644,6 +688,14 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
           </div>
         </div>
       </div>
+
+      {showTemplatePicker && (
+        <TemplatePicker
+          applyingId={applyingTemplateId}
+          onSelect={handleApplyTemplate}
+          onClose={() => setShowTemplatePicker(false)}
+        />
+      )}
     </div>
   );
 }

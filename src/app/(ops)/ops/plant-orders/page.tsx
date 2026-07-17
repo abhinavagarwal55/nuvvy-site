@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { formatDate, formatDateTime } from "@/lib/utils/format-date";
-import { Plus, X, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Plus, X, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Loader2, ListChecks } from "lucide-react";
 import PlantSelector from "@/components/ops/PlantSelector";
 import { isOverdue, isDueToday } from "@/components/ops/leads/leadConstants";
 import {
@@ -283,13 +283,22 @@ export default function PlantOrdersPage() {
           >
             Plant Orders
           </h1>
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-forest text-offwhite text-xs font-medium rounded-full hover:bg-garden transition-colors"
-          >
-            <Plus size={14} />
-            New Order / Interest
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push("/ops/curated-templates")}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-stone text-charcoal text-xs font-medium rounded-full hover:bg-cream transition-colors"
+            >
+              <ListChecks size={14} />
+              Curated Templates
+            </button>
+            <button
+              onClick={() => setCreateOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-forest text-offwhite text-xs font-medium rounded-full hover:bg-garden transition-colors"
+            >
+              <Plus size={14} />
+              New Order / Interest
+            </button>
+          </div>
         </div>
 
         {/* Pipeline tabs */}
