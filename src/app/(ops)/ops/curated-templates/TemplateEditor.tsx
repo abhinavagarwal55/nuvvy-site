@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Sprout, Package, Trash2, ChevronUp, ChevronDown, Plus } from "lucide-react";
-import PlantSelector from "@/components/ops/PlantSelector";
+import PlantPicker, { type PlantPick } from "@/components/ops/PlantPicker";
 import AccessoryPicker, { type AccessoryResult } from "@/components/ops/AccessoryPicker";
 
 const INPUT_CLS =
@@ -37,7 +37,7 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [items, setItems] = useState<EditorItem[]>([]);
-  const [selectorKey, setSelectorKey] = useState(0);
+  const [showPlantPicker, setShowPlantPicker] = useState(false);
   const [showAccessory, setShowAccessory] = useState(false);
 
   const load = useCallback(async () => {
@@ -69,6 +69,7 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
           key: nextKey(),
           kind: "plant" as const,
           plant_id: i.plant_id,
+          airtable_id: p?.airtable_id ?? undefined,
           name: p?.name ?? "Plant",
           price_band: p?.price_band ?? null,
           thumbnail: p?.thumbnail_storage_url || p?.thumbnail_url || null,
@@ -105,24 +106,26 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
     });
   }
 
-  function addPlant(p: { plant_id: string | null; plant_name: string; price_band: string | null }) {
-    if (!p.plant_id) return;
-    // Dedupe by airtable_id / plant_id
-    if (items.some((it) => it.airtable_id === p.plant_id || it.plant_id === p.plant_id)) return;
-    setItems((prev) => [
-      ...prev,
-      {
-        key: nextKey(),
-        kind: "plant",
-        airtable_id: p.plant_id!,
-        name: p.plant_name,
-        price_band: p.price_band,
-        quantity: "",
-        note: "",
-        why: "",
-      },
-    ]);
-    setSelectorKey((k) => k + 1);
+  function addPlants(picks: PlantPick[]) {
+    setItems((prev) => {
+      const existing = new Set(
+        prev.filter((it) => it.kind === "plant").map((it) => it.airtable_id).filter(Boolean)
+      );
+      const additions = picks
+        // Off-catalog custom entries (no airtable_id) can't persist to a template.
+        .filter((p) => p.airtable_id && !existing.has(p.airtable_id))
+        .map((p) => ({
+          key: nextKey(),
+          kind: "plant" as const,
+          airtable_id: p.airtable_id!,
+          name: p.name,
+          price_band: p.price_band,
+          quantity: "",
+          note: "",
+          why: "",
+        }));
+      return [...prev, ...additions];
+    });
   }
 
   function addAccessories(products: AccessoryResult[]) {
@@ -221,13 +224,20 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
         {/* Add items */}
         <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 space-y-3">
           <p className="text-xs font-medium text-sage uppercase tracking-widest">Add items</p>
-          <PlantSelector key={selectorKey} value={null} onChange={(p) => p && addPlant(p)} />
-          <button
-            onClick={() => setShowAccessory(true)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
-          >
-            <Plus size={14} /> Add accessory
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowPlantPicker(true)}
+              className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
+            >
+              <Plus size={14} /> Add plants
+            </button>
+            <button
+              onClick={() => setShowAccessory(true)}
+              className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
+            >
+              <Plus size={14} /> Add accessory
+            </button>
+          </div>
         </div>
 
         {/* Items list */}
@@ -305,6 +315,21 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
           </button>
         </div>
       </div>
+
+      {showPlantPicker && (
+        <PlantPicker
+          alreadyAddedIds={
+            new Set(
+              items
+                .filter((i) => i.kind === "plant")
+                .map((i) => i.airtable_id)
+                .filter((x): x is string => Boolean(x))
+            )
+          }
+          onAdd={addPlants}
+          onClose={() => setShowPlantPicker(false)}
+        />
+      )}
 
       {showAccessory && (
         <AccessoryPicker

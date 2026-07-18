@@ -77,6 +77,6 @@ export async function resolveTemplateItemRows(
 /** Shared select for template items with joined plant / catalog_product display data. */
 export const TEMPLATE_ITEM_SELECT = `
   id, plant_id, catalog_product_id, quantity, note, why_picked_for_balcony, sort_order,
-  plant:plants ( id, name, scientific_name, price_band, thumbnail_url, thumbnail_storage_url ),
+  plant:plants ( id, airtable_id, name, scientific_name, price_band, thumbnail_url, thumbnail_storage_url ),
   catalog_product:catalog_products ( id, name, brand, category, price_inr, status, thumbnail_url, thumbnail_storage_url, image_url, image_storage_url )
 `;
