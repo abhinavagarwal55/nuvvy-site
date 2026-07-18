@@ -125,22 +125,24 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
     setSelectorKey((k) => k + 1);
   }
 
-  function addAccessory(p: AccessoryResult) {
-    if (items.some((it) => it.catalog_product_id === p.id)) return;
-    setItems((prev) => [
-      ...prev,
-      {
-        key: nextKey(),
-        kind: "accessory",
-        catalog_product_id: p.id,
-        name: p.name,
-        price_inr: p.price_inr,
-        thumbnail: p.thumbnail_storage_url || p.thumbnail_url || p.image_storage_url || p.image_url || null,
-        quantity: "",
-        note: "",
-        why: "",
-      },
-    ]);
+  function addAccessories(products: AccessoryResult[]) {
+    setItems((prev) => {
+      const existing = new Set(prev.map((it) => it.catalog_product_id).filter(Boolean));
+      const additions = products
+        .filter((p) => !existing.has(p.id))
+        .map((p) => ({
+          key: nextKey(),
+          kind: "accessory" as const,
+          catalog_product_id: p.id,
+          name: p.name,
+          price_inr: p.price_inr,
+          thumbnail: p.thumbnail_storage_url || p.thumbnail_url || p.image_storage_url || p.image_url || null,
+          quantity: "",
+          note: "",
+          why: "",
+        }));
+      return [...prev, ...additions];
+    });
   }
 
   async function handleSave() {
@@ -307,7 +309,7 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
       {showAccessory && (
         <AccessoryPicker
           alreadyAddedIds={new Set(items.filter((i) => i.catalog_product_id).map((i) => i.catalog_product_id as string))}
-          onSelect={addAccessory}
+          onAdd={addAccessories}
           onClose={() => setShowAccessory(false)}
         />
       )}

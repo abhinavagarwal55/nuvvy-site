@@ -20,7 +20,7 @@ import {
   ChevronDown,
   Plus,
 } from "lucide-react";
-import PlantSelector from "@/components/ops/PlantSelector";
+import PlantPicker, { type PlantPick } from "@/components/ops/PlantPicker";
 import TemplatePicker from "@/components/ops/TemplatePicker";
 import AccessoryPicker, { type AccessoryResult } from "@/components/ops/AccessoryPicker";
 import { Package } from "lucide-react";
@@ -30,6 +30,7 @@ const INPUT_CLS =
 
 type CuratedPlant = {
   id: string;
+  airtable_id: string | null;
   name: string;
   scientific_name: string | null;
   price_band: string | null;
@@ -133,7 +134,7 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
   const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null);
   const [applySummary, setApplySummary] = useState<string | null>(null);
   const [templateTargetSection, setTemplateTargetSection] = useState<string | null>(null);
-  const [selectorBump, setSelectorBump] = useState<Record<string, number>>({});
+  const [plantPickerSection, setPlantPickerSection] = useState<string | null>(null);
   const [focusSectionId, setFocusSectionId] = useState<string | null>(null);
   const sectionInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   const [accessoryPickerSection, setAccessoryPickerSection] = useState<string | null>(null);
@@ -205,7 +206,6 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
 
   // ── Plant items ─────────────────────────────────────────────────────────────
   async function handleAddPlant(sectionId: string, airtableId: string) {
-    setSelectorBump((b) => ({ ...b, [sectionId]: (b[sectionId] ?? 0) + 1 }));
     setError(null);
     setBusy(true);
     const res = await fetch(`/api/ops/plant-orders/${orderId}/curated-list/items`, {
@@ -252,6 +252,17 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
       m.set(added.id, { quantity: "", note: "" });
       return m;
     });
+  }
+
+  // Multi-add from the plant picker — sequential (deterministic + surfaces failures).
+  // Off-catalog custom entries (no airtable_id) can't persist to a curated list
+  // (the item tables require plant_id/catalog_product_id), so they're skipped —
+  // matching the prior PlantSelector behaviour in this editor.
+  async function handleAddPlants(sectionId: string, picks: PlantPick[]) {
+    for (const p of picks) {
+      if (!p.airtable_id) continue;
+      await handleAddPlant(sectionId, p.airtable_id);
+    }
   }
 
   async function handleRemove(itemId: string) {
@@ -321,6 +332,12 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
         },
       };
     });
+  }
+
+  async function handleAddAccessories(sectionId: string, products: AccessoryResult[]) {
+    for (const p of products) {
+      await handleAddAccessory(sectionId, p);
+    }
   }
 
   // ── Sections ────────────────────────────────────────────────────────────────
@@ -767,14 +784,10 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
 
               {/* Section add controls */}
               {editable && (
-                <div className="pt-2 border-t border-stone/30 space-y-2">
-                  <PlantSelector
-                    key={`sec-${sec.id}-${selectorBump[sec.id] ?? 0}`}
-                    value={null}
-                    onChange={(plant) => {
-                      if (plant?.plant_id) handleAddPlant(sec.id, plant.plant_id);
-                    }}
-                  />
+                <div className="pt-2 border-t border-stone/30 flex flex-wrap gap-2">
+                  <button onClick={() => setPlantPickerSection(sec.id)} className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream">
+                    <Plus size={14} /> Add plants
+                  </button>
                   <button onClick={() => openTemplateForSection(sec.id)} className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream">
                     <ListChecks size={14} /> Add from template
                   </button>
@@ -913,6 +926,20 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
         />
       )}
 
+      {plantPickerSection && (
+        <PlantPicker
+          alreadyAddedIds={
+            new Set(
+              (sections.find((s) => s.id === plantPickerSection)?.items ?? [])
+                .map((i) => i.plant?.airtable_id)
+                .filter((x): x is string => Boolean(x))
+            )
+          }
+          onAdd={(picks) => handleAddPlants(plantPickerSection, picks)}
+          onClose={() => setPlantPickerSection(null)}
+        />
+      )}
+
       {accessoryPickerSection && (
         <AccessoryPicker
           alreadyAddedIds={
@@ -922,7 +949,7 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
                 .filter((x): x is string => Boolean(x))
             )
           }
-          onSelect={(product) => handleAddAccessory(accessoryPickerSection, product)}
+          onAdd={(products) => handleAddAccessories(accessoryPickerSection, products)}
           onClose={() => setAccessoryPickerSection(null)}
         />
       )}

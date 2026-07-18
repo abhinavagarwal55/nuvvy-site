@@ -66,7 +66,7 @@ async function loadCuratedList(supabase: Supabase, shortlistId: string) {
     .from("shortlist_draft_items")
     .select(
       `id, plant_id, catalog_product_id, section_id, quantity, note, why_picked_for_balcony, created_at,
-       plant:plants ( id, name, scientific_name, price_band, thumbnail_url, thumbnail_storage_url ),
+       plant:plants ( id, airtable_id, name, scientific_name, price_band, thumbnail_url, thumbnail_storage_url ),
        catalog_product:catalog_products ( id, name, brand, category, price_inr, status, thumbnail_url, thumbnail_storage_url, image_url, image_storage_url, amazon_asin, amazon_url )`
     )
     .eq("shortlist_id", shortlistId)
