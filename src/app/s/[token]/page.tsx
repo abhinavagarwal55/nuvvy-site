@@ -111,8 +111,8 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedPlants, setExpandedPlants] = useState<Set<string>>(new Set());
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
-  // Post-confirmation flow: plants → (accessories) → final.
-  const [phase, setPhase] = useState<"plants" | "accessories" | "final">("plants");
+  // Post-confirmation flow: plants → confirmed (order summary) → accessories.
+  const [phase, setPhase] = useState<"plants" | "confirmed" | "accessories">("plants");
   const [selectedAccessories, setSelectedAccessories] = useState<Set<string>>(new Set());
   const [savingAccessories, setSavingAccessories] = useState(false);
 
@@ -339,21 +339,14 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     });
   };
 
-  // Accessories the customer sees post-confirmation = dedup union of accessories
-  // from every section where they selected >=1 plant.
-  const computeTailoredAccessories = (): VersionItem[] => {
+  // Post-confirmation accessories, grouped BY section — only sections where the
+  // customer selected >=1 plant AND that have recommended accessories.
+  const computeAccessorySections = (): { id: string; name: string; accessories: VersionItem[] }[] => {
     if (!data?.sections) return [];
-    const byProduct = new Map<string, VersionItem>();
-    data.sections.forEach((sec) => {
-      const selectedInSection = sec.items.some((pi) => (items.get(pi.id)?.quantity ?? 0) >= 1);
-      if (!selectedInSection) return;
-      (sec.accessories ?? []).forEach((acc) => {
-        if (acc.catalog_product_id && !byProduct.has(acc.catalog_product_id)) {
-          byProduct.set(acc.catalog_product_id, acc);
-        }
-      });
-    });
-    return Array.from(byProduct.values());
+    return data.sections
+      .filter((sec) => sec.items.some((pi) => (items.get(pi.id)?.quantity ?? 0) >= 1))
+      .map((sec) => ({ id: sec.id, name: sec.name, accessories: sec.accessories ?? [] }))
+      .filter((sec) => sec.accessories.length > 0);
   };
 
   // Handle finalize
@@ -411,9 +404,8 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         throw new Error(result.body?.error || "Failed to submit curated list");
       }
 
-      // Success — proceed to the tailored accessories step, or straight to final.
-      const tailored = computeTailoredAccessories();
-      setPhase(tailored.length > 0 ? "accessories" : "final");
+      // Success — show the order-placed summary; accessories are opt-in from there.
+      setPhase("confirmed");
       if (typeof window !== "undefined") window.scrollTo({ top: 0 });
     } catch (err) {
       console.error("Error finalizing shortlist:", err);
@@ -423,14 +415,22 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     }
   };
 
-  // Capture the customer's accessory picks (non-binding), then go to final page.
+  // Capture the customer's accessory picks (non-binding), then return to summary.
   const handleSaveAccessories = async () => {
     setSavingAccessories(true);
     try {
-      const tailored = computeTailoredAccessories();
-      const selections = tailored
-        .filter((a) => a.catalog_product_id && selectedAccessories.has(a.catalog_product_id))
-        .map((a) => ({ catalog_product_id: a.catalog_product_id as string, section_id: null }));
+      // Dedup by product (UNIQUE constraint) while tagging the section it came from.
+      const seen = new Set<string>();
+      const selections: { catalog_product_id: string; section_id: string | null }[] = [];
+      for (const sec of computeAccessorySections()) {
+        for (const acc of sec.accessories) {
+          const pid = acc.catalog_product_id;
+          if (pid && selectedAccessories.has(pid) && !seen.has(pid)) {
+            seen.add(pid);
+            selections.push({ catalog_product_id: pid, section_id: sec.id });
+          }
+        }
+      }
       await fetch(`/api/shortlists/public/${token}/accessories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -441,7 +441,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
       // Non-binding — proceed regardless.
     } finally {
       setSavingAccessories(false);
-      setPhase("final");
+      setPhase("confirmed");
       if (typeof window !== "undefined") window.scrollTo({ top: 0 });
     }
   };
@@ -488,33 +488,94 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     );
   }
 
-  // Final (terminal) page — after plants (+ optional accessories).
-  if (phase === "final") {
+  // Order-placed summary — after the customer confirms their plants.
+  if (phase === "confirmed") {
+    const selectedPlants = data.items
+      .filter((i) => (i.type ?? (i.catalog_product_id ? "accessory" : "plant")) === "plant")
+      .map((i) => ({ item: i, qty: items.get(i.id)?.quantity ?? 0 }))
+      .filter((x) => x.qty >= 1);
+    const totalCount = selectedPlants.reduce((n, x) => n + x.qty, 0);
+    const hasAccessoryRecs = computeAccessorySections().length > 0;
+
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center max-w-md bg-white rounded-lg border border-gray-200 p-8">
-          <div className="mb-4">
-            <svg className="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          <div className="text-center mb-6">
+            <svg className="mx-auto h-14 w-14 text-green-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Order placed 🌿</h1>
+            <p className="text-base text-gray-600">
+              Thank you for placing your order with Nuvvy. We&apos;ll confirm availability and install date with you shortly.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Order placed 🌿</h1>
-          <p className="text-gray-600">
-            Hey, this is your final order. Thank you for placing this order and we will deliver to you within two weeks.
-          </p>
+
+          {/* Order summary */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 mb-6">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">
+              Your order · {totalCount} plant{totalCount === 1 ? "" : "s"}
+            </h2>
+            <div className="divide-y divide-gray-100">
+              {selectedPlants.map(({ item, qty }) => {
+                const thumb = getThumbnailUrl(item.plant);
+                return (
+                  <div key={item.id} className="flex items-center gap-3 py-2.5">
+                    {thumb ? (
+                      <Image src={thumb} alt={item.plant?.name || "Plant"} width={56} height={56} className="rounded-lg object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-gray-100 border border-gray-200 flex-shrink-0" />
+                    )}
+                    <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">
+                      {item.plant?.name || "Plant"}
+                    </p>
+                    <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">× {qty}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Accessory recommendations entry point */}
+          {hasAccessoryRecs && (
+            <>
+              <p className="text-sm text-gray-600 text-center mb-3">
+                We have curated pots and other accessory recommendations based on the plants you have selected.
+              </p>
+              <button
+                onClick={() => {
+                  setPhase("accessories");
+                  if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+                }}
+                className="w-full px-6 py-4 text-base font-semibold text-white bg-leaf rounded-md hover:bg-leaf/90 flex items-center justify-center gap-2"
+              >
+                Pots and other accessory recommendations →
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
   }
 
-  // Accessories step — recommended accessories from the customer's selected sections.
+  // Accessories step — recommended accessories grouped by section (only sections
+  // where the customer picked >=1 plant). Mobile-first: big images, terse copy,
+  // whole card taps through to Amazon.
   if (phase === "accessories") {
-    const tailored = computeTailoredAccessories();
+    const accSections = computeAccessorySections();
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          <button
+            onClick={() => {
+              setPhase("confirmed");
+              if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+            }}
+            className="text-sm text-gray-500 hover:text-gray-700 mb-4"
+          >
+            ← Back to order
+          </button>
           <div className="mb-6">
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">A few accessories for your plants 🪴</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">A few accessories for your plants 🪴</h1>
             <p className="text-base text-gray-700">We recommend you buy these accessories from Amazon.</p>
             <p className="text-xs text-gray-500 mt-2">
               Nuvvy may earn a small commission when you purchase through these links, at no extra cost to you. We only
@@ -522,87 +583,82 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
             </p>
           </div>
 
-          <div className="space-y-3 mb-6">
-            {tailored.map((item) => {
-              const cp = item.catalog_product;
-              if (!cp) return null;
-              const thumb =
-                cp.thumbnail_storage_url || cp.thumbnail_url || cp.image_storage_url || cp.image_url || null;
-              const buyHref = buildAffiliateUrl({ amazon_asin: cp.amazon_asin, amazon_url: cp.amazon_url });
-              const isSelected = selectedAccessories.has(cp.id);
-              const isUnavailable = cp.status === "inactive" || cp.status === "unavailable";
-              return (
-                <div
-                  key={item.id}
-                  className={`bg-white rounded-lg border p-4 shadow-sm ${isSelected ? "border-leaf ring-1 ring-leaf" : "border-gray-200"}`}
-                >
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    {thumb ? (
-                      <Image src={thumb} alt={cp.name} width={110} height={110} className="rounded-lg object-cover flex-shrink-0 self-start" />
-                    ) : (
-                      <div className="w-[110px] h-[110px] rounded-lg bg-gray-100 border border-gray-200 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-ink">{cp.name}</p>
-                      {cp.brand && <p className="text-xs italic text-gray-500">{cp.brand}</p>}
-                      <p className="text-xs text-gray-500 mt-0.5">{CATEGORY_LABELS[cp.category] ?? cp.category}</p>
-                      {cp.price_inr != null ? (
-                        <p className="text-sm font-medium text-leaf mt-1">{formatPriceInr(cp.price_inr)}</p>
-                      ) : (
-                        <p className="text-sm text-gray-500 mt-1">Price on Amazon</p>
-                      )}
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
-                        {isUnavailable ? (
-                          <span className="inline-block text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
-                            Currently unavailable on Amazon
-                          </span>
-                        ) : buyHref ? (
-                          <a
-                            href={buyHref}
-                            target="_blank"
-                            rel="sponsored noopener noreferrer"
-                            className="inline-block text-sm font-medium bg-leaf text-white px-3 py-1.5 rounded-md hover:bg-leaf/90"
-                          >
-                            Buy on Amazon
-                          </a>
-                        ) : (
-                          <span className="text-xs text-gray-400 italic">Link unavailable — please ask Nuvvy.</span>
-                        )}
-                        <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleAccessory(cp.id)}
-                            className="w-4 h-4 accent-[#22A559]"
-                          />
-                          I want this
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {accSections.map((sec) => (
+            <div key={sec.id} className="mb-7">
+              <h2 className="text-base font-semibold text-gray-900 mb-3">{sec.name}</h2>
+              <div className="space-y-3">
+                {sec.accessories.map((item) => {
+                  const cp = item.catalog_product;
+                  if (!cp) return null;
+                  const thumb =
+                    cp.thumbnail_storage_url || cp.thumbnail_url || cp.image_storage_url || cp.image_url || null;
+                  const buyHref = buildAffiliateUrl({ amazon_asin: cp.amazon_asin, amazon_url: cp.amazon_url });
+                  const isSelected = selectedAccessories.has(cp.id);
+                  const isUnavailable = cp.status === "inactive" || cp.status === "unavailable";
+                  const tappable = Boolean(buyHref) && !isUnavailable;
 
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={() => {
-                setPhase("final");
-                if (typeof window !== "undefined") window.scrollTo({ top: 0 });
-              }}
-              className="px-5 py-3 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              Skip
-            </button>
-            <button
-              onClick={handleSaveAccessories}
-              disabled={savingAccessories}
-              className="flex-1 px-6 py-3 text-base font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              {savingAccessories ? "Saving..." : "Done"}
-            </button>
-          </div>
+                  const inner = (
+                    <>
+                      {thumb ? (
+                        <Image src={thumb} alt={cp.name} width={128} height={128} className="w-28 h-28 sm:w-32 sm:h-32 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-lg bg-gray-100 border border-gray-200 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-ink line-clamp-2">{cp.name}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                          {cp.brand ? `${cp.brand} · ` : ""}
+                          {CATEGORY_LABELS[cp.category] ?? cp.category}
+                        </p>
+                        {cp.price_inr != null ? (
+                          <p className="text-base font-semibold text-leaf mt-1">{formatPriceInr(cp.price_inr)}</p>
+                        ) : (
+                          <p className="text-sm text-gray-500 mt-1">Price on Amazon</p>
+                        )}
+                        {isUnavailable ? (
+                          <span className="inline-block mt-1 text-[11px] text-amber-700">Currently unavailable</span>
+                        ) : tappable ? (
+                          <span className="inline-block mt-1 text-sm font-medium text-leaf">Buy on Amazon →</span>
+                        ) : null}
+                      </div>
+                    </>
+                  );
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`bg-white rounded-lg border shadow-sm overflow-hidden ${isSelected ? "border-leaf ring-1 ring-leaf" : "border-gray-200"}`}
+                    >
+                      {tappable ? (
+                        <a href={buyHref!} target="_blank" rel="sponsored noopener noreferrer" className="flex gap-3 p-3 items-start hover:bg-gray-50">
+                          {inner}
+                        </a>
+                      ) : (
+                        <div className="flex gap-3 p-3 items-start">{inner}</div>
+                      )}
+                      <label className="flex items-center gap-2 px-3 py-2.5 border-t border-gray-100 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleAccessory(cp.id)}
+                          className="w-4 h-4 accent-[#22A559]"
+                        />
+                        I want this
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          <button
+            onClick={handleSaveAccessories}
+            disabled={savingAccessories}
+            className="w-full px-6 py-3.5 text-base font-semibold text-white bg-leaf rounded-md hover:bg-leaf/90 disabled:opacity-50"
+          >
+            {savingAccessories ? "Saving…" : "Done — back to order"}
+          </button>
         </div>
       </div>
     );
@@ -1023,7 +1079,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
               disabled={isSubmitting || !hasSelectedPlants}
               className="w-full px-6 py-4 text-base font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isSubmitting ? "Submitting..." : "Confirm curated list"}
+              {isSubmitting ? "Submitting..." : "Confirm Order"}
             </button>
             {!hasSelectedPlants && (
               <p className="text-sm text-amber-600 text-center mt-3">
