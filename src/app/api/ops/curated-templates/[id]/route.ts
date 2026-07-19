@@ -24,7 +24,7 @@ export async function GET(
 
   const { data: template, error } = await supabase
     .from("curated_list_templates")
-    .select("id, name, description, status, created_at, updated_at")
+    .select("id, name, description, status, type, created_at, updated_at")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -86,13 +86,16 @@ export async function PUT(
     return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }
 
+  const updateFields: Record<string, unknown> = {
+    name: parsed.data.name,
+    description: parsed.data.description?.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+  if (parsed.data.type) updateFields.type = parsed.data.type;
+
   const { error: updateError } = await supabase
     .from("curated_list_templates")
-    .update({
-      name: parsed.data.name,
-      description: parsed.data.description?.trim() || null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateFields)
     .eq("id", id);
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 

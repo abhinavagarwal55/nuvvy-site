@@ -36,6 +36,7 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [type, setType] = useState<"plants" | "accessories">("plants");
   const [items, setItems] = useState<EditorItem[]>([]);
   const [showPlantPicker, setShowPlantPicker] = useState(false);
   const [showAccessory, setShowAccessory] = useState(false);
@@ -48,6 +49,7 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
       const t = json.data;
       setName(t.name ?? "");
       setDescription(t.description ?? "");
+      setType(t.type === "accessories" ? "accessories" : "plants");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setItems((t.items ?? []).map((i: any) => {
         if (i.type === "accessory") {
@@ -172,7 +174,7 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
       {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() || null, items: payloadItems }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim() || null, type, items: payloadItems }),
       }
     );
     setSaving(false);
@@ -212,6 +214,23 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
         <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 space-y-3">
           <p className="text-xs font-medium text-sage uppercase tracking-widest">Template details</p>
           <div>
+            <label className="block text-[11px] text-sage mb-1">Template type</label>
+            <div className="flex gap-2">
+              {(["plants", "accessories"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setType(t)}
+                  className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium border capitalize ${
+                    type === t ? "bg-forest text-offwhite border-forest" : "border-stone text-charcoal hover:bg-cream"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
             <label className="block text-[11px] text-sage mb-1">Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Low-light balcony starter" className={INPUT_CLS} />
           </div>
@@ -221,23 +240,24 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
           </div>
         </div>
 
-        {/* Add items */}
+        {/* Add items — only the kind that matches the template type */}
         <div className="bg-offwhite rounded-2xl border border-stone/60 p-4 space-y-3">
           <p className="text-xs font-medium text-sage uppercase tracking-widest">Add items</p>
-          <div className="flex flex-wrap gap-2">
+          {type === "plants" ? (
             <button
               onClick={() => setShowPlantPicker(true)}
               className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
             >
               <Plus size={14} /> Add plants
             </button>
+          ) : (
             <button
               onClick={() => setShowAccessory(true)}
               className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
             >
               <Plus size={14} /> Add accessory
             </button>
-          </div>
+          )}
         </div>
 
         {/* Items list */}

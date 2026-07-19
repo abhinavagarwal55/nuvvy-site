@@ -134,6 +134,7 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
   const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null);
   const [applySummary, setApplySummary] = useState<string | null>(null);
   const [templateTargetSection, setTemplateTargetSection] = useState<string | null>(null);
+  const [templatePickerType, setTemplatePickerType] = useState<"plants" | "accessories">("plants");
   const [plantPickerSection, setPlantPickerSection] = useState<string | null>(null);
   const [focusSectionId, setFocusSectionId] = useState<string | null>(null);
   const sectionInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
@@ -472,8 +473,9 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
   }
 
   // ── Templates ────────────────────────────────────────────────────────────────
-  function openTemplateForSection(sectionId: string) {
+  function openTemplateForSection(sectionId: string, type: "plants" | "accessories") {
     setTemplateTargetSection(sectionId);
+    setTemplatePickerType(type);
     setShowTemplatePicker(true);
   }
 
@@ -788,7 +790,7 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
                   <button onClick={() => setPlantPickerSection(sec.id)} className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream">
                     <Plus size={14} /> Add plants
                   </button>
-                  <button onClick={() => openTemplateForSection(sec.id)} className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream">
+                  <button onClick={() => openTemplateForSection(sec.id, "plants")} className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream">
                     <ListChecks size={14} /> Add from template
                   </button>
                 </div>
@@ -839,12 +841,20 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
                   </div>
                 )}
                 {editable && (
-                  <button
-                    onClick={() => setAccessoryPickerSection(sec.id)}
-                    className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
-                  >
-                    <Plus size={14} /> Add accessory
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setAccessoryPickerSection(sec.id)}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
+                    >
+                      <Plus size={14} /> Add accessory
+                    </button>
+                    <button
+                      onClick={() => openTemplateForSection(sec.id, "accessories")}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-stone text-charcoal text-sm font-medium rounded-xl hover:bg-cream"
+                    >
+                      <ListChecks size={14} /> Add from template
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -918,6 +928,7 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
       {showTemplatePicker && (
         <TemplatePicker
           applyingId={applyingTemplateId}
+          type={templatePickerType}
           onSelect={handleApplyTemplate}
           onClose={() => {
             setShowTemplatePicker(false);

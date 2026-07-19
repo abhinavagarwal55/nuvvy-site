@@ -14,6 +14,11 @@ export const TEMPLATE_STATUSES = ["active", "inactive"] as const;
 export const templateStatusSchema = z.enum(TEMPLATE_STATUSES);
 export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
 
+// A template is either a PLANT template or an ACCESSORY template.
+export const TEMPLATE_TYPES = ["plants", "accessories"] as const;
+export const templateTypeSchema = z.enum(TEMPLATE_TYPES);
+export type TemplateType = (typeof TEMPLATE_TYPES)[number];
+
 export const templateItemInputSchema = z
   .object({
     plant_id: z.string().uuid().optional(),
@@ -38,6 +43,7 @@ export type TemplateItemInput = z.infer<typeof templateItemInputSchema>;
 export const createTemplateSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   description: z.string().nullable().optional(),
+  type: templateTypeSchema.default("plants"),
   items: z.array(templateItemInputSchema).default([]),
 });
 export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
@@ -45,6 +51,7 @@ export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
 export const updateTemplateSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   description: z.string().nullable().optional(),
+  type: templateTypeSchema.optional(),
   items: z.array(templateItemInputSchema).default([]),
 });
 export type UpdateTemplateInput = z.infer<typeof updateTemplateSchema>;

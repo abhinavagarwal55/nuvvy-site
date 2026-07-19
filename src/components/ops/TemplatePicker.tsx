@@ -19,10 +19,13 @@ export default function TemplatePicker({
   onSelect,
   onClose,
   applyingId,
+  type,
 }: {
   onSelect: (templateId: string) => void;
   onClose: () => void;
   applyingId: string | null;
+  // When set, only templates of this kind are shown.
+  type?: "plants" | "accessories";
 }) {
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
@@ -40,6 +43,7 @@ export default function TemplatePicker({
       setLoading(true);
       const params = new URLSearchParams({ status: "active" });
       if (qDebounced) params.set("q", qDebounced);
+      if (type) params.set("type", type);
       try {
         const res = await fetch(`/api/ops/curated-templates?${params.toString()}`);
         const json = await res.json();
@@ -52,7 +56,7 @@ export default function TemplatePicker({
     return () => {
       cancelled = true;
     };
-  }, [qDebounced]);
+  }, [qDebounced, type]);
 
   return (
     <div className="fixed inset-0 bg-charcoal/40 flex items-end md:items-center justify-center z-50 p-0 md:p-4">

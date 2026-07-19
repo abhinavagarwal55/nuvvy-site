@@ -9,6 +9,7 @@ type TemplateRow = {
   name: string;
   description: string | null;
   status: "active" | "inactive";
+  type: "plants" | "accessories";
   item_count: number;
   item_names: string[];
   updated_at: string;
@@ -122,7 +123,12 @@ export default function CuratedTemplatesPage() {
                   {rows.map((t) => (
                     <tr key={t.id} className="border-b border-stone/30 last:border-0 align-top">
                       <td className="px-4 py-3 min-w-[180px]">
-                        <p className="text-sm font-medium text-charcoal">{t.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-charcoal">{t.name}</p>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize ${t.type === "accessories" ? "bg-cane/20 text-charcoal" : "bg-forest/10 text-forest"}`}>
+                            {t.type}
+                          </span>
+                        </div>
                         {t.description && <p className="text-xs text-sage">{t.description}</p>}
                         {t.status === "inactive" && <p className="text-[11px] text-terra mt-0.5">inactive</p>}
                       </td>

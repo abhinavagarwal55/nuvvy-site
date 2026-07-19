@@ -19,18 +19,22 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const q = sp.get("q")?.trim() ?? "";
   const status = sp.get("status") ?? "active";
+  const type = sp.get("type"); // 'plants' | 'accessories' | null (all)
 
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from("curated_list_templates")
     .select(
-      `id, name, description, status, created_at, updated_at,
+      `id, name, description, status, type, created_at, updated_at,
        curated_list_template_items ( sort_order, plant:plants(name), catalog_product:catalog_products(name) )`
     )
     .order("updated_at", { ascending: false });
 
   if (status === "active" || status === "inactive") {
     query = query.eq("status", status);
+  }
+  if (type === "plants" || type === "accessories") {
+    query = query.eq("type", type);
   }
   if (q) {
     query = query.ilike("name", `%${q.replace(/[%]/g, "")}%`);
@@ -55,6 +59,8 @@ export async function GET(request: NextRequest) {
       name: t.name,
       description: t.description,
       status: t.status,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      type: (t as any).type ?? "plants",
       created_at: t.created_at,
       updated_at: t.updated_at,
       item_count: rawItems.length,
@@ -88,6 +94,7 @@ export async function POST(request: NextRequest) {
       name: parsed.data.name,
       description: parsed.data.description?.trim() || null,
       status: "active",
+      type: parsed.data.type,
       created_by: auth.userId,
     })
     .select("id")
