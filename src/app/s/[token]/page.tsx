@@ -113,8 +113,12 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
   // Post-confirmation flow: plants → confirmed (order summary) → accessories.
   const [phase, setPhase] = useState<"plants" | "confirmed" | "accessories">("plants");
-  const [selectedAccessories, setSelectedAccessories] = useState<Set<string>>(new Set());
-  const [savingAccessories, setSavingAccessories] = useState(false);
+
+  // Scroll to the top of the page after the section/phase actually changes (the
+  // inline scroll in click handlers runs before the new content commits).
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  }, [currentSectionIdx, phase]);
 
   // Determine if page is editable based on version status
   const isEditable = data?.version.status_at_time === "SENT_TO_CUSTOMER";
@@ -415,46 +419,6 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
     }
   };
 
-  // Capture the customer's accessory picks (non-binding), then return to summary.
-  const handleSaveAccessories = async () => {
-    setSavingAccessories(true);
-    try {
-      // Dedup by product (UNIQUE constraint) while tagging the section it came from.
-      const seen = new Set<string>();
-      const selections: { catalog_product_id: string; section_id: string | null }[] = [];
-      for (const sec of computeAccessorySections()) {
-        for (const acc of sec.accessories) {
-          const pid = acc.catalog_product_id;
-          if (pid && selectedAccessories.has(pid) && !seen.has(pid)) {
-            seen.add(pid);
-            selections.push({ catalog_product_id: pid, section_id: sec.id });
-          }
-        }
-      }
-      await fetch(`/api/shortlists/public/${token}/accessories`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selections }),
-      });
-    } catch (err) {
-      console.error("Error saving accessory selections:", err);
-      // Non-binding — proceed regardless.
-    } finally {
-      setSavingAccessories(false);
-      setPhase("confirmed");
-      if (typeof window !== "undefined") window.scrollTo({ top: 0 });
-    }
-  };
-
-  const toggleAccessory = (id: string) => {
-    setSelectedAccessories((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   // Loading state
   if (loading) {
     return (
@@ -593,7 +557,6 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                   const thumb =
                     cp.thumbnail_storage_url || cp.thumbnail_url || cp.image_storage_url || cp.image_url || null;
                   const buyHref = buildAffiliateUrl({ amazon_asin: cp.amazon_asin, amazon_url: cp.amazon_url });
-                  const isSelected = selectedAccessories.has(cp.id);
                   const isUnavailable = cp.status === "inactive" || cp.status === "unavailable";
                   const tappable = Boolean(buyHref) && !isUnavailable;
 
@@ -625,10 +588,7 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                   );
 
                   return (
-                    <div
-                      key={item.id}
-                      className={`bg-white rounded-lg border shadow-sm overflow-hidden ${isSelected ? "border-leaf ring-1 ring-leaf" : "border-gray-200"}`}
-                    >
+                    <div key={item.id} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                       {tappable ? (
                         <a href={buyHref!} target="_blank" rel="sponsored noopener noreferrer" className="flex gap-3 p-3 items-start hover:bg-gray-50">
                           {inner}
@@ -636,15 +596,6 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
                       ) : (
                         <div className="flex gap-3 p-3 items-start">{inner}</div>
                       )}
-                      <label className="flex items-center gap-2 px-3 py-2.5 border-t border-gray-100 text-sm text-gray-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleAccessory(cp.id)}
-                          className="w-4 h-4 accent-[#22A559]"
-                        />
-                        I want this
-                      </label>
                     </div>
                   );
                 })}
@@ -653,11 +604,13 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
           ))}
 
           <button
-            onClick={handleSaveAccessories}
-            disabled={savingAccessories}
-            className="w-full px-6 py-3.5 text-base font-semibold text-white bg-leaf rounded-md hover:bg-leaf/90 disabled:opacity-50"
+            onClick={() => {
+              setPhase("confirmed");
+              if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+            }}
+            className="w-full px-6 py-3.5 text-base font-semibold text-white bg-leaf rounded-md hover:bg-leaf/90"
           >
-            {savingAccessories ? "Saving…" : "Done — back to order"}
+            Back to order
           </button>
         </div>
       </div>
@@ -1043,27 +996,6 @@ export default function PublicShortlistPage({ params }: { params: Promise<{ toke
         )}
 
 
-        {/* Explore-full-catalog CTA */}
-        {showFinalArea && (
-        <div className="bg-mist border border-leaf/20 rounded-lg p-5 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex-1">
-              <h3 className="text-base font-semibold text-ink mb-1">
-                Want to explore more plants and accessories?
-              </h3>
-              <p className="text-sm text-gray-600">
-                Browse the full Nuvvy catalog — you can come right back to this curated list.
-              </p>
-            </div>
-            <a
-              href={`/plantcatalog?shortlist=${token}`}
-              className="inline-flex items-center justify-center bg-leaf text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-leaf/90 whitespace-nowrap"
-            >
-              Browse catalog →
-            </a>
-          </div>
-        </div>
-        )}
 
         {/* Primary CTA */}
         {isEditable && showFinalArea && (

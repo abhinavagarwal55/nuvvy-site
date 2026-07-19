@@ -71,11 +71,11 @@ export async function generateMetadata({
     // Fallback metadata if fetch fails
     if (!result.ok || result.body?.error || !result.body) {
       return {
-        title: "Your Nuvvy Plant Shortlist 🌿",
-        description: "Review and confirm your plant shortlist.",
+        title: "Your Nuvvy Curated Plant List 🌿",
+        description: "Review and confirm your curated list.",
         openGraph: {
-          title: "Your Nuvvy Plant Shortlist 🌿",
-          description: "Review and confirm your plant shortlist.",
+          title: "Your Nuvvy Curated Plant List 🌿",
+          description: "Review and confirm your curated list.",
           url: `${baseUrl}/s/${token}`,
           siteName: "Nuvvy",
           images: [
@@ -83,15 +83,15 @@ export async function generateMetadata({
               url: getAbsoluteImageUrl(OG_DEFAULT_IMAGE),
               width: 1200,
               height: 630,
-              alt: "Nuvvy Plant Shortlist",
+              alt: "Nuvvy Curated Plant List",
             },
           ],
           type: "website",
         },
         twitter: {
           card: "summary_large_image",
-          title: "Your Nuvvy Plant Shortlist 🌿",
-          description: "Review and confirm your plant shortlist.",
+          title: "Your Nuvvy Curated Plant List 🌿",
+          description: "Review and confirm your curated list.",
           images: [getAbsoluteImageUrl(OG_DEFAULT_IMAGE)],
         },
         alternates: {
@@ -114,13 +114,13 @@ export async function generateMetadata({
 
     // Generate title
     const title = customerName
-      ? `${customerName}'s Nuvvy Plant Shortlist 🌿`
-      : "Your Nuvvy Plant Shortlist 🌿";
+      ? `${customerName}'s Nuvvy Curated Plant List 🌿`
+      : "Your Nuvvy Curated Plant List 🌿";
 
     // Description: short and honest. Estimated price intentionally removed —
     // it was misleading once accessories joined the shortlist and the band
     // math doesn't apply to them.
-    const description = `${plantCount} plant${plantCount !== 1 ? "s" : ""}. Review and confirm your shortlist.`;
+    const description = `${plantCount} plant${plantCount !== 1 ? "s" : ""}. Review and confirm your curated list.`;
 
     // Get first plant image for OG image
     let ogImageUrl = OG_DEFAULT_IMAGE;
@@ -180,11 +180,11 @@ export async function generateMetadata({
     }
     
     return {
-      title: "Your Nuvvy Plant Shortlist 🌿",
-      description: "Review and confirm your plant shortlist.",
+      title: "Your Nuvvy Curated Plant List 🌿",
+      description: "Review and confirm your curated list.",
       openGraph: {
-        title: "Your Nuvvy Plant Shortlist 🌿",
-        description: "Review and confirm your plant shortlist.",
+        title: "Your Nuvvy Curated Plant List 🌿",
+        description: "Review and confirm your curated list.",
         url: token ? `${baseUrl}/s/${token}` : `${baseUrl}/s`,
         siteName: "Nuvvy",
         images: [
@@ -192,15 +192,15 @@ export async function generateMetadata({
             url: getAbsoluteImageUrl(OG_DEFAULT_IMAGE),
             width: 1200,
             height: 630,
-            alt: "Nuvvy Plant Shortlist",
+            alt: "Nuvvy Curated Plant List",
           },
         ],
         type: "website",
       },
       twitter: {
         card: "summary_large_image",
-        title: "Your Nuvvy Plant Shortlist 🌿",
-        description: "Review and confirm your plant shortlist.",
+        title: "Your Nuvvy Curated Plant List 🌿",
+        description: "Review and confirm your curated list.",
         images: [getAbsoluteImageUrl(OG_DEFAULT_IMAGE)],
       },
       alternates: {
