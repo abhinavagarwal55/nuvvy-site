@@ -93,11 +93,16 @@ export async function POST(
     return NextResponse.json({ error: "This template has no items." }, { status: 422 });
   }
 
-  // Existing draft keys (for dedupe).
+  // Items land in the requested section (default: the list's first section).
+  const targetSectionId = parsed.data.section_id ?? (await ensureDefaultSection(supabase, shortlistId));
+
+  // Dedupe is PER-SECTION — only skip items already present in THIS section; the
+  // same plant/accessory may legitimately live in other sections.
   const { data: draftItems } = await supabase
     .from("shortlist_draft_items")
     .select("plant_id, catalog_product_id")
-    .eq("shortlist_id", shortlistId);
+    .eq("shortlist_id", shortlistId)
+    .eq("section_id", targetSectionId);
   const existingPlantIds = new Set((draftItems ?? []).map((d) => d.plant_id).filter(Boolean));
   const existingAccessoryIds = new Set((draftItems ?? []).map((d) => d.catalog_product_id).filter(Boolean));
 
@@ -124,9 +129,6 @@ export async function POST(
     const { data: plants } = await supabase.from("plants").select("id").in("id", plantIds);
     (plants ?? []).forEach((p) => existingPlantCatalogIds.add(p.id));
   }
-
-  // Plants land in the requested section (default: the list's first section).
-  const targetSectionId = parsed.data.section_id ?? (await ensureDefaultSection(supabase, shortlistId));
 
   let added = 0;
   let skipped_duplicate = 0;

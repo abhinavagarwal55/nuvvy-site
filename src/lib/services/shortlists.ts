@@ -292,9 +292,9 @@ export async function deleteSection(
 // ── Draft items ───────────────────────────────────────────────────────────────
 
 /**
- * Add a plant (by plants.id uuid) to a shortlist's draft. Idempotent on
- * (shortlist, plant) — dedupe is list-wide. When `sectionId` is omitted the
- * plant lands in the list's first section.
+ * Add a plant (by plants.id uuid) to a shortlist's draft. Dedupe is
+ * PER-SECTION — the same plant may appear in multiple sections, just not twice
+ * in the same one. When `sectionId` is omitted the plant lands in the first section.
  */
 export async function addPlantDraftItem(
   supabase: Supabase,
@@ -302,16 +302,17 @@ export async function addPlantDraftItem(
   plantUuid: string,
   sectionId?: string
 ): Promise<ServiceResult<Record<string, unknown>>> {
+  const targetSection = sectionId ?? (await ensureDefaultSection(supabase, shortlistId));
+
   const { data: existing } = await supabase
     .from("shortlist_draft_items")
     .select("id")
     .eq("shortlist_id", shortlistId)
     .eq("plant_id", plantUuid)
+    .eq("section_id", targetSection)
     .maybeSingle();
 
   if (existing) return { ok: true, data: existing };
-
-  const targetSection = sectionId ?? (await ensureDefaultSection(supabase, shortlistId));
 
   const { data: item, error } = await supabase
     .from("shortlist_draft_items")
@@ -329,8 +330,9 @@ export async function addPlantDraftItem(
 
 /**
  * Add an accessory (by catalog_products.id uuid) to a section's recommended
- * accessories. Idempotent on (shortlist, catalog_product). Accessories are
- * ordinary polymorphic draft items tagged with section_id — never procured.
+ * accessories. Dedupe is PER-SECTION — the same accessory may be recommended in
+ * multiple sections. Accessories are ordinary polymorphic draft items tagged
+ * with section_id — never procured.
  */
 export async function addAccessoryDraftItem(
   supabase: Supabase,
@@ -338,16 +340,17 @@ export async function addAccessoryDraftItem(
   catalogProductId: string,
   sectionId?: string
 ): Promise<ServiceResult<Record<string, unknown>>> {
+  const targetSection = sectionId ?? (await ensureDefaultSection(supabase, shortlistId));
+
   const { data: existing } = await supabase
     .from("shortlist_draft_items")
     .select("id")
     .eq("shortlist_id", shortlistId)
     .eq("catalog_product_id", catalogProductId)
+    .eq("section_id", targetSection)
     .maybeSingle();
 
   if (existing) return { ok: true, data: existing };
-
-  const targetSection = sectionId ?? (await ensureDefaultSection(supabase, shortlistId));
 
   const { data: item, error } = await supabase
     .from("shortlist_draft_items")
