@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Search, X, ChevronDown } from "lucide-react";
 import { PLANT_CATEGORIES, LIGHT_CONDITIONS, PRICE_BANDS } from "@/config/plantOptions";
 
 export type PlantResult = {
@@ -46,6 +46,16 @@ export default function PlantPicker({
   const [priceBandFilter, setPriceBandFilter] = useState<string[]>([]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lightOpen, setLightOpen] = useState(false);
+  const lightRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (lightRef.current && !lightRef.current.contains(e.target as Node)) setLightOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,38 +161,62 @@ export default function PlantPicker({
               className="w-full pl-8 pr-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest placeholder:text-stone"
             />
           </div>
-          <div className="sm:max-w-[50%]">
-            <label className="block text-[10px] text-sage uppercase tracking-widest mb-1">Category</label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest"
-            >
-              <option value="all">All</option>
-              {PLANT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] text-sage uppercase tracking-widest mb-1">Light</label>
-            <div className="flex flex-wrap gap-1.5">
-              {LIGHT_CONDITIONS.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => toggleLight(l)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                    lightFilter.includes(l)
-                      ? "bg-forest text-offwhite border-forest"
-                      : "border-stone text-charcoal hover:bg-cream"
-                  }`}
-                >
-                  {l}
-                </button>
-              ))}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex-1">
+              <label className="block text-[10px] text-sage uppercase tracking-widest mb-1">Category</label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest"
+              >
+                <option value="all">All</option>
+                {PLANT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 relative" ref={lightRef}>
+              <label className="block text-[10px] text-sage uppercase tracking-widest mb-1">Light</label>
+              <button
+                type="button"
+                onClick={() => setLightOpen((o) => !o)}
+                className="w-full px-3 py-2 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest flex items-center justify-between gap-2"
+              >
+                <span className="truncate">
+                  {lightFilter.length === 0
+                    ? "All"
+                    : lightFilter.length === 1
+                    ? lightFilter[0]
+                    : `${lightFilter.length} selected`}
+                </span>
+                <ChevronDown size={14} className="text-sage flex-shrink-0" />
+              </button>
+              {lightOpen && (
+                <div className="absolute z-30 left-0 right-0 mt-1 bg-offwhite border border-stone rounded-xl shadow-lg p-1 max-h-60 overflow-y-auto">
+                  {lightFilter.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setLightFilter([])}
+                      className="w-full text-left px-2 py-1.5 text-xs text-sage hover:bg-cream rounded-lg"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  {LIGHT_CONDITIONS.map((l) => (
+                    <label key={l} className="flex items-center gap-2 px-2 py-1.5 hover:bg-cream rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={lightFilter.includes(l)}
+                        onChange={() => toggleLight(l)}
+                        className="w-4 h-4 accent-forest flex-shrink-0"
+                      />
+                      <span className="text-sm text-charcoal">{l}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div>
