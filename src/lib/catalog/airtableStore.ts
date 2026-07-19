@@ -52,6 +52,7 @@ function mapCategory(value: unknown): PlantCategory {
     "Flowering",
     "Creepers",
     "Aromatic",
+    "Succulents",
     "Fruit Plants",
     "Vegetables"
   ];

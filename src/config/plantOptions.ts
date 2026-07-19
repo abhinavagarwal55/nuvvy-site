@@ -3,6 +3,7 @@ export const PLANT_CATEGORIES: string[] = [
   "Flowering",
   "Creepers",
   "Aromatic",
+  "Succulents",
   "Fruit Plants",
   "Vegetables",
 ];

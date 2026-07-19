@@ -5,6 +5,7 @@ export type PlantCategory =
   | "Flowering"
   | "Creepers"
   | "Aromatic"
+  | "Succulents"
   | "Fruit Plants"
   | "Vegetables";
 
