@@ -32,7 +32,7 @@ const VALID_CATEGORIES = new Set<PlantCategory>([
   "Flowering",
   "Creepers",
   "Aromatic",
-  "Succulents",
+  "Outdoor Ornamental plants",
   "Fruit Plants",
   "Vegetables",
 ]);
@@ -196,7 +196,7 @@ export default function PlantCatalogPage() {
     "Flowering",
     "Creepers",
     "Aromatic",
-    "Succulents",
+    "Outdoor Ornamental plants",
     "Fruit Plants",
     "Vegetables"
   ];
