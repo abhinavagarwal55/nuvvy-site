@@ -30,6 +30,9 @@ export const WHATSAPP_MESSAGES = {
   balconyAssessment: "Hi, I'd like to book a free 30-minute consultation with a horticulturist about my balcony and understand what would work best for my space.",
   pricingInquiry: "Hi, I'm interested in your garden care plans and would like to get exact pricing for my balcony.",
   generalChat: "Hi I'm exploring garden care for my balcony and would like to chat with your team.",
+  oneTimeService: "Hi Nuvvy! I'd like to book a one-time garden care visit (₹399/hour). My society is ___ and I think I'll need around ___ hours.",
+  regularCarePlan: "Hi Nuvvy! I'm interested in the Regular Care plan. Could you share the exact pricing for my space?",
+  plantOrdering: "Hi Nuvvy! I'd love a curated plant list for my space. Could your horticulturist recommend plants and share a setup quote?",
 } as const;
 
 // CE3: catalog bottom CTA — pre-fills a custom-shortlist request
