@@ -131,6 +131,9 @@ export async function generateServices(
   return newDates.length;
 }
 
+/** Frequency → days between visits. Exported for the series-shift planner. */
+export { FREQ_DAYS };
+
 /**
  * Compute cycle dates anchored to effectiveFrom, restricted to the
  * window [fromDate, fromDate + weeksAhead*7).
@@ -138,7 +141,7 @@ export async function generateServices(
  * dayOfWeek: 0=Mon ... 6=Sun (DB convention)
  * intervalDays: 7 / 14 / 28
  */
-function computeOccurrences(
+export function computeOccurrences(
   dayOfWeek: number,
   intervalDays: number,
   effectiveFromStr: string,
@@ -174,7 +177,7 @@ function computeOccurrences(
  * Given a date and a target day-of-week (DB convention: 0=Mon..6=Sun),
  * return the first date on or after `from` that falls on that DOW.
  */
-function firstDayOfWeekOnOrAfter(from: Date, dayOfWeek: number): Date {
+export function firstDayOfWeekOnOrAfter(from: Date, dayOfWeek: number): Date {
   // JS getDay(): 0=Sun..6=Sat. DB: 0=Mon..6=Sun.
   const targetJsDow = dayOfWeek === 6 ? 0 : dayOfWeek + 1;
   const result = new Date(from);
@@ -184,7 +187,7 @@ function firstDayOfWeekOnOrAfter(from: Date, dayOfWeek: number): Date {
   return result;
 }
 
-function formatDate(d: Date): string {
+export function formatDate(d: Date): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");

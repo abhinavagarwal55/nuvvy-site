@@ -68,6 +68,15 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
+    // Read the customer's co-visit secondary gardener so cron-extended visits
+    // (including a shifted series' future visits) include it in the junction —
+    // matching POST/PUT /slots and the series-shift path. Previously omitted.
+    const { data: cust } = await supabase
+      .from("customers")
+      .select("secondary_gardener_id")
+      .eq("id", slot.customer_id)
+      .maybeSingle();
+
     try {
       const generated = await generateServices(supabase, {
         slotId: slot.id,
@@ -81,6 +90,7 @@ export async function GET(request: NextRequest) {
         effectiveFrom: slot.effective_from ?? today,
         fromDate: today,
         weeksAhead: 6,
+        secondaryGardenerId: cust?.secondary_gardener_id ?? null,
       });
       totalGenerated += generated;
       processed++;
