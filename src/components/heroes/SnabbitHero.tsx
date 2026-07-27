@@ -24,7 +24,7 @@ export default function SnabbitHero() {
 
             {/* Subtext - differentiators + price anchor */}
             <p className="text-lg md:text-xl text-gray-600 max-w-md mx-auto">
-              Horticulturist-led care. Fertilizer and pest control included. One time visit and regular care plans starting at ₹399.
+              Horticulturist-led care. Fertilizer and pest control included. One time visit and regular care plans starting at <span className="font-semibold text-gray-800">₹399</span>.
             </p>
 
             {/* Hero CTA */}

@@ -95,7 +95,7 @@ export default function SimplePricing() {
               key={card.key}
               className={`relative flex flex-col rounded-2xl p-6 ${
                 card.highlighted
-                  ? "bg-mist border-2 border-leaf shadow-md md:-my-2"
+                  ? "bg-mist border-2 border-leaf shadow-lg"
                   : "bg-white border border-gray-200"
               }`}
             >
@@ -127,8 +127,9 @@ export default function SimplePricing() {
                 ))}
               </ul>
 
-              {/* Best for */}
-              <p className="mt-5 text-sm text-gray-500">
+              {/* Best for — min-height reserves 2 lines so the block below
+                  aligns across cards regardless of wrap */}
+              <p className="mt-5 min-h-[2.75rem] text-sm text-gray-500">
                 <span className="font-medium text-gray-700">Best for:</span>{" "}
                 {card.bestFor}
               </p>
