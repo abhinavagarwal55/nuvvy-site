@@ -622,6 +622,11 @@ export default function HomepagePreviewWrapper({
                         { name: "Windmills of Your Mind", image: "/images/societies/windmills of your mind.jpg" },
                         { name: "Prestige White Meadows", image: "/images/societies/prestige whitemeadows.jpeg" },
                         { name: "Prestige Shantiniketan", image: "/images/societies/prestige shantiniketan.jpg" },
+                        { name: "Sobha Windsor", image: "/images/societies/sobha-windsor.jpg" },
+                        { name: "Brigade Lakefront", image: "/images/societies/brigade-lakefront.jpg" },
+                        { name: "Birla Alokya", image: "/images/societies/birla-alokya.jpg" },
+                        { name: "Raja Ritz Avenue", image: "/images/societies/raja-ritz-avenue.jpg" },
+                        { name: "Trifecta Adithya Sollievo", image: "/images/societies/trifecta-adithya-sollievo.jpg" },
                       ].map((society, idx) => (
                         <div key={idx} className="flex-shrink-0 w-32 md:w-40">
                           <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-gray-100 mb-2">
