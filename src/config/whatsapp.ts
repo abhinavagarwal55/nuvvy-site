@@ -28,6 +28,7 @@ export const CALL_DISPLAY = CALL_NUMBER.length === 12
 // Pre-written message templates for different CTAs
 export const WHATSAPP_MESSAGES = {
   balconyAssessment: "Hi, I'd like to book a free 30-minute consultation with a horticulturist about my balcony and understand what would work best for my space.",
+  heroChat: "Hi Nuvvy! I'd like a green, healthy balcony without the guesswork. Could you tell me what would work best for my space and how to get started?",
   pricingInquiry: "Hi, I'm interested in your garden care plans and would like to get exact pricing for my balcony.",
   generalChat: "Hi I'm exploring garden care for my balcony and would like to chat with your team.",
   oneTimeService: "Hi Nuvvy! I'd like to book a one-time garden care visit (₹399/hour). My society is ___ and I think I'll need around ___ hours.",

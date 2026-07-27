@@ -30,7 +30,7 @@ export default function SnabbitHero() {
             {/* Hero CTA */}
             <div className="pt-2">
               <TrackedLink
-                href={getWhatsAppLink(WHATSAPP_MESSAGES.balconyAssessment)}
+                href={getWhatsAppLink(WHATSAPP_MESSAGES.heroChat)}
                 event="whatsapp_click"
                 cta="hero"
                 target="_blank"
