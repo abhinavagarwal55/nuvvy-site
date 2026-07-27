@@ -13,7 +13,9 @@ import { customerTypeSchema } from "@/lib/schemas/customer-type";
  */
 export const createCustomerSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  phone_number: z.string().min(1, "Phone number is required"),
+  // Optional at the schema level (on-demand customers may have no phone). The
+  // onboarding wizard enforces phone for care_plan/plant_only client-side.
+  phone_number: z.string().optional().or(z.literal("")),
   email: z.string().email().optional().or(z.literal("")),
   address: z.string().optional(),
   unit_number: z.string().optional(),
@@ -27,6 +29,9 @@ export const createCustomerSchema = z.object({
   // care_plan is the superset (and the historical default). Set once at create;
   // changed only via the audited POST /api/ops/customers/[id]/change-type.
   customer_type: customerTypeSchema.default("care_plan"),
+  // Acquisition source — only meaningful for on-demand customers. Validated
+  // against the enum at the on-demand API boundary; loose here.
+  source: z.string().optional(),
 });
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
@@ -40,43 +45,61 @@ export type CreateDraftCustomerResult =
  * society_name was provided). Returns a discriminated result so callers can
  * map failures to the right HTTP status without throwing.
  */
+/**
+ * Resolve a society id: an explicit id wins; otherwise upsert-by-name when a
+ * free-text society_name is given (returns null when neither is provided).
+ * Shared by the onboarding wizard and the on-demand quick-add flow.
+ */
+export async function resolveSocietyId(
+  supabase: SupabaseClient,
+  input: { society_id?: string; society_name?: string }
+): Promise<{ ok: true; societyId: string | null } | { ok: false; error: string; status: number }> {
+  if (input.society_id) return { ok: true, societyId: input.society_id };
+  if (!input.society_name) return { ok: true, societyId: null };
+
+  const { data: existing } = await supabase
+    .from("societies")
+    .select("id")
+    .eq("name", input.society_name)
+    .maybeSingle();
+  if (existing) return { ok: true, societyId: existing.id };
+
+  const { data: newSociety, error: socErr } = await supabase
+    .from("societies")
+    .insert({ name: input.society_name })
+    .select("id")
+    .single();
+  if (socErr) return { ok: false, error: socErr.message, status: 500 };
+  return { ok: true, societyId: newSociety.id };
+}
+
 export async function createDraftCustomer(
   supabase: SupabaseClient,
   input: CreateCustomerInput,
-  createdBy: string | null
+  createdBy: string | null,
+  // On-demand customers are created ready-to-service ('ACTIVE'); the onboarding
+  // wizard + lead-convert path keep the historical 'DRAFT'.
+  status: "DRAFT" | "ACTIVE" = "DRAFT"
 ): Promise<CreateDraftCustomerResult> {
   // Resolve society: explicit id wins, else upsert by name when provided.
-  let societyId = input.society_id ?? null;
-  if (!societyId && input.society_name) {
-    const { data: existing } = await supabase
-      .from("societies")
-      .select("id")
-      .eq("name", input.society_name)
-      .maybeSingle();
-
-    if (existing) {
-      societyId = existing.id;
-    } else {
-      const { data: newSociety, error: socErr } = await supabase
-        .from("societies")
-        .insert({ name: input.society_name })
-        .select("id")
-        .single();
-      if (socErr) return { ok: false, error: socErr.message, status: 500 };
-      societyId = newSociety.id;
-    }
-  }
+  const societyResult = await resolveSocietyId(supabase, {
+    society_id: input.society_id,
+    society_name: input.society_name,
+  });
+  if (!societyResult.ok) return societyResult;
+  const societyId = societyResult.societyId;
 
   const { data, error } = await supabase
     .from("customers")
     .insert({
       name: input.name,
-      phone_number: input.phone_number,
+      phone_number: input.phone_number || null,
       email: input.email || null,
       address: input.address ?? null,
       unit_number: input.unit_number ?? null,
-      status: "DRAFT",
+      status,
       society_id: societyId,
+      source: input.source ?? null,
       plant_count_range: input.plant_count_range ?? null,
       light_condition: input.light_condition ?? null,
       watering_responsibility: input.watering_responsibility ?? null,

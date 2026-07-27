@@ -39,7 +39,7 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
   let query = supabase
     .from("service_visits")
     .select(
-      "id, customer_id, assigned_gardener_id, slot_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off, not_completed_reason"
+      "id, customer_id, assigned_gardener_id, slot_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off, not_completed_reason, plan_id"
     )
     .order("scheduled_date", { ascending: true });
 
@@ -121,9 +121,11 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
     }
   }
 
-  // Resolve plan visit_duration_minutes per customer via the active subscription.
-  // Batched (no N+1): active subscriptions for these customers -> their plans.
+  // Resolve plan visit_duration_minutes + visit_frequency per customer via the
+  // active subscription. Batched (no N+1): active subscriptions -> their plans.
+  // visit_frequency feeds the reschedule modal's cadence-shift + compression logic.
   const durationByCustomer: Record<string, number> = {};
+  const frequencyByCustomer: Record<string, string> = {};
   if (customerIds.length > 0) {
     const { data: subs } = await ctx.trackQuery(async () => supabase
       .from("subscriptions")
@@ -139,17 +141,22 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
     }
     const planIds = [...new Set(Object.values(planByCustomer))];
     let planDurations: Record<string, number> = {};
+    let planFrequencies: Record<string, string> = {};
     if (planIds.length > 0) {
       const { data: plans } = await ctx.trackQuery(async () => supabase
         .from("service_plans")
-        .select("id, visit_duration_minutes")
+        .select("id, visit_duration_minutes, visit_frequency")
         .in("id", planIds));
       planDurations = Object.fromEntries(
         (plans ?? []).map((p) => [p.id, p.visit_duration_minutes ?? 60])
       );
+      planFrequencies = Object.fromEntries(
+        (plans ?? []).map((p) => [p.id, p.visit_frequency])
+      );
     }
     for (const [customerId2, planId] of Object.entries(planByCustomer)) {
       durationByCustomer[customerId2] = planDurations[planId] ?? 60;
+      if (planFrequencies[planId]) frequencyByCustomer[customerId2] = planFrequencies[planId];
     }
   }
 
@@ -175,12 +182,16 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
       : null;
     return {
       ...s,
+      // Only on-demand services set service_visits.plan_id (subscription visits
+      // get their plan via the subscription). So a non-null plan_id ⟺ on-demand.
+      is_ondemand: !!s.plan_id,
       customer_name: customerNames[s.customer_id] ?? "Unknown",
       gardener_name: s.assigned_gardener_id
         ? gardenerNames[s.assigned_gardener_id] ?? "Unknown"
         : null,
       gardener_ids: gardenersByService[s.id] ?? (s.assigned_gardener_id ? [s.assigned_gardener_id] : []),
       visit_duration_minutes: durationByCustomer[s.customer_id] ?? 60,
+      visit_frequency: frequencyByCustomer[s.customer_id] ?? null,
       unit_number: customerUnit[s.customer_id] ?? null,
       society_short: societyShort,
       society_name: soc?.name ?? null,

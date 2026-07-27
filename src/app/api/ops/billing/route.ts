@@ -35,6 +35,9 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("bills")
     .select("*")
+    // Subscription billing surface only — on-demand bills live under
+    // /api/ops/ondemand/bills.
+    .eq("bill_type", "subscription")
     .order("due_date", { ascending: false });
 
   if (status) query = query.eq("status", status);
@@ -92,6 +95,7 @@ export async function POST(request: NextRequest) {
     .from("bills")
     .insert({
       ...parsed.data,
+      bill_type: "subscription",
       status: "pending",
       created_by: auth.userId,
     })

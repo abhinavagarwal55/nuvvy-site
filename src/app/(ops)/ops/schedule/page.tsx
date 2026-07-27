@@ -15,6 +15,7 @@ import { usePerf } from "@/lib/perf/use-perf";
 import ScheduleTodos from "@/components/ops/schedule/ScheduleTodos";
 import WeekView from "./WeekView";
 import DayView from "./DayView";
+import OnDemandServiceModal from "./OnDemandServiceModal";
 import {
   Service,
   OpsEvent,
@@ -30,6 +31,7 @@ import {
   sortByTime,
   sortEventsByTime,
   SlideUpModal,
+  RescheduleModal,
 } from "./shared";
 
 /* ---------- Helpers ---------- */
@@ -118,6 +120,7 @@ function ScheduleClient() {
 
   // Modal state
   const [createOpen, setCreateOpen] = useState(false);
+  const [onDemandOpen, setOnDemandOpen] = useState(false);
   const [eventCreateOpen, setEventCreateOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<Service | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Service | null>(null);
@@ -146,14 +149,7 @@ function ScheduleClient() {
   });
   const [eventSubmitting, setEventSubmitting] = useState(false);
 
-  // Form state — reschedule
-  const [rescheduleForm, setRescheduleForm] = useState({
-    new_date: "",
-    new_start_time: "",
-    new_end_time: "",
-    reason: "",
-  });
-  const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+  // Reschedule target — the shared RescheduleModal owns all form/step state.
 
   // Form state — cancel service
   const [cancelReason, setCancelReason] = useState("");
@@ -302,33 +298,6 @@ function ScheduleClient() {
     }
   }
 
-  async function handleReschedule() {
-    if (!rescheduleTarget) return;
-    setRescheduleSubmitting(true);
-    try {
-      const res = await fetch(`/api/ops/schedule/services/${rescheduleTarget.id}/reschedule`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          new_date: rescheduleForm.new_date,
-          new_start_time: rescheduleForm.new_start_time || null,
-          new_end_time: rescheduleForm.new_end_time || null,
-          reason: rescheduleForm.reason,
-        }),
-      });
-      if (!res.ok) {
-        const json = await res.json();
-        alert(json.error ?? "Failed to reschedule");
-        return;
-      }
-      mutate();
-      setRescheduleTarget(null);
-      setRescheduleForm({ new_date: "", new_start_time: "", new_end_time: "", reason: "" });
-    } finally {
-      setRescheduleSubmitting(false);
-    }
-  }
-
   async function handleCancel() {
     if (!cancelTarget) return;
     setCancelSubmitting(true);
@@ -410,12 +379,6 @@ function ScheduleClient() {
   }
 
   function openReschedule(svc: Service) {
-    setRescheduleForm({
-      new_date: svc.scheduled_date,
-      new_start_time: svc.time_window_start ?? "",
-      new_end_time: svc.time_window_end ?? "",
-      reason: "",
-    });
     setRescheduleTarget(svc);
   }
 
@@ -472,6 +435,14 @@ function ScheduleClient() {
             >
               <Plus size={16} />
               New Service
+            </button>
+            <button
+              onClick={() => setOnDemandOpen(true)}
+              className="flex items-center gap-1.5 border border-forest text-forest text-sm px-3 py-2 rounded-xl hover:bg-forest/5 transition-colors whitespace-nowrap"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">On-demand service</span>
+              <span className="sm:hidden">On-demand</span>
             </button>
           </div>
         </div>
@@ -863,85 +834,19 @@ function ScheduleClient() {
         </div>
       </SlideUpModal>
 
-      {/* ===== RESCHEDULE MODAL ===== */}
-      <SlideUpModal
-        open={!!rescheduleTarget}
+      {/* ===== RESCHEDULE MODAL (shared component) ===== */}
+      <RescheduleModal
+        target={rescheduleTarget}
         onClose={() => setRescheduleTarget(null)}
-        title="Reschedule Service"
-      >
-        <div className="space-y-3">
-          {rescheduleTarget && (
-            <p className="text-xs text-sage">
-              {rescheduleTarget.customer_name} &mdash; {formatDate(rescheduleTarget.scheduled_date)}
-            </p>
-          )}
-          <div>
-            <label className="block text-xs text-sage mb-1">New date *</label>
-            <input
-              type="date"
-              className={INPUT_CLS}
-              value={rescheduleForm.new_date}
-              onChange={(e) => setRescheduleForm((f) => ({ ...f, new_date: e.target.value }))}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-sage mb-1">Start time</label>
-              <select
-                className={INPUT_CLS}
-                value={rescheduleForm.new_start_time}
-                onChange={(e) => {
-                  const start = e.target.value;
-                  setRescheduleForm((f) => ({
-                    ...f,
-                    new_start_time: start,
-                    new_end_time: start ? addOneHour(start) : f.new_end_time,
-                  }));
-                }}
-              >
-                <option value="">Select</option>
-                {TIME_SLOTS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-sage mb-1">End time</label>
-              <select
-                className={INPUT_CLS}
-                value={rescheduleForm.new_end_time}
-                onChange={(e) => setRescheduleForm((f) => ({ ...f, new_end_time: e.target.value }))}
-              >
-                <option value="">Select</option>
-                {TIME_SLOTS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs text-sage mb-1">Reason *</label>
-            <input
-              type="text"
-              className={INPUT_CLS}
-              placeholder="Why is this being rescheduled?"
-              value={rescheduleForm.reason}
-              onChange={(e) => setRescheduleForm((f) => ({ ...f, reason: e.target.value }))}
-            />
-          </div>
-          <button
-            onClick={handleReschedule}
-            disabled={rescheduleSubmitting || !rescheduleForm.new_date || !rescheduleForm.reason}
-            className="w-full bg-forest text-offwhite py-2.5 rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-50 transition-colors mt-2"
-          >
-            {rescheduleSubmitting ? "Rescheduling..." : "Reschedule"}
-          </button>
-        </div>
-      </SlideUpModal>
+        onDone={() => mutate()}
+      />
+
+      {/* ===== NEW ON-DEMAND SERVICE MODAL ===== */}
+      <OnDemandServiceModal
+        open={onDemandOpen}
+        onClose={() => setOnDemandOpen(false)}
+        onCreated={() => mutate()}
+      />
 
       {/* ===== CANCEL SERVICE MODAL ===== */}
       <SlideUpModal open={!!cancelTarget} onClose={() => setCancelTarget(null)} title="Cancel Service">

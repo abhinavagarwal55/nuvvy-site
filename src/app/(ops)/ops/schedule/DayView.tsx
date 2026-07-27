@@ -520,11 +520,18 @@ function BlockInner({
       {societyLine(svc) && (
         <p className="text-[10px] text-sage truncate leading-tight mt-0.5">{societyLine(svc)}</p>
       )}
-      {showBadge && (
-        <p className={`mt-0.5 inline-block text-[9px] px-1 rounded-full ${label.cls}`}>
-          {label.text}
-        </p>
-      )}
+      <div className="flex items-center gap-1 mt-0.5">
+        {svc.is_ondemand && (
+          <span className="inline-block text-[9px] px-1 rounded-full bg-violet-100 text-violet-700 font-medium">
+            On-demand
+          </span>
+        )}
+        {showBadge && (
+          <span className={`inline-block text-[9px] px-1 rounded-full ${label.cls}`}>
+            {label.text}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

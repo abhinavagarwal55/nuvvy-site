@@ -9,19 +9,22 @@ type Plan = {
   id: string;
   name: string;
   description: string | null;
-  visit_frequency: "weekly" | "fortnightly" | "monthly";
+  visit_frequency: "weekly" | "fortnightly" | "monthly" | null;
   visit_duration_minutes: number;
   price: number;
   billing_cycle: "monthly" | "quarterly";
   includes_fertilizer: boolean;
   includes_pest_control: boolean;
+  plan_type: "subscription" | "ondemand";
+  pricing_model: "per_plant_count" | "per_hour";
+  hourly_rate: number | null;
   is_active: boolean;
   created_at: string;
 };
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-const FREQ_LABEL: Record<Plan["visit_frequency"], string> = {
+const FREQ_LABEL: Record<"weekly" | "fortnightly" | "monthly", string> = {
   weekly: "Weekly",
   fortnightly: "Fortnightly",
   monthly: "Monthly",
@@ -60,9 +63,17 @@ function PlanFormModal({
 
   const [name, setName] = useState(plan?.name ?? "");
   const [description, setDescription] = useState(plan?.description ?? "");
-  const [visitFrequency, setVisitFrequency] = useState<Plan["visit_frequency"]>(
-    plan?.visit_frequency ?? "fortnightly"
+  // Plan type is fixed once created; only selectable in create mode.
+  const [planType, setPlanType] = useState<"subscription" | "ondemand">(
+    plan?.plan_type ?? "subscription"
   );
+  const [hourlyRate, setHourlyRate] = useState(
+    plan?.hourly_rate != null ? String(plan.hourly_rate) : ""
+  );
+  const isOnDemand = planType === "ondemand";
+  const [visitFrequency, setVisitFrequency] = useState<
+    "weekly" | "fortnightly" | "monthly"
+  >(plan?.visit_frequency ?? "fortnightly");
   const [visitDuration, setVisitDuration] = useState(
     String(plan?.visit_duration_minutes ?? 60)
   );
@@ -84,16 +95,25 @@ function PlanFormModal({
     setError(null);
     setSaving(true);
 
-    const body = {
-      name,
-      description: description || undefined,
-      visit_frequency: visitFrequency,
-      visit_duration_minutes: parseInt(visitDuration) || 60,
-      price: parseFloat(price),
-      billing_cycle: billingCycle,
-      includes_fertilizer: includesFertilizer,
-      includes_pest_control: includesPestControl,
-    };
+    const body = isOnDemand
+      ? {
+          name,
+          description: description || undefined,
+          // plan_type is immutable on edit; harmless to resend on create.
+          ...(isEdit ? {} : { plan_type: "ondemand" as const }),
+          hourly_rate: parseFloat(hourlyRate),
+        }
+      : {
+          name,
+          description: description || undefined,
+          ...(isEdit ? {} : { plan_type: "subscription" as const }),
+          visit_frequency: visitFrequency,
+          visit_duration_minutes: parseInt(visitDuration) || 60,
+          price: parseFloat(price),
+          billing_cycle: billingCycle,
+          includes_fertilizer: includesFertilizer,
+          includes_pest_control: includesPestControl,
+        };
 
     try {
       const res = await fetch(
@@ -126,6 +146,30 @@ function PlanFormModal({
           {isEdit ? "Edit plan" : "New plan"}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Plan type — chosen at create, fixed after */}
+          <div>
+            <label className="block text-sm font-medium text-charcoal mb-1">
+              Plan type
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {(["subscription", "ondemand"] as const).map((pt) => (
+                <button
+                  key={pt}
+                  type="button"
+                  disabled={isEdit}
+                  onClick={() => setPlanType(pt)}
+                  className={`py-2 rounded-xl text-sm border ${
+                    planType === pt
+                      ? "border-forest bg-forest/10 text-forest font-medium"
+                      : "border-stone text-charcoal hover:bg-cream"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {pt === "subscription" ? "Subscription" : "On-demand"}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-charcoal mb-1">
               Name <span className="text-terra">*</span>
@@ -135,7 +179,7 @@ function PlanFormModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              placeholder="e.g. Starter"
+              placeholder={isOnDemand ? "e.g. On-demand Standard" : "e.g. Starter"}
             />
           </div>
 
@@ -151,6 +195,28 @@ function PlanFormModal({
             />
           </div>
 
+          {isOnDemand && (
+            <div>
+              <label className="block text-sm font-medium text-charcoal mb-1">
+                Hourly rate (₹/hr) <span className="text-terra">*</span>
+              </label>
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                required
+                placeholder="500"
+              />
+              <p className="text-xs text-sage mt-1">
+                Billed per hour of actual time spent. No visit cadence.
+              </p>
+            </div>
+          )}
+
+          {!isOnDemand && (
+          <>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-charcoal mb-1">
@@ -160,7 +226,9 @@ function PlanFormModal({
                 className={selectCls}
                 value={visitFrequency}
                 onChange={(e) =>
-                  setVisitFrequency(e.target.value as Plan["visit_frequency"])
+                  setVisitFrequency(
+                    e.target.value as "weekly" | "fortnightly" | "monthly"
+                  )
                 }
               >
                 <option value="weekly">Weekly</option>
@@ -236,6 +304,8 @@ function PlanFormModal({
               Pest control
             </label>
           </div>
+          </>
+          )}
 
           {error && <p className="text-sm text-terra">{error}</p>}
 
@@ -249,7 +319,7 @@ function PlanFormModal({
             </button>
             <button
               type="submit"
-              disabled={saving || !name || !price}
+              disabled={saving || !name || (isOnDemand ? !hourlyRate : !price)}
               className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm hover:bg-garden disabled:opacity-40"
             >
               {saving ? "Saving…" : isEdit ? "Save" : "Create"}
@@ -328,7 +398,14 @@ function PlanCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-medium text-charcoal">{plan.name}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-charcoal">{plan.name}</p>
+            {plan.plan_type === "ondemand" && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-terra/10 text-terra">
+                On-demand
+              </span>
+            )}
+          </div>
           {plan.description && (
             <p className="text-xs text-sage mt-0.5">{plan.description}</p>
           )}
@@ -337,28 +414,41 @@ function PlanCard({
       </div>
 
       {/* Details row */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-charcoal">
-        <span>
-          <span className="text-sage">Visits:</span>{" "}
-          {FREQ_LABEL[plan.visit_frequency]}
-        </span>
-        <span>
-          <span className="text-sage">Duration:</span> {plan.visit_duration_minutes}min
-        </span>
-        <span>
-          <span className="text-sage">Price:</span> ₹{plan.price}/mo
-        </span>
-        <span>
-          <span className="text-sage">Billing:</span>{" "}
-          {plan.billing_cycle === "monthly" ? "Monthly" : "Quarterly"}
-        </span>
-      </div>
+      {plan.plan_type === "ondemand" ? (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-charcoal">
+          <span>
+            <span className="text-sage">Rate:</span> ₹{plan.hourly_rate}/hr
+          </span>
+          <span>
+            <span className="text-sage">Billed:</span> per hour of actual time
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-charcoal">
+            <span>
+              <span className="text-sage">Visits:</span>{" "}
+              {plan.visit_frequency ? FREQ_LABEL[plan.visit_frequency] : "—"}
+            </span>
+            <span>
+              <span className="text-sage">Duration:</span> {plan.visit_duration_minutes}min
+            </span>
+            <span>
+              <span className="text-sage">Price:</span> ₹{plan.price}/mo
+            </span>
+            <span>
+              <span className="text-sage">Billing:</span>{" "}
+              {plan.billing_cycle === "monthly" ? "Monthly" : "Quarterly"}
+            </span>
+          </div>
 
-      {/* Inclusions */}
-      <div className="flex gap-3 text-xs text-sage">
-        {plan.includes_fertilizer && <span>+ Fertilizer</span>}
-        {plan.includes_pest_control && <span>+ Pest control</span>}
-      </div>
+          {/* Inclusions */}
+          <div className="flex gap-3 text-xs text-sage">
+            {plan.includes_fertilizer && <span>+ Fertilizer</span>}
+            {plan.includes_pest_control && <span>+ Pest control</span>}
+          </div>
+        </>
+      )}
 
       {/* Admin actions */}
       {isAdmin && (

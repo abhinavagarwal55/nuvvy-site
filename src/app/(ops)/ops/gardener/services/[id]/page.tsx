@@ -103,6 +103,9 @@ type ServiceDetail = {
   photo_count: number;
   photos: Photo[];
   voice_note_count: number;
+  // On-demand services are billed offline — the gardener does not log time or
+  // see the rate. Kept for reference; not surfaced in this view.
+  is_ondemand?: boolean;
 };
 
 // Free-text fields (special tasks, internal notes) are AI-translated on write.
@@ -281,7 +284,7 @@ export default function ServiceExecutionPage() {
           }))
         : [];
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       checklist,
       care_actions_done: draft.careActionsDone,
       special_tasks_done: draft.specialTasksDone,
@@ -294,8 +297,8 @@ export default function ServiceExecutionPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-
     const json = await res.json();
+
     if (!res.ok) {
       alert(json.error ?? "Failed to end service");
       setActionLoading(null);

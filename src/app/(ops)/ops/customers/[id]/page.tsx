@@ -45,6 +45,10 @@ type CustomerDetail = {
   unit_number: string | null;
   status: string;
   customer_type: CustomerType;
+  source: string | null;
+  last_fertilizer_applied_at: string | null;
+  last_neem_applied_at: string | null;
+  converted_to_subscription_at: string | null;
   primary_gardener_id: string | null;
   secondary_gardener_id: string | null;
   plant_count_range: string | null;
@@ -108,6 +112,7 @@ const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
 const TYPE_BADGE: Record<CustomerType, string> = {
   care_plan: "bg-[#EAF2EC] text-forest",
   plant_only: "bg-stone/30 text-charcoal",
+  ondemand: "bg-terra/10 text-terra",
 };
 
 const SERVICE_STATUS_CLS: Record<string, string> = {
@@ -225,6 +230,11 @@ export default function Customer360Page() {
   const [deactivateReason, setDeactivateReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [showEdit, setShowEdit] = useState(searchParams.get("edit") === "true");
+  // On-demand → subscription conversion
+  const [showConvert, setShowConvert] = useState(false);
+  const [convertPlanId, setConvertPlanId] = useState("");
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const [subPlans, setSubPlans] = useState<{ id: string; name: string; price: number }[]>([]);
 
   // Sync edit state when URL search params change (e.g. navigating from customer list Edit button)
   useEffect(() => {
@@ -328,6 +338,37 @@ export default function Customer360Page() {
       setTab("overview");
       setShowEdit(true);
     }
+  }
+
+  async function openConvert() {
+    setConvertError(null);
+    setConvertPlanId("");
+    setShowConvert(true);
+    // Load active subscription plans for the picker.
+    const res = await fetch("/api/ops/plans?type=subscription&active=true");
+    const json = await res.json();
+    setSubPlans((json.data ?? []).map((p: { id: string; name: string; price: number }) => ({ id: p.id, name: p.name, price: p.price })));
+  }
+
+  async function handleConvertToSubscription() {
+    if (!convertPlanId) return;
+    setConvertError(null);
+    setActionLoading(true);
+    const res = await fetch(`/api/ops/customers/${customerId}/convert-to-subscription`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan_id: convertPlanId }),
+    });
+    setActionLoading(false);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setConvertError(json.error ?? "Failed to convert");
+      return;
+    }
+    setShowConvert(false);
+    mutateCust();
+    setTab("overview");
+    setShowEdit(true);
   }
 
   if (loading) {
@@ -438,6 +479,30 @@ export default function Customer360Page() {
       </div>
 
       <div className="px-4 pt-4 space-y-4">
+        {customer.customer_type === "ondemand" && (
+          <div className="bg-terra/5 border border-terra/20 rounded-2xl px-4 py-3">
+            <p className="text-xs font-medium text-terra uppercase tracking-widest mb-2">
+              On-demand customer
+            </p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-charcoal">
+              <span>
+                <span className="text-sage">Source:</span> {customer.source ?? "—"}
+              </span>
+              <span>
+                <span className="text-sage">Last fertilizer:</span>{" "}
+                {customer.last_fertilizer_applied_at
+                  ? String(customer.last_fertilizer_applied_at).split("T")[0]
+                  : "—"}
+              </span>
+              <span>
+                <span className="text-sage">Last neem:</span>{" "}
+                {customer.last_neem_applied_at
+                  ? String(customer.last_neem_applied_at).split("T")[0]
+                  : "—"}
+              </span>
+            </div>
+          </div>
+        )}
         {customerPhotoCount === 0 && (
           <div className="bg-terra/10 border border-terra/30 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-terra">
@@ -507,8 +572,21 @@ export default function Customer360Page() {
           </button>
         )}
 
+        {/* On-demand → subscription conversion (provisions a subscription). */}
+        {canChangeType && customer.status !== "INACTIVE" &&
+          customer.customer_type === "ondemand" && (
+            <button
+              onClick={openConvert}
+              disabled={actionLoading}
+              className="w-full py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-40 flex items-center justify-center gap-1.5"
+            >
+              <Leaf size={14} /> Convert to subscription
+            </button>
+          )}
+
         {/* Change customer type (admin + horticulturist). Audited label flip. */}
-        {canChangeType && customer.status !== "INACTIVE" && (
+        {canChangeType && customer.status !== "INACTIVE" &&
+          customer.customer_type !== "ondemand" && (
           customer.customer_type === "plant_only" ? (
             <button
               onClick={() => handleChangeType("care_plan")}
@@ -536,6 +614,50 @@ export default function Customer360Page() {
           )
         )}
       </div>
+
+      {/* Convert to subscription modal */}
+      {showConvert && (
+        <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
+          <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6">
+            <h2 className="font-semibold text-charcoal mb-2">
+              Convert {customer.name} to subscription
+            </h2>
+            <p className="text-sm text-sage mb-4">
+              Provisions an active subscription on the selected plan and switches this
+              customer to Care Plan. On-demand history is preserved.
+            </p>
+            <label className="block text-sm font-medium text-charcoal mb-1">
+              Subscription plan <span className="text-terra">*</span>
+            </label>
+            <select
+              className="w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest mb-4"
+              value={convertPlanId}
+              onChange={(e) => setConvertPlanId(e.target.value)}
+            >
+              <option value="">Select a plan…</option>
+              {subPlans.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} — ₹{p.price}/mo</option>
+              ))}
+            </select>
+            {convertError && <p className="text-sm text-terra mb-3">{convertError}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConvert(false)}
+                className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConvertToSubscription}
+                disabled={actionLoading || !convertPlanId}
+                className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
+              >
+                {actionLoading ? "Converting…" : "Convert"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Deactivate modal */}
       {showDeactivate && (

@@ -13,8 +13,13 @@ const UpdatePlanSchema = z.object({
   billing_cycle: z.enum(["monthly", "quarterly"]).optional(),
   includes_fertilizer: z.boolean().optional(),
   includes_pest_control: z.boolean().optional(),
+  // On-demand plans: editable hourly rate (must stay > 0 per DB constraint).
+  hourly_rate: z.number().positive().optional(),
   is_active: z.boolean().optional(),
 });
+
+const PLAN_SELECT =
+  "id, name, description, visit_frequency, visit_duration_minutes, price, billing_cycle, includes_fertilizer, includes_pest_control, plan_type, pricing_model, hourly_rate, is_active, created_at";
 
 // GET /api/ops/plans/[id]
 export async function GET(
@@ -36,9 +41,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("service_plans")
-    .select(
-      "id, name, description, visit_frequency, visit_duration_minutes, price, billing_cycle, includes_fertilizer, includes_pest_control, is_active, created_at"
-    )
+    .select(PLAN_SELECT)
     .eq("id", id)
     .single();
 
@@ -85,6 +88,11 @@ export async function PUT(
     if (value !== undefined) {
       updates[key] = value;
     }
+  }
+
+  // On-demand plans mirror price = hourly_rate (price is NOT NULL).
+  if (updates.hourly_rate !== undefined) {
+    updates.price = updates.hourly_rate;
   }
 
   if (Object.keys(updates).length === 0) {

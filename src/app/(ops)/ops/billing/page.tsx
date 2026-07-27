@@ -26,13 +26,14 @@ import PlantOrderBillingList, {
 import PlantInvoiceTemplateModal from "@/components/ops/billing/PlantInvoiceTemplateModal";
 import PayrollTab from "@/components/ops/billing/PayrollTab";
 import SummaryTab from "@/components/ops/billing/SummaryTab";
+import OnDemandTab from "@/components/ops/billing/OnDemandTab";
 import {
   DEFAULT_PLANT_INVOICE_TEMPLATE,
   DEFAULT_PLANT_INVOICE_SERVICE_LINES,
   DEFAULT_PLANT_INVOICE_FOOTER_NOTE,
 } from "@/lib/billing/plant-invoice-template";
 
-type BillingTab = "care_plans" | "plant_orders" | "payroll" | "summary";
+type BillingTab = "care_plans" | "plant_orders" | "ondemand" | "payroll" | "summary";
 
 type PlantOrderTotals = { revenue: number; paid: number; outstanding: number };
 
@@ -114,6 +115,7 @@ export default function BillingPage() {
   const [poRows, setPoRows] = useState<PlantOrderBillingRow[]>([]);
   // null = server did not return revenue totals (scoped horticulturist).
   const [poTotals, setPoTotals] = useState<PlantOrderTotals | null>(null);
+  const [odTotals, setOdTotals] = useState<{ outstanding: number; paid: number } | null>(null);
   const [poLoading, setPoLoading] = useState(true);
   const [poTemplate, setPoTemplate] = useState<string>(DEFAULT_PLANT_INVOICE_TEMPLATE);
   const [poServiceLines, setPoServiceLines] = useState<string[]>(DEFAULT_PLANT_INVOICE_SERVICE_LINES);
@@ -347,6 +349,7 @@ export default function BillingPage() {
             [
               ["care_plans", "Care Plans"],
               ["plant_orders", "Plant Orders"],
+              ["ondemand", "On-demand"],
               ...(isAdmin
                 ? ([
                     ["payroll", "Payroll & Overheads"],
@@ -377,6 +380,11 @@ export default function BillingPage() {
             <Pill label="Paid" amount={poTotals.paid} tone="forest" />
             <Pill label="Outstanding" amount={poTotals.outstanding} tone="terra" />
           </div>
+        ) : tab === "ondemand" && odTotals ? (
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Pill label="Paid" amount={odTotals.paid} tone="forest" />
+            <Pill label="Outstanding" amount={odTotals.outstanding} tone="terra" />
+          </div>
         ) : null}
       </div>
 
@@ -384,6 +392,8 @@ export default function BillingPage() {
         <PayrollTab month={month} monthLabel={monthLabel} />
       ) : tab === "summary" && isAdmin ? (
         <SummaryTab month={month} />
+      ) : tab === "ondemand" ? (
+        <OnDemandTab month={month} onTotals={setOdTotals} />
       ) : tab === "plant_orders" ? (
         <div className="px-4 pt-4">
           {!canView ? (

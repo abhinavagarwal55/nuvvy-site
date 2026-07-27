@@ -40,6 +40,7 @@ export const DICTIONARY: Record<string, Phrase> = {
   "today.nothingScheduled": { en: "Nothing scheduled for the next 7 days", hi: "अगले 7 दिनों के लिए कुछ भी निर्धारित नहीं", kn: "ಮುಂದಿನ 7 ದಿನಗಳಿಗೆ ಏನೂ ನಿಗದಿಯಾಗಿಲ್ಲ" },
   "today.dayToday": { en: "Today", hi: "आज", kn: "ಇಂದು" },
   "today.dayTomorrow": { en: "Tomorrow", hi: "कल", kn: "ನಾಳೆ" },
+  "today.onDemand": { en: "On-demand", hi: "ऑन-डिमांड", kn: "ಆನ್-ಡಿಮಾಂಡ್" },
 
   // ---- Status badges ----
   "status.scheduled": { en: "Scheduled", hi: "निर्धारित", kn: "ನಿಗದಿಯಾಗಿದೆ" },

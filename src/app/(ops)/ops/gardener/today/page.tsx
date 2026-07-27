@@ -20,6 +20,7 @@ type WeekService = {
   status: string;
   started_at: string | null;
   completed_at: string | null;
+  is_ondemand?: boolean;
 };
 
 // Prefer the structured "society · unit" location; fall back to free-text address.
@@ -149,7 +150,13 @@ function ServiceCard({ service }: { service: WeekService }) {
 
   return (
     <Link href={`/ops/gardener/services/${service.id}`}>
-      <div className="bg-offwhite rounded-2xl border border-stone/60 px-4 py-3.5 flex items-center gap-3 active:bg-cream transition-colors min-h-[68px]">
+      <div
+        className={`rounded-2xl border px-4 py-3.5 flex items-center gap-3 transition-colors min-h-[68px] ${
+          service.is_ondemand
+            ? "bg-violet-50 border-violet-300 active:bg-violet-100"
+            : "bg-offwhite border-stone/60 active:bg-cream"
+        }`}
+      >
         {/* Status indicator */}
         <div
           className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border ${badgeCls}`}
@@ -183,6 +190,11 @@ function ServiceCard({ service }: { service: WeekService }) {
             {service.time_window_start && (
               <span>
                 {service.time_window_start} – {service.time_window_end}
+              </span>
+            )}
+            {service.is_ondemand && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium border border-violet-300 bg-violet-100 text-violet-700">
+                {t("today.onDemand")}
               </span>
             )}
             <span

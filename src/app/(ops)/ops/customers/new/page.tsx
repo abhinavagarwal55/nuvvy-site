@@ -3,9 +3,10 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Copy, Camera, X, Trash2, Leaf, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, Camera, X, Trash2, Leaf, ShoppingBag, Clock } from "lucide-react";
 import { compressImage } from "@/lib/utils/compress-image";
 import { CUSTOMER_TYPE_LABELS, type CustomerType } from "@/lib/schemas/customer-type";
+import { ONDEMAND_SOURCES } from "@/lib/services/ondemand";
 import PhotoLightbox from "../../../components/PhotoLightbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ type Draft = {
   society_id: string;
   society_name: string; // for new society
   society_short: string; // optional abbreviation for a new society
+  source: string; // on-demand only: acquisition source
   // Step 2
   plant_count_range: string;
   light_condition: string;
@@ -59,9 +61,14 @@ const STEP_LABELS: Record<StepId, string> = {
 
 const CARE_PLAN_STEPS: StepId[] = ["type", "details", "garden", "photos", "plan", "review", "done"];
 const PLANT_ONLY_STEPS: StepId[] = ["type", "details", "photos", "review", "done"];
+// On-demand: lightweight, like plant_only but no photos step. Just contact +
+// society/apartment + source, then activate (no plan/slot/care).
+const ONDEMAND_STEPS: StepId[] = ["type", "details", "review", "done"];
 
 function stepsForType(type: CustomerType): StepId[] {
-  return type === "plant_only" ? PLANT_ONLY_STEPS : CARE_PLAN_STEPS;
+  if (type === "plant_only") return PLANT_ONLY_STEPS;
+  if (type === "ondemand") return ONDEMAND_STEPS;
+  return CARE_PLAN_STEPS;
 }
 
 
@@ -93,6 +100,7 @@ const EMPTY_DRAFT: Draft = {
   society_id: "",
   society_name: "",
   society_short: "",
+  source: "direct",
   plant_count_range: "",
   light_condition: "",
   watering_responsibility: [],
@@ -142,6 +150,17 @@ function OnboardingWizardInner() {
     });
   }, []);
 
+  // Backfill the address from the selected society when the society was set
+  // programmatically (lead conversion / draft load) rather than via the
+  // dropdown's onChange — only when no address has been entered yet.
+  useEffect(() => {
+    if (!draft.society_id || societies.length === 0) return;
+    const soc = societies.find((s) => s.id === draft.society_id);
+    if (soc?.address) {
+      setDraft((prev) => (prev.address ? prev : { ...prev, address: soc.address ?? "" }));
+    }
+  }, [societies, draft.society_id]);
+
   // Load existing draft
   useEffect(() => {
     if (!draftId) return;
@@ -152,13 +171,17 @@ function OnboardingWizardInner() {
         const c = json.data;
         setDraft((prev) => ({
           ...prev,
-          customer_type: c.customer_type === "plant_only" ? "plant_only" : "care_plan",
+          customer_type:
+            c.customer_type === "plant_only" || c.customer_type === "ondemand"
+              ? c.customer_type
+              : "care_plan",
           name: c.name ?? "",
           phone_number: c.phone_number ?? "",
           email: c.email ?? "",
           address: c.address ?? "",
           unit_number: c.unit_number ?? "",
           society_id: c.society_id ?? "",
+          source: c.source ?? "direct",
           plant_count_range: c.plant_count_range ?? "",
           light_condition: c.light_condition ?? "",
           watering_responsibility: c.watering_responsibility ?? [],
@@ -181,7 +204,9 @@ function OnboardingWizardInner() {
     setDraft((prev) => ({
       ...prev,
       customer_type:
-        leadType === "plant_only" || leadType === "care_plan" ? leadType : prev.customer_type,
+        leadType === "plant_only" || leadType === "care_plan" || leadType === "ondemand"
+          ? leadType
+          : prev.customer_type,
       name: searchParams.get("name") ?? prev.name,
       phone_number: searchParams.get("phone") ?? prev.phone_number,
       society_id: searchParams.get("society_id") ?? prev.society_id,
@@ -258,6 +283,7 @@ function OnboardingWizardInner() {
           unit_number: draft.unit_number || undefined,
           society_id: societyId || undefined,
           society_name: draft.society_name || undefined,
+          source: draft.customer_type === "ondemand" ? draft.source || undefined : undefined,
           plant_count_range: draft.plant_count_range || undefined,
           light_condition: draft.light_condition || undefined,
           watering_responsibility:
@@ -294,7 +320,7 @@ function OnboardingWizardInner() {
   }
 
   async function handleSaveDraft() {
-    if (!draft.name || !draft.phone_number) {
+    if (!draft.name || (!draft.phone_number && draft.customer_type !== "ondemand")) {
       setError("Name and phone are required to save a draft");
       return;
     }
@@ -349,7 +375,8 @@ function OnboardingWizardInner() {
     setError(null);
 
     // Persist the draft on the data-entry steps once we have enough to create.
-    if ((stepId === "details" || stepId === "garden" || stepId === "photos") && draft.name && draft.phone_number) {
+    const hasContact = draft.name && (draft.phone_number || draft.customer_type === "ondemand");
+    if ((stepId === "details" || stepId === "garden" || stepId === "photos") && hasContact) {
       const ok = await saveDraft();
       if (!ok) return;
     }
@@ -365,7 +392,7 @@ function OnboardingWizardInner() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            draft.customer_type === "plant_only" ? {} : { plan_id: draft.plan_id }
+            draft.customer_type === "care_plan" ? { plan_id: draft.plan_id } : {}
           ),
         });
         const json = await res.json();
@@ -395,7 +422,11 @@ function OnboardingWizardInner() {
       case "type":
         return true; // a type is always selected (defaults to care_plan)
       case "details":
-        return draft.name.trim() !== "" && draft.phone_number.trim() !== "";
+        // Phone is optional for on-demand; required otherwise.
+        return (
+          draft.name.trim() !== "" &&
+          (draft.customer_type === "ondemand" || draft.phone_number.trim() !== "")
+        );
       case "garden":
         return true; // garden details are optional
       case "photos":
@@ -540,7 +571,7 @@ function OnboardingWizardInner() {
             {stepId !== "done" && (
               <button
                 onClick={handleSaveDraft}
-                disabled={saving || !draft.name || !draft.phone_number}
+                disabled={saving || !draft.name || (!draft.phone_number && draft.customer_type !== "ondemand")}
                 className="w-full py-2 text-xs text-sage hover:text-forest disabled:opacity-30 transition-colors"
               >
                 {draftSaved ? "Draft saved ✓" : "Save as draft & exit later"}
@@ -606,6 +637,11 @@ function Step0CustomerType({
       icon: ShoppingBag,
       blurb: "Transactional plant buyer — no subscription, visits, or care schedules. Lighter onboarding.",
     },
+    {
+      value: "ondemand",
+      icon: Clock,
+      blurb: "One-off garden care billed per hour. No subscription — each visit is scheduled and billed individually.",
+    },
   ];
 
   return (
@@ -656,8 +692,25 @@ function Step1CustomerDetails({
   update: (k: keyof Draft, v: Draft[keyof Draft]) => void;
   societies: Society[];
 }) {
+  const isOnDemand = draft.customer_type === "ondemand";
   return (
     <div className="space-y-4">
+      {isOnDemand && (
+        <div>
+          <label className="block text-sm font-medium text-charcoal mb-1">
+            Source <span className="text-terra">*</span>
+          </label>
+          <select
+            className={selectCls}
+            value={draft.source}
+            onChange={(e) => update("source", e.target.value)}
+          >
+            {ONDEMAND_SOURCES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium text-charcoal mb-1">
           Name <span className="text-terra">*</span>
@@ -671,7 +724,12 @@ function Step1CustomerDetails({
       </div>
       <div>
         <label className="block text-sm font-medium text-charcoal mb-1">
-          Phone <span className="text-terra">*</span>
+          Phone{" "}
+          {isOnDemand ? (
+            <span className="text-sage text-xs">(optional)</span>
+          ) : (
+            <span className="text-terra">*</span>
+          )}
         </label>
         <input
           className={inputCls}
@@ -1043,6 +1101,9 @@ function Step6Review({
   selectedSociety?: string;
 }) {
   const isPlantOnly = draft.customer_type === "plant_only";
+  const isOnDemand = draft.customer_type === "ondemand";
+  // Garden + Plan are care-plan-only concepts — hidden for the lightweight types.
+  const isLightweight = isPlantOnly || isOnDemand;
 
   const sections = [
     {
@@ -1050,14 +1111,14 @@ function Step6Review({
       items: [
         ["Type", CUSTOMER_TYPE_LABELS[draft.customer_type]],
         ["Name", draft.name],
-        ["Phone", draft.phone_number],
+        ["Phone", draft.phone_number || "—"],
         ["Email", draft.email || "—"],
-        ["Address", draft.address || "—"],
+        ...(isOnDemand ? [["Source", draft.source || "—"]] : []),
+        ["Apartment", draft.unit_number || "—"],
         ["Society", selectedSociety || "—"],
       ],
     },
-    // Garden + Plan are care-plan-only concepts — hidden for plant_only (FD-10).
-    ...(isPlantOnly
+    ...(isLightweight
       ? []
       : [
           {
@@ -1092,7 +1153,9 @@ function Step6Review({
   return (
     <div className="space-y-4">
       <p className="text-sm text-sage">
-        {isPlantOnly
+        {isOnDemand
+          ? "Review the details below, then tap “Confirm & Activate” to activate this on-demand customer. Schedule visits from the Schedule page."
+          : isPlantOnly
           ? "Review the details below, then tap “Confirm & Activate” to activate this plant-order customer."
           : "Review the details below, then tap “Confirm & Activate” to activate this customer and generate their visit schedule."}
       </p>
@@ -1129,9 +1192,12 @@ function Step7PostOnboarding({
   customerId: string | null;
 }) {
   const isPlantOnly = draft.customer_type === "plant_only";
+  const isOnDemand = draft.customer_type === "ondemand";
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState(
-    isPlantOnly
+    isOnDemand
+      ? `Hi ${draft.name}! 🌿\n\nWelcome to Nuvvy! We'll be in touch to schedule your garden care visit.\n\nEach visit is billed by the hour based on time spent, and we'll share the details with you beforehand.\n\nIf you have any questions, just reply here. 🌱\n\n— Team Nuvvy`
+      : isPlantOnly
       ? `Hi ${draft.name}! 🌿\n\nWelcome to Nuvvy! Thanks for choosing us for your plants.\n\nWe'll be in touch about your plant order and keep you posted on availability and delivery.\n\nIf you have any questions, just reply here. 🌱\n\n— Team Nuvvy`
       : `Hi ${draft.name}! 🌿\n\nWelcome to Nuvvy! We're excited to start taking care of your garden.\n\nHere's a summary of your plan:\n• Plan: ${selectedPlan?.name ?? "—"} (₹${selectedPlan?.price ?? "—"}/month)\n\nWe'll be setting up your visit schedule shortly and will share the details with you.\n\nIf you have any questions, just reply here. 🌱\n\n— Team Nuvvy`
   );
@@ -1150,11 +1216,29 @@ function Step7PostOnboarding({
         </div>
         <p className="font-medium text-charcoal">Customer activated!</p>
         <p className="text-sm text-sage mt-1">
-          {isPlantOnly
+          {isOnDemand
+            ? "This is an on-demand customer — schedule and bill each visit individually."
+            : isPlantOnly
             ? "This is a plant-order customer — no recurring visits or care schedules."
             : "Visits have been auto-generated for the next 6 weeks."}
         </p>
       </div>
+
+      {/* ondemand: jump straight to scheduling the first service */}
+      {isOnDemand && customerId && (
+        <div className="bg-offwhite rounded-2xl border border-stone/60 p-4">
+          <p className="text-sm font-medium text-charcoal mb-1">Next step</p>
+          <p className="text-xs text-sage mb-3">
+            Schedule this customer&apos;s first on-demand service.
+          </p>
+          <a
+            href="/ops/schedule"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-forest text-offwhite rounded-xl text-xs font-medium hover:bg-garden"
+          >
+            <Clock size={14} /> Go to Schedule →
+          </a>
+        </div>
+      )}
 
       {/* plant_only: jump straight to creating a plant order */}
       {isPlantOnly && customerId && (
@@ -1173,7 +1257,7 @@ function Step7PostOnboarding({
       )}
 
       {/* care_plan: next-steps reminder (slot + care schedules) */}
-      {!isPlantOnly && customerId && (
+      {!isPlantOnly && !isOnDemand && customerId && (
         <div className="bg-terra/10 rounded-2xl border border-terra/30 p-4">
           <p className="text-sm font-medium text-charcoal mb-2">Next steps</p>
           <ul className="text-xs text-sage space-y-1 mb-3">

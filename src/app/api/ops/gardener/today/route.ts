@@ -46,7 +46,7 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
   const { data: services, error } = await ctx.trackQuery(async () => supabase
     .from("service_visits")
     .select(
-      "id, customer_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off"
+      "id, customer_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off, plan_id"
     )
     .in("id", assignedServiceIds.length > 0 ? assignedServiceIds : ["00000000-0000-0000-0000-000000000000"])
     .neq("status", "cancelled")
@@ -78,6 +78,8 @@ export const GET = withPerfLog('/api/ops/gardener/today', async (request: NextRe
 
   const result = (services ?? []).map((s) => ({
     ...s,
+    // Only on-demand visits set service_visits.plan_id.
+    is_ondemand: !!s.plan_id,
     customer_name: customerInfo[s.customer_id]?.name ?? "Unknown",
     customer_address: customerInfo[s.customer_id]?.address ?? null,
     customer_society: customerInfo[s.customer_id]?.society ?? null,

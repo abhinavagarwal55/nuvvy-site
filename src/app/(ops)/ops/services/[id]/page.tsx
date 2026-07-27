@@ -43,6 +43,7 @@ function TxStatus({ status }: { status?: "pending" | "done" | "failed" }) {
   return null;
 }
 import PhotoLightbox from "../../../components/PhotoLightbox";
+import { RescheduleModal } from "../../schedule/shared";
 
 type ServiceDetail = {
   id: string;
@@ -80,6 +81,11 @@ type ServiceDetail = {
   }[];
   photo_count: number;
   voice_note_count: number;
+  // On-demand (hourly) services
+  is_ondemand?: boolean;
+  hourly_rate?: number | null;
+  estimated_hours?: number | null;
+  actual_hours_spent?: number | null;
 };
 
 type MediaPhoto = {
@@ -106,27 +112,6 @@ type AuditEntry = {
 const inputCls =
   "w-full px-3 py-2.5 border border-stone rounded-xl text-sm text-charcoal bg-offwhite focus:outline-none focus:border-forest placeholder:text-stone";
 
-/** Generate 30-min time slots from 07:00 to 19:00 */
-const TIME_SLOTS: { value: string; label: string }[] = (() => {
-  const slots: { value: string; label: string }[] = [];
-  for (let h = 7; h <= 19; h++) {
-    for (const m of [0, 30]) {
-      if (h === 19 && m === 30) break;
-      const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-      const ampm = h >= 12 ? "PM" : "AM";
-      const label = `${hour12}:${String(m).padStart(2, "0")} ${ampm}`;
-      slots.push({ value: val, label });
-    }
-  }
-  return slots;
-})();
-
-function addOneHour(time: string): string {
-  const [h, mm] = time.split(":").map(Number);
-  const newH = Math.min(h + 1, 19);
-  return `${String(newH).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
 
 export default function ServiceDetailPage() {
   const params = useParams();
@@ -160,15 +145,8 @@ export default function ServiceDetailPage() {
   >([]);
   const [auditHistory, setAuditHistory] = useState<AuditEntry[]>([]);
 
-  // Reschedule modal state
+  // Reschedule modal state — the shared RescheduleModal owns the form/step state.
   const [showReschedule, setShowReschedule] = useState(false);
-  const [rescheduleForm, setRescheduleForm] = useState({
-    new_date: "",
-    new_start_time: "",
-    new_end_time: "",
-    reason: "",
-  });
-  const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
 
   // Cancel modal state
   const [showCancel, setShowCancel] = useState(false);
@@ -183,6 +161,20 @@ export default function ServiceDetailPage() {
   const [assignedGardeners, setAssignedGardeners] = useState<
     { id: string; gardener_id: string; gardener_name: string; is_primary: boolean }[]
   >([]);
+
+  // On-demand: edit actual hours (recalcs the bill server-side).
+  const [editingHours, setEditingHours] = useState(false);
+  const [hoursDraft, setHoursDraft] = useState("");
+  const [hoursSaving, setHoursSaving] = useState(false);
+  // Rate/amount are hidden from gardeners (billing is ops-only).
+  const [isGardener, setIsGardener] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/ops/people/me/role")
+      .then((r) => r.json())
+      .then((d) => setIsGardener(d.data?.role === "gardener"))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -253,6 +245,41 @@ export default function ServiceDetailPage() {
     setReviewing(false);
   }
 
+  async function handleSaveHours() {
+    const val = parseFloat(hoursDraft);
+    if (!Number.isFinite(val) || val <= 0) {
+      alert("Enter valid hours (> 0)");
+      return;
+    }
+    setHoursSaving(true);
+    async function patch(override: boolean) {
+      const res = await fetch(`/api/ops/ondemand/services/${serviceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actual_hours_spent: val, override_soft_cap: override }),
+      });
+      return { res, json: await res.json().catch(() => ({})) };
+    }
+    try {
+      let { res, json } = await patch(false);
+      if (!res.ok && json?.soft_cap_exceeded) {
+        if (confirm(`${val}h is more than double the estimate. Save anyway?`)) {
+          ({ res, json } = await patch(true));
+        } else {
+          return;
+        }
+      }
+      if (!res.ok) {
+        alert(json.error ?? "Failed to update hours");
+        return;
+      }
+      setEditingHours(false);
+      await load();
+    } finally {
+      setHoursSaving(false);
+    }
+  }
+
   async function handleAddTasks(descriptions: string[], internalNotes: string) {
     if (!nextServiceId) return;
     // Collect the per-item translation outcome so we can confirm to the operator
@@ -317,38 +344,6 @@ export default function ServiceDetailPage() {
     await fetch(`/api/ops/services/${serviceId}/tasks?task_id=${taskId}`, {
       method: "DELETE",
     });
-    load();
-  }
-
-  async function handleReschedule() {
-    setRescheduleSubmitting(true);
-    const res = await fetch(
-      `/api/ops/schedule/services/${serviceId}/reschedule`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          new_date: rescheduleForm.new_date,
-          new_start_time: rescheduleForm.new_start_time || null,
-          new_end_time: rescheduleForm.new_end_time || null,
-          reason: rescheduleForm.reason,
-        }),
-      }
-    );
-    if (!res.ok) {
-      const json = await res.json();
-      alert(json.error ?? "Failed to reschedule");
-      setRescheduleSubmitting(false);
-      return;
-    }
-    setShowReschedule(false);
-    setRescheduleForm({
-      new_date: "",
-      new_start_time: "",
-      new_end_time: "",
-      reason: "",
-    });
-    setRescheduleSubmitting(false);
     load();
   }
 
@@ -431,12 +426,6 @@ export default function ServiceDetailPage() {
   }
 
   function openReschedule() {
-    setRescheduleForm({
-      new_date: service?.scheduled_date ?? "",
-      new_start_time: service?.time_window_start?.slice(0, 5) ?? "",
-      new_end_time: service?.time_window_end?.slice(0, 5) ?? "",
-      reason: "",
-    });
     setShowReschedule(true);
   }
 
@@ -683,6 +672,73 @@ export default function ServiceDetailPage() {
                 )}
               </div>
             ))}
+          </Card>
+        )}
+
+        {/* On-demand hours + billing */}
+        {service.is_ondemand && !isGardener && (
+          <Card title="On-demand · time & billing">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-charcoal mb-2">
+              <span>
+                <span className="text-sage">Estimated:</span>{" "}
+                {service.estimated_hours != null ? `${service.estimated_hours}h` : "—"}
+              </span>
+              <span>
+                <span className="text-sage">Rate:</span> ₹{service.hourly_rate ?? "—"}/hr
+              </span>
+              <span>
+                <span className="text-sage">Actual:</span>{" "}
+                {service.actual_hours_spent != null ? `${service.actual_hours_spent}h` : "—"}
+              </span>
+              <span>
+                <span className="text-sage">Amount:</span>{" "}
+                {service.actual_hours_spent != null && service.hourly_rate != null
+                  ? `₹${Math.round(service.actual_hours_spent * service.hourly_rate)}`
+                  : "—"}
+              </span>
+            </div>
+
+            {editingHours ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0.5}
+                  step={0.5}
+                  value={hoursDraft}
+                  onChange={(e) => setHoursDraft(e.target.value)}
+                  className={inputCls}
+                  placeholder="Actual hours"
+                />
+                <button
+                  onClick={handleSaveHours}
+                  disabled={hoursSaving}
+                  className="px-3 py-2 bg-forest text-offwhite rounded-xl text-sm hover:bg-garden disabled:opacity-40 whitespace-nowrap"
+                >
+                  {hoursSaving ? "…" : "Save"}
+                </button>
+                <button
+                  onClick={() => setEditingHours(false)}
+                  className="px-3 py-2 border border-stone rounded-xl text-sm text-charcoal"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setHoursDraft(
+                    service.actual_hours_spent != null ? String(service.actual_hours_spent) : ""
+                  );
+                  setEditingHours(true);
+                }}
+                className="text-sm text-forest hover:underline"
+              >
+                Edit actual hours
+              </button>
+            )}
+            <p className="text-xs text-sage mt-2">
+              Editing recalculates the bill (unless already paid).
+            </p>
           </Card>
         )}
 
@@ -1026,118 +1082,23 @@ export default function ServiceDetailPage() {
         />
       )}
 
-      {/* Reschedule modal */}
-      {showReschedule && (
-        <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 pb-20 px-4">
-          <div className="bg-offwhite rounded-2xl shadow-xl w-full max-w-[480px] p-6">
-            <h2 className="font-semibold text-charcoal mb-3">
-              Reschedule Service
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-sage mb-1">
-                  New date *
-                </label>
-                <input
-                  type="date"
-                  className={inputCls}
-                  value={rescheduleForm.new_date}
-                  onChange={(e) =>
-                    setRescheduleForm((f) => ({
-                      ...f,
-                      new_date: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-sage mb-1">
-                    Start time
-                  </label>
-                  <select
-                    className={inputCls}
-                    value={rescheduleForm.new_start_time}
-                    onChange={(e) => {
-                      const start = e.target.value;
-                      setRescheduleForm((f) => ({
-                        ...f,
-                        new_start_time: start,
-                        new_end_time: start ? addOneHour(start) : f.new_end_time,
-                      }));
-                    }}
-                  >
-                    <option value="">Select</option>
-                    {TIME_SLOTS.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-sage mb-1">
-                    End time
-                  </label>
-                  <select
-                    className={inputCls}
-                    value={rescheduleForm.new_end_time}
-                    onChange={(e) =>
-                      setRescheduleForm((f) => ({
-                        ...f,
-                        new_end_time: e.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">Select</option>
-                    {TIME_SLOTS.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-sage mb-1">
-                  Reason *
-                </label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="Why is this being rescheduled?"
-                  value={rescheduleForm.reason}
-                  onChange={(e) =>
-                    setRescheduleForm((f) => ({
-                      ...f,
-                      reason: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => setShowReschedule(false)}
-                  className="flex-1 py-2.5 border border-stone rounded-xl text-sm text-charcoal"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleReschedule}
-                  disabled={
-                    rescheduleSubmitting ||
-                    !rescheduleForm.new_date ||
-                    !rescheduleForm.reason
-                  }
-                  className="flex-1 py-2.5 bg-forest text-offwhite rounded-xl text-sm font-medium disabled:opacity-40"
-                >
-                  {rescheduleSubmitting ? "Saving…" : "Reschedule"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Reschedule modal (shared component) */}
+      <RescheduleModal
+        target={
+          showReschedule && service
+            ? {
+                id: service.id,
+                customer_id: service.customer_id,
+                customer_name: service.customer?.name ?? "",
+                scheduled_date: service.scheduled_date,
+                time_window_start: service.time_window_start,
+                time_window_end: service.time_window_end,
+              }
+            : null
+        }
+        onClose={() => setShowReschedule(false)}
+        onDone={() => load()}
+      />
 
       {/* Reassign gardener modal */}
       {showReassign && (

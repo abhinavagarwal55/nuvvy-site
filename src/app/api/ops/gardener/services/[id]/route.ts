@@ -76,7 +76,10 @@ export async function GET(
       // English label when template_item_id is null (template row deleted).
       .from("visit_checklist_items")
       .select(
-        "id, label, is_required, order_index, is_completed, completion_status, notes, template_item_id, checklist_template_items(label_hi, label_kn)"
+        // care_action_types is embedded via checklist_template_items.care_action_type_id
+        // so care-action-backed items (on-demand fertilizer/neem) resolve their
+        // localized label LIVE from Care Action Names.
+        "id, label, is_required, order_index, is_completed, completion_status, notes, template_item_id, checklist_template_items(label_hi, label_kn, care_action_types(display_name, display_name_hi, display_name_kn))"
       )
       .eq("visit_id", id)
       .order("order_index"),
@@ -145,16 +148,21 @@ export async function GET(
 
   // Normalise every checklist row to a flat { label, label_hi, label_kn } shape.
   // For snapshot rows the variants come from the joined template; the snapshot's
-  // own `label` is the English canonical (and the fallback).
+  // own `label` is the English canonical (and the fallback). For care-action-
+  // backed items (on-demand fertilizer/neem) the label + hi/kn come LIVE from
+  // the linked care_action_types row, so they stay in sync with Care Action
+  // Names.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const flattenTemplate = (row: any) => {
     const tpl = row.checklist_template_items;
     const t = Array.isArray(tpl) ? tpl[0] : tpl;
+    const ca = t?.care_action_types;
+    const caObj = Array.isArray(ca) ? ca[0] : ca;
     return {
       id: row.id,
-      label: row.label,
-      label_hi: t?.label_hi ?? null,
-      label_kn: t?.label_kn ?? null,
+      label: caObj?.display_name ?? row.label,
+      label_hi: caObj?.display_name_hi ?? t?.label_hi ?? null,
+      label_kn: caObj?.display_name_kn ?? t?.label_kn ?? null,
       is_required: row.is_required,
       order_index: row.order_index,
       is_completed: row.is_completed,
@@ -184,9 +192,27 @@ export async function GET(
     }));
   }
 
+  // On-demand flag + hourly rate. Rate is billing data — never exposed to
+  // gardeners (they don't bill; time/rate are handled offline by ops).
+  let isOnDemand = false;
+  let hourlyRate: number | null = null;
+  if (service.plan_id) {
+    const { data: plan } = await supabase
+      .from("service_plans")
+      .select("plan_type, hourly_rate")
+      .eq("id", service.plan_id)
+      .maybeSingle();
+    if (plan?.plan_type === "ondemand") {
+      isOnDemand = true;
+      hourlyRate = auth.role === "gardener" ? null : plan.hourly_rate ?? null;
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const responseData: Record<string, any> = {
     ...service,
+    is_ondemand: isOnDemand,
+    hourly_rate: hourlyRate,
     customer: customer
       ? {
           id: customer.id,

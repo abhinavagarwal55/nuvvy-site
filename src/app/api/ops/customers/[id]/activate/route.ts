@@ -64,10 +64,11 @@ export async function POST(
     );
   }
 
-  // ── plant_only: lightweight activation ──────────────────────────────────────
+  // ── plant_only / ondemand: lightweight activation ───────────────────────────
   // No plan, slot, visits, or care schedules. No plan-centric email. Just flip
-  // DRAFT → ACTIVE. (PRD §4 / §6 — FD-8.)
-  if (customer.customer_type === "plant_only") {
+  // DRAFT → ACTIVE. (PRD §4 / §6 — FD-8.) On-demand customers are billed
+  // per-service, so they follow the same lightweight path.
+  if (customer.customer_type === "plant_only" || customer.customer_type === "ondemand") {
     const { error: activateErr } = await supabase
       .from("customers")
       .update({ status: "ACTIVE" })
@@ -83,13 +84,13 @@ export async function POST(
       action: "customer.activated",
       targetTable: "customers",
       targetId: id,
-      metadata: { customer_type: "plant_only" },
+      metadata: { customer_type: customer.customer_type },
       ip,
       userAgent,
     });
 
     return NextResponse.json({
-      data: { customer_id: id, customer_type: "plant_only" },
+      data: { customer_id: id, customer_type: customer.customer_type },
     });
   }
 

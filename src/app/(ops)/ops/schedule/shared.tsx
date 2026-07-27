@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Calendar, MoreVertical, X } from "lucide-react";
+import { formatDate } from "@/lib/utils/format-date";
 
 /* ============================================================
  * Shared types, constants, helpers, and presentational pieces
@@ -19,6 +20,9 @@ export type Service = {
   gardener_name: string | null;
   assigned_gardener_id: string | null;
   gardener_ids: string[];
+  slot_id: string | null;
+  is_one_off: boolean | null;
+  is_ondemand?: boolean | null;
   scheduled_date: string;
   time_window_start: string | null;
   time_window_end: string | null;
@@ -26,6 +30,7 @@ export type Service = {
   started_at: string | null;
   completed_at: string | null;
   visit_duration_minutes: number | null;
+  visit_frequency: string | null; // 'weekly' | 'fortnightly' | 'monthly'
   unit_number: string | null;
   society_short: string | null;
   society_name: string | null;
@@ -185,6 +190,18 @@ export function blockDurationMinutes(svc: Service, now: Date): number {
 
 /** Returns Tailwind classes for a service pill based on status + time windows */
 export function getServiceStatusColor(svc: Service, now: Date): string {
+  // On-demand services get a distinct violet FILL so they pop against the
+  // green board (status is still conveyed by the status-label chip). Cancelled
+  // keeps its muted treatment.
+  if (svc.is_ondemand && svc.status !== "cancelled") {
+    return svc.status === "completed"
+      ? "bg-violet-200 border-l-violet-600"
+      : "bg-violet-100 border-l-violet-500";
+  }
+  return baseServiceStatusColor(svc, now);
+}
+
+function baseServiceStatusColor(svc: Service, now: Date): string {
   switch (svc.status) {
     case "completed":
       return "bg-[#EAF2EC] border-l-forest";
@@ -680,5 +697,405 @@ export function EventPill({
         )}
       </div>
     </div>
+  );
+}
+
+/* ============================================================
+ * Reschedule modal — shared by the Schedule page and the visit
+ * detail page. Supports "Move only this visit" (default) and the
+ * two-step "Move this visit and shift the schedule" (cadence shift).
+ * ============================================================ */
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Frequency → interval days. Mirrors FREQ_DAYS in scheduling.ts.
+const FREQ_DAYS: Record<string, number> = { weekly: 7, fortnightly: 14, monthly: 28 };
+
+function daysBetween(a: string, b: string): number {
+  return Math.abs(
+    (new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000
+  );
+}
+
+/** Minimal shape the reschedule modal needs. Slot fields are optional — when a
+ *  caller doesn't have them (visit detail), the modal derives them from the
+ *  customer's future-visits fetch. */
+export type RescheduleTarget = {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  scheduled_date: string;
+  time_window_start: string | null;
+  time_window_end: string | null;
+  slot_id?: string | null;
+  is_one_off?: boolean | null;
+  visit_frequency?: string | null;
+};
+
+type ShiftPreview = {
+  upcoming: { date: string; weekday: string; is_moved_visit: boolean }[];
+  removed: { date: string; weekday: string }[];
+  summary: string;
+};
+
+/**
+ * Compression detection (PRD §4): for a fortnightly/monthly visit, moving to
+ * `newDate` compresses the cadence if the nearest OTHER future scheduled visit
+ * on the same slot lands < one interval away. Returns the two close dates, or null.
+ */
+function detectCompression(
+  targetId: string,
+  slotId: string | null,
+  frequency: string | null,
+  newDate: string,
+  future: Service[]
+): { dateA: string; dateB: string } | null {
+  const interval = FREQ_DAYS[frequency ?? ""];
+  if (!interval || interval < 14) return null; // weekly/unknown → never prompt
+  let nearest: string | null = null;
+  let nearestGap = Infinity;
+  for (const v of future) {
+    if (v.id === targetId) continue;
+    if (v.slot_id !== slotId) continue;
+    if (v.status !== "scheduled") continue;
+    const gap = daysBetween(newDate, v.scheduled_date);
+    if (gap < nearestGap) {
+      nearestGap = gap;
+      nearest = v.scheduled_date;
+    }
+  }
+  return nearest && nearestGap < interval ? { dateA: newDate, dateB: nearest } : null;
+}
+
+export function RescheduleModal({
+  target,
+  onClose,
+  onDone,
+}: {
+  target: RescheduleTarget | null;
+  onClose: () => void;
+  onDone: () => void; // called after a successful commit (caller refreshes)
+}) {
+  const [form, setForm] = useState({
+    new_date: "",
+    new_start_time: "",
+    new_end_time: "",
+    reason: "",
+    scope: "this_visit" as "this_visit" | "this_and_following",
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"form" | "summary">("form");
+  const [preview, setPreview] = useState<ShiftPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [future, setFuture] = useState<Service[]>([]);
+
+  // Reset + hydrate whenever a new target is opened.
+  useEffect(() => {
+    if (!target) return;
+    setForm({
+      new_date: target.scheduled_date,
+      new_start_time: target.time_window_start ?? "",
+      new_end_time: target.time_window_end ?? "",
+      reason: "",
+      scope: "this_visit",
+    });
+    setError(null);
+    setStep("form");
+    setPreview(null);
+    setFuture([]);
+    const today = fmt(new Date());
+    // Include the target's own date so it's always present in the list (for slot info).
+    const fromDate = target.scheduled_date < today ? target.scheduled_date : today;
+    fetch(
+      `/api/ops/schedule/services?customer_id=${target.customer_id}&status=scheduled&date_from=${fromDate}`
+    )
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j) => setFuture((j.data ?? []) as Service[]))
+      .catch(() => setFuture([]));
+  }, [target]);
+
+  const post = useCallback(
+    (extra: Record<string, unknown>) =>
+      fetch(`/api/ops/schedule/services/${target!.id}/reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          new_date: form.new_date,
+          new_start_time: form.new_start_time || null,
+          new_end_time: form.new_end_time || null,
+          reason: form.reason,
+          ...extra,
+        }),
+      }),
+    [target, form]
+  );
+
+  if (!target) return null;
+
+  // Effective slot info: caller-provided (instant) → else derived from the fetch.
+  const derived = future.find((v) => v.id === target.id);
+  const slotId = target.slot_id ?? derived?.slot_id ?? null;
+  const isOneOff = target.is_one_off ?? derived?.is_one_off ?? null;
+  const frequency = target.visit_frequency ?? derived?.visit_frequency ?? null;
+  const isRecurring = !!slotId && !isOneOff;
+  const isShift = form.scope === "this_and_following";
+  const compression =
+    isRecurring && !isShift && DATE_RE.test(form.new_date)
+      ? detectCompression(target.id, slotId, frequency, form.new_date, future)
+      : null;
+
+  async function handleReschedule() {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await post({ scope: "this_visit" });
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to reschedule");
+        return;
+      }
+      onDone();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleShiftPreview() {
+    setError(null);
+    setPreviewLoading(true);
+    try {
+      const res = await post({ scope: "this_and_following", dry_run: true });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Failed to preview changes");
+        return;
+      }
+      setPreview(json.preview as ShiftPreview);
+      setStep("summary");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleShiftCommit() {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await post({ scope: "this_and_following" });
+      if (!res.ok) {
+        setError((await res.json()).error ?? "Failed to shift series");
+        return;
+      }
+      onDone();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <SlideUpModal
+      open={!!target}
+      onClose={onClose}
+      title={step === "summary" ? "Summary of changes" : "Reschedule Service"}
+    >
+      {step === "summary" && preview ? (
+        // ----- Step 2: Summary of changes -----
+        <div className="space-y-4">
+          <p className="text-sm text-charcoal">{preview.summary}</p>
+
+          <div>
+            <h3 className="text-xs font-medium text-sage uppercase tracking-wide mb-2">
+              Upcoming services
+            </h3>
+            <ul className="space-y-1.5">
+              {preview.upcoming.map((v) => (
+                <li
+                  key={v.date}
+                  className="flex items-center justify-between text-sm text-charcoal"
+                >
+                  <span>
+                    {v.weekday}, {formatDate(v.date)}
+                  </span>
+                  {v.is_moved_visit && (
+                    <span className="text-xs text-forest font-medium">moved visit</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {preview.removed.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-sage uppercase tracking-wide mb-2">
+                Visits that will be removed
+              </h3>
+              <ul className="space-y-1.5">
+                {preview.removed.map((v) => (
+                  <li key={v.date} className="text-sm text-terra line-through">
+                    {v.weekday}, {formatDate(v.date)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {error && <p className="text-sm text-terra">{error}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={() => {
+                setStep("form");
+                setError(null);
+              }}
+              disabled={submitting}
+              className="flex-1 border border-stone text-charcoal py-2.5 rounded-xl text-sm font-medium hover:bg-cream disabled:opacity-50 transition-colors min-h-[44px]"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleShiftCommit}
+              disabled={submitting}
+              className="flex-1 bg-forest text-offwhite py-2.5 rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-50 transition-colors min-h-[44px]"
+            >
+              {submitting ? "Shifting..." : "Confirm & shift series"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        // ----- Step 1: form -----
+        <div className="space-y-3">
+          <p className="text-xs text-sage">
+            {target.customer_name} &mdash; {formatDate(target.scheduled_date)}
+          </p>
+          <div>
+            <label className="block text-xs text-sage mb-1">New date *</label>
+            <input
+              type="date"
+              className={INPUT_CLS}
+              value={form.new_date}
+              onChange={(e) => setForm((f) => ({ ...f, new_date: e.target.value }))}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-sage mb-1">Start time</label>
+              <select
+                className={INPUT_CLS}
+                value={form.new_start_time}
+                onChange={(e) => {
+                  const start = e.target.value;
+                  setForm((f) => ({
+                    ...f,
+                    new_start_time: start,
+                    new_end_time: start ? addOneHour(start) : f.new_end_time,
+                  }));
+                }}
+              >
+                <option value="">Select</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-sage mb-1">End time</label>
+              <select
+                className={INPUT_CLS}
+                value={form.new_end_time}
+                onChange={(e) => setForm((f) => ({ ...f, new_end_time: e.target.value }))}
+              >
+                <option value="">Select</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {isRecurring && (
+            <div className="space-y-2 rounded-xl border border-stone p-3">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="reschedule-scope"
+                  className="mt-1 accent-forest"
+                  checked={form.scope === "this_visit"}
+                  onChange={() => setForm((f) => ({ ...f, scope: "this_visit" }))}
+                />
+                <span className="text-sm text-charcoal">
+                  Move only this visit
+                  <span className="block text-xs text-sage">
+                    Only the {formatDate(target.scheduled_date)} visit changes. The rest of the
+                    schedule stays as-is.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="reschedule-scope"
+                  className="mt-1 accent-forest"
+                  checked={form.scope === "this_and_following"}
+                  onChange={() => setForm((f) => ({ ...f, scope: "this_and_following" }))}
+                />
+                <span className="text-sm text-charcoal">
+                  Move this visit and shift the schedule
+                  <span className="block text-xs text-sage">
+                    All future visits shift to keep the rhythm from the new date, staying on the same
+                    weekday.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
+          {compression && (
+            <div className="rounded-xl bg-terra/10 border border-terra/30 p-3 text-xs text-terra">
+              Heads up — this would put two visits about a week apart ({formatDate(compression.dateA)}{" "}
+              and {formatDate(compression.dateB)}). Choose{" "}
+              <span className="font-medium">Move this visit and shift the schedule</span> to move the
+              whole series instead.
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs text-sage mb-1">Reason *</label>
+            <input
+              type="text"
+              className={INPUT_CLS}
+              placeholder="Why is this being rescheduled?"
+              value={form.reason}
+              onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+            />
+          </div>
+
+          {error && <p className="text-sm text-terra">{error}</p>}
+
+          {isShift ? (
+            <button
+              onClick={handleShiftPreview}
+              disabled={previewLoading || !form.new_date || !form.reason}
+              className="w-full bg-forest text-offwhite py-2.5 rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-50 transition-colors mt-2 min-h-[44px]"
+            >
+              {previewLoading ? "Loading preview..." : "Review changes →"}
+            </button>
+          ) : (
+            <button
+              onClick={handleReschedule}
+              disabled={submitting || !form.new_date || !form.reason}
+              className="w-full bg-forest text-offwhite py-2.5 rounded-xl text-sm font-medium hover:bg-garden disabled:opacity-50 transition-colors mt-2 min-h-[44px]"
+            >
+              {submitting ? "Rescheduling..." : "Reschedule visit"}
+            </button>
+          )}
+        </div>
+      )}
+    </SlideUpModal>
   );
 }

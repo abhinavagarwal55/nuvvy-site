@@ -30,12 +30,14 @@ type Customer = {
 const TYPE_BADGE: Record<CustomerType, string> = {
   care_plan: "bg-[#EAF2EC] text-forest",
   plant_only: "bg-stone/30 text-charcoal",
+  ondemand: "bg-terra/10 text-terra",
 };
 
 const TYPE_FILTERS: { value: string; label: string }[] = [
   { value: "all", label: "All" },
   { value: "care_plan", label: CUSTOMER_TYPE_LABELS.care_plan },
   { value: "plant_only", label: CUSTOMER_TYPE_LABELS.plant_only },
+  { value: "ondemand", label: CUSTOMER_TYPE_LABELS.ondemand },
 ];
 
 const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
@@ -105,6 +107,7 @@ export default function CustomersPage() {
       all: allCustomers.length,
       care_plan: allCustomers.filter((c) => c.customer_type === "care_plan").length,
       plant_only: allCustomers.filter((c) => c.customer_type === "plant_only").length,
+      ondemand: allCustomers.filter((c) => c.customer_type === "ondemand").length,
     }),
     [allCustomers]
   );
@@ -295,14 +298,15 @@ function CustomerCard({ customer, onDeleted }: { customer: Customer; onDeleted?:
                   customer.plant_count_range}
               </span>
             )}
-            {/* Care-only warnings — meaningless for plant_only (no slot/care). */}
-            {customer.customer_type !== "plant_only" && customer.has_slot === false && (
+            {/* Care-only warnings — only for care_plan (plant_only + ondemand
+                have no slot/care/photo setup). */}
+            {customer.customer_type === "care_plan" && customer.has_slot === false && (
               <span className="text-terra font-medium">Slot needed</span>
             )}
-            {customer.customer_type !== "plant_only" && customer.has_care_schedules === false && (
+            {customer.customer_type === "care_plan" && customer.has_care_schedules === false && (
               <span className="text-terra font-medium">Care schedules needed</span>
             )}
-            {customer.customer_type !== "plant_only" && customer.has_photos === false && (
+            {customer.customer_type === "care_plan" && customer.has_photos === false && (
               <span className="text-terra font-medium">Photos needed</span>
             )}
           </div>

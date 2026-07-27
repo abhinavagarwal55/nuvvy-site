@@ -53,7 +53,9 @@ export async function POST(
   // "Customer: Unknown" emails).
   const { data: service } = await supabase
     .from("service_visits")
-    .select("id, status, customer_id, assigned_gardener_id, customers(name)")
+    .select(
+      "id, status, customer_id, assigned_gardener_id, scheduled_date, plan_id, customers(name), service_plans(plan_type)"
+    )
     .eq("id", id)
     .single();
 
@@ -63,6 +65,9 @@ export async function POST(
 
   const customerName =
     (service.customers as unknown as { name: string } | null)?.name ?? "Unknown";
+
+  const plan = service.service_plans as unknown as { plan_type: string } | null;
+  const isOnDemand = plan?.plan_type === "ondemand";
 
   if (
     auth.role === "gardener" &&
@@ -287,6 +292,19 @@ export async function POST(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // 7b. On-demand: fertilizer + neem are always applied on the visit — stamp the
+  // customer. Time-logging + billing happen offline (horti enters hours on the
+  // service review screen), so no bill is generated here.
+  if (isOnDemand) {
+    await supabase
+      .from("customers")
+      .update({
+        last_fertilizer_applied_at: service.scheduled_date,
+        last_neem_applied_at: service.scheduled_date,
+      })
+      .eq("id", service.customer_id);
   }
 
   // Send email notification (fire-and-forget)
