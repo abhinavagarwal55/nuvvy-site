@@ -34,7 +34,7 @@ const PRICING_CARDS: PricingCard[] = [
   {
     key: "regular",
     title: "Regular Care",
-    price: "Starting ₹399/month",
+    price: "Starting ₹499/month",
     subprice: "Monthly • Bi-weekly visits • Price varies by number of plants",
     inclusions: [
       "Everything in one-time service",
