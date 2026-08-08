@@ -139,6 +139,8 @@ const saveSchema = z.object({
         id: z.string().uuid(),
         quantity: z.number().int().min(1).nullable().optional(),
         note: z.string().nullable().optional(),
+        // Horticulturist "why picked" tip surfaced to the customer.
+        why_picked_for_balcony: z.string().nullable().optional(),
       })
     )
     .default([]),

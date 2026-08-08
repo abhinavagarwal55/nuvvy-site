@@ -163,7 +163,10 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
         const m = new Map<string, { quantity: string; note: string }>();
         d.list.sections.forEach((s) =>
           s.items.forEach((i) => {
-            m.set(i.id, { quantity: i.quantity != null ? String(i.quantity) : "", note: i.note ?? "" });
+            // The "Care notes, why picked…" field is the horticulturist tip shown
+            // to the customer, which is stored in why_picked_for_balcony. Fall back
+            // to the legacy `note` column so notes typed before this fix still show.
+            m.set(i.id, { quantity: i.quantity != null ? String(i.quantity) : "", note: i.why_picked_for_balcony ?? i.note ?? "" });
           })
         );
         setForm(m);
@@ -434,7 +437,9 @@ export default function CuratedListEditorPage({ params }: { params: Promise<{ id
   function buildItemsPayload() {
     return Array.from(form.entries()).map(([id, v]) => {
       const q = parseInt(v.quantity, 10);
-      return { id, quantity: isNaN(q) ? null : q, note: v.note.trim() || null };
+      // Save the horticulturist tip to why_picked_for_balcony — the field the
+      // customer-facing curated list renders as "Horticulturist tip".
+      return { id, quantity: isNaN(q) ? null : q, why_picked_for_balcony: v.note.trim() || null };
     });
   }
 

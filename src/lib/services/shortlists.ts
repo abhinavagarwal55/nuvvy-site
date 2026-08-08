@@ -407,13 +407,14 @@ export async function updateShortlistMeta(
 export async function updateDraftItems(
   supabase: Supabase,
   shortlistId: string,
-  items: { id: string; quantity?: number | null; note?: string | null }[]
+  items: { id: string; quantity?: number | null; note?: string | null; why_picked_for_balcony?: string | null }[]
 ): Promise<ServiceResult<{ success: true }>> {
   for (const item of items) {
     if (!item.id) continue;
     const updateData: Record<string, unknown> = {};
     if (item.quantity !== undefined) updateData.quantity = item.quantity;
     if (item.note !== undefined) updateData.note = item.note;
+    if (item.why_picked_for_balcony !== undefined) updateData.why_picked_for_balcony = item.why_picked_for_balcony;
     if (Object.keys(updateData).length === 0) continue;
 
     const { error } = await supabase
