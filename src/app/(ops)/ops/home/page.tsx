@@ -322,7 +322,7 @@ function HortiView({ data }: { data: HortiDashboard }) {
     <>
       {/* Unreviewed */}
       {data.unreviewed_services > 0 && (
-        <Link href="/ops/services">
+        <Link href="/ops/services?review=pending">
           <div className="bg-terra/5 rounded-2xl border border-terra/20 p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-terra uppercase tracking-widest mb-1">

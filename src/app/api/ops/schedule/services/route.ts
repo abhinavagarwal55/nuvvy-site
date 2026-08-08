@@ -23,6 +23,9 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
   const dateFrom = searchParams.get("date_from");
   const dateTo = searchParams.get("date_to");
   const status = searchParams.get("status");
+  // review=pending mirrors the horticulturist dashboard's "Services to Review"
+  // count: completed/not_completed visits that haven't been reviewed yet.
+  const review = searchParams.get("review");
 
   const supabase = getSupabaseAdmin();
 
@@ -39,7 +42,7 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
   let query = supabase
     .from("service_visits")
     .select(
-      "id, customer_id, assigned_gardener_id, slot_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, is_one_off, not_completed_reason, plan_id"
+      "id, customer_id, assigned_gardener_id, slot_id, scheduled_date, time_window_start, time_window_end, status, started_at, completed_at, reviewed_at, is_one_off, not_completed_reason, plan_id"
     )
     .order("scheduled_date", { ascending: true });
 
@@ -50,7 +53,13 @@ export const GET = withPerfLog('/api/ops/schedule/services', async (request: Nex
   }
   if (dateFrom) query = query.gte("scheduled_date", dateFrom);
   if (dateTo) query = query.lte("scheduled_date", dateTo);
-  if (status) query = query.eq("status", status);
+  if (review === "pending") {
+    // "To review" is not a status — it's completed/not_completed work that
+    // still needs a horticulturist sign-off. Takes precedence over status.
+    query = query.in("status", ["completed", "not_completed"]).is("reviewed_at", null);
+  } else if (status) {
+    query = query.eq("status", status);
+  }
 
   const { data, error } = await ctx.trackQuery(async () => await query.limit(200));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

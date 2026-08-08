@@ -47,10 +47,22 @@ export default function ServiceLogPage() {
       .catch(() => {});
   }, []);
 
+  // Honor an initial filter passed via the URL, e.g. the dashboard's
+  // "Services to Review" widget links here with ?review=pending.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("review") === "pending") setStatusFilter("to_review");
+    else {
+      const s = sp.get("status");
+      if (s) setStatusFilter(s);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (statusFilter === "to_review") params.set("review", "pending");
+    else if (statusFilter !== "all") params.set("status", statusFilter);
     if (dateFrom) params.set("date_from", dateFrom);
     if (dateTo) params.set("date_to", dateTo);
     if (gardenerFilter) params.set("gardener_id", gardenerFilter);
@@ -77,7 +89,7 @@ export default function ServiceLogPage() {
 
         {/* Filters */}
         <div className="flex gap-2 overflow-x-auto pb-2">
-          {["all", "scheduled", "in_progress", "completed", "not_completed", "cancelled"].map((s) => (
+          {["all", "to_review", "scheduled", "in_progress", "completed", "not_completed", "cancelled"].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -87,7 +99,7 @@ export default function ServiceLogPage() {
                   : "bg-cream text-charcoal border-stone"
               }`}
             >
-              {s === "all" ? "All" : STATUS_CLS[s]?.label ?? s}
+              {s === "all" ? "All" : s === "to_review" ? "To Review" : STATUS_CLS[s]?.label ?? s}
             </button>
           ))}
         </div>
